@@ -47,7 +47,7 @@ COMMENT ON TABLE iam.iam_user_accounts IS 'IT cấp tài khoản cho Membership.
 COMMENT ON COLUMN iam.iam_user_accounts.user_account_id IS 'Khóa account bất biến';
 COMMENT ON COLUMN iam.iam_user_accounts.membership_id IS 'Chủ thể nhân sự được cấp account';
 COMMENT ON COLUMN iam.iam_user_accounts.username IS 'Khởi tạo bằng employee_code; không dùng làm PK';
-COMMENT ON COLUMN iam.iam_user_accounts.account_status IS 'PROVISIONED, ACTIVE, SUSPENDED, DISABLED';
+COMMENT ON COLUMN iam.iam_user_accounts.account_status IS 'PROVISIONED, ACTIVE, LOCKED, DISABLED';
 COMMENT ON COLUMN iam.iam_user_accounts.created_by_account_id IS 'IT tạo tài khoản';
 COMMENT ON COLUMN iam.iam_user_accounts.created_at IS 'Thời điểm cấp';
 COMMENT ON COLUMN iam.iam_user_accounts.activated_at IS 'Thời điểm đã hoàn tất đổi mật khẩu lần đầu';
@@ -236,7 +236,7 @@ COMMENT ON COLUMN iam.iam_audit_logs.session_id IS 'Phiên thực hiện';
 COMMENT ON COLUMN iam.iam_audit_logs.action_code IS 'LOGIN, CHANGE_PASSWORD, VERIFY_EMAIL, GRANT_PERMISSION...';
 COMMENT ON COLUMN iam.iam_audit_logs.target_type IS 'Loại đối tượng thay đổi';
 COMMENT ON COLUMN iam.iam_audit_logs.target_id IS 'Khóa đối tượng';
-COMMENT ON COLUMN iam.iam_audit_logs.outcome IS 'SUCCESS, DENIED, FAILED';
+COMMENT ON COLUMN iam.iam_audit_logs.outcome IS 'SUCCESS, FAILURE, DENIED';
 COMMENT ON COLUMN iam.iam_audit_logs.occurred_at IS 'Thời điểm phát sinh';
 COMMENT ON COLUMN iam.iam_audit_logs.metadata IS 'Thông tin đã loại secret và dữ liệu nhạy cảm';
 
