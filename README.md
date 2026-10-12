@@ -18,3 +18,11 @@ Mở **catalog.html** để xem cây thư mục và chức năng của từng th
 ## Nguyên tắc
 
 Claude Code chỉ triển khai theo yêu cầu được chấp thuận. Không tự thay đổi quy tắc nghiệp vụ, SQL/schema/migration hoặc tài liệu gốc. Nếu cần thay đổi ngoài phạm vi, phải báo và xin quyết định.
+
+## Chạy Development
+
+- **Windows:** giải nén rồi nhấp đúp `run-dev.cmd` ở thư mục gốc.
+- **Linux/macOS:** `bash run-dev.sh`.
+- **Chạy riêng:** `cd frontend && npm run dev` hoặc `cd backend && npm run dev`.
+
+Các launcher **không tự cài package hoặc khởi tạo database**; chúng kiểm tra `scripts.dev` và `node_modules` trước khi khởi chạy. Hiện cả frontend/backend chỉ là placeholder nên launcher sẽ thông báo `NOT READY`, không chạy dịch vụ nào. Khi Claude Code scaffold phần mềm, cần bổ sung script `dev`, source code và cài dependencies theo task được duyệt. Catalog HTML chỉ có thể cung cấp nút sao chép lệnh/tải launcher; không thể tự thực thi terminal trên máy.
