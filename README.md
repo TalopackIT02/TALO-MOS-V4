@@ -1,19 +1,20 @@
 # TALO-MOS-V4
 
-**Status:** BOOTSTRAP / NO APPLICATION IMPLEMENTED.
-
-Đây là repository WebApp tích hợp source code, inputs của User, thiết kế, quy định kỹ thuật và đầu ra của Claude Code. **Không dùng AI_HUB hoặc AI_WORK.**
+Repository WebApp Fullstack: **ReactJS frontend**, **Node.js/ExpressJS backend**, **PostgreSQL** và **Prisma ORM** theo tài liệu kỹ thuật của dự án.
 
 ## Bắt đầu
-1. Đọc `CATALOG.md` để hiểu cấu trúc folder.
-2. Đọc `governance/CLAUDE_CODE_LAW.md`, `governance/PROTECTED_SCOPE.md` và `CLAUDE.md`.
-3. Điền các quyết định chính thức vào `governance/TECHNOLOGY_REGISTRY.md` và `governance/ARCHITECTURE.md` (chỉ User hoặc quy trình được User phê duyệt).
-4. Đặt tài liệu đầu vào vào `inputs/`, SQL tham chiếu vào `database/design/`.
-5. Trước khi coding, tạo TASK, Plan, ghi phê duyệt, phạm vi file, test và thực hiện đúng quy trình.
 
-## Giới hạn bản khởi tạo
-- Chưa chọn frontend/backend framework, runtime, database engine hay package manager.
-- `apps/`, `packages/`, `tests/` là scaffold thư mục, **chưa có ứng dụng chạy**; không có lệnh start/build/test thực tế.
-- Không chứa SQL schema, database connection, credentials hoặc migration.
-- File `.env.example` chỉ mô tả nguyên tắc, không chứa thông số cấu hình được bịa ra.
-- LAW là hướng dẫn hành vi; để bảo vệ thực tế cần cấp quyền filesystem, database, Git và Claude Code tool permissions theo môi trường triển khai.
+Mở **catalog.html** để xem cây thư mục và chức năng của từng thư mục/file. File HTML hoạt động offline.
+
+- `frontend/`: giao diện React; chưa scaffold / chưa chạy được.
+- `backend/`: API Express; chưa scaffold / chưa chạy được.
+- `database/`: tài liệu SQL và vị trí Prisma schema/migrations; chưa có schema hay dữ liệu thật.
+- `documents/`: tài liệu User cung cấp.
+- `tests/`: kiểm thử.
+- `docker/`: cấu hình hạ tầng; chưa triển khai.
+
+**Lưu ý:** Các thư mục trống có `.gitkeep` để Git có thể theo dõi. `docker-compose.yml` chỉ là placeholder, không được coi là môi trường đã cấu hình. Các phiên bản công nghệ và JavaScript/TypeScript chưa được chốt.
+
+## Nguyên tắc
+
+Claude Code chỉ triển khai theo yêu cầu được chấp thuận. Không tự thay đổi quy tắc nghiệp vụ, SQL/schema/migration hoặc tài liệu gốc. Nếu cần thay đổi ngoài phạm vi, phải báo và xin quyết định.
