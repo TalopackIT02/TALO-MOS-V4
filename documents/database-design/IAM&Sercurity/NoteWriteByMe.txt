@@ -1,0 +1,20 @@
+1. Định hướng quy mô hệ thống
+Theo đánh giá, hiện tại phiên bản thiết kế này quá lớn giành cho một doanh nghiệp tầm trung, không có tập đoàn hay chi nhánh phụ. Nhưng việc thiết kế tài khoản có phân cấp chi nhánh vẫn là điều tốt nhưng chỉ dừng ở phần chờ phát triển.
+
+2. Quan hệ User và Membership
+Ngoài ra, hệ thống này đang lập theo hướng, mỗi tài khoản chỉ gán với duy nhất một người dù người đó có nghỉ, nhưng tôi vẫn muốn thiên về User và Membership là 2 chủ thể tách biệt. Vì Membership có thể luân chuyển hoặc 1 membership có thể có nhiều vai trò khác nhau, họ có thể chuyển giữa nhiều tab user khác nhau.
+
+3. Cơ chế chuyển đổi User
+Nhầm tránh việc người dùng sử dụng quá nhiều role mở cùng lúc làm việc theo dõi bị quá tải hoặc rối mắt, thì tôi muốn có cơ chế switch giữa 2 user khác nhau.
+
+4. Định nghĩa User, Membership và Role
+User theo tôi định hình là User Account - Tài khoản người dùng
+
+Membership là định danh người dùng - Khi người dùng tham gia vào hệ thống nhân sự của công ty thì đã có Membership nhưng người đó không có user account nào để truy cập vào hệ thống, và khi đó I.T sẽ cấp cho người đó một cái UserAccount, UserAccount sẽ lấy chính mã số nhân viên của người đó để làm, và password ban đầu sẽ được cấp và thay đổi sau khi người dùng đăng nhập vào lần đầu và thay đổi, khi này trạng thái tài khoản được đưa vào xác thực cấp 1
+
+5. Quy trình cấp Role và xác thực cấp 2
+Role sẽ được cấp khi UserAccount được tạo, trước khi trạng thái xác thực được thực hiện, hoặc nếu cần thì vẫn có thể cấp sau.
+Ở cấp 2 khi người dùng email liên kết xác thực để kịch hoạt. Nếu không tài khoản wsẽ bị hạn chế một số chức năng như thay đổi tài khoản, hoặc yêu cầu cao cấp hơn trong tương lại
+
+6. Định nghĩa Role và quyền cấp lẻ
+Role được định nghĩa như một pack quyền, chức năng mặc định, User vấn có thể nhận được các quyền/ chức năng ngoài role và được cấp lẻ theo yêu cầu trên công ty.
