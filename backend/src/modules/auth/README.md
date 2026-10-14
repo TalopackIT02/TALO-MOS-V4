@@ -47,14 +47,36 @@ internally and never redistributed. SHA-1 is only the lookup key of this dataset
 - **P-4d limit:** a hash dataset cannot be matched case-insensitively. The lookup checks the NFC value as typed,
   lower case, UPPER CASE, Capitalised and Title Case. Other spellings of a breached password are not detected.
 
-Install / update (new version = new directory, then switch):
+Formats (`PWNED_PASSWORDS_FORMAT`, no fallback between them — a missing/invalid dataset of the chosen format fails closed):
+
+- `text` (default during testing): the range directory itself, with `manifest.json`.
+- `compact` (target format): one file `TALOPWN1` (header + 8 MiB index + 8 bytes per hash + SHA-256 trailer), ≈ 8 B/hash
+  vs ≈ 39 B/hash as text (≈ 17 GB vs ≈ 82 GB for the full set). Keys keep the first 64 bits of the 140-bit suffix: a
+  false positive (non-breached password refused) has probability ≈ 1e-16 per lookup; a breached hash is never missed.
+  `PWNED_PASSWORDS_DIR` then points to a directory with the `.bin` versions and `current.json`, which binds the active
+  file to its SHA-256 and entry count. Activation is an atomic rename; it takes effect at the next process start.
+
+Install the official downloader (.NET SDK required; BSD-3-Clause, github.com/HaveIBeenPwned/PwnedPasswordsDownloader;
+the NuGet package is not prefix-"verified", so check the package owner `troyhunt` before installing). Pin the version:
 
 ```text
-haveibeenpwned-downloader <dir>/hibp-YYYYMMDD            # official .NET tool, directory mode (one file per prefix), SHA-1
+dotnet tool install --global haveibeenpwned-downloader --version 0.5.2608.1930
+```
+
+Install / update (new version = new directory / new file, then switch):
+
+```text
+haveibeenpwned-downloader <dir>/hibp-YYYYMMDD -p 8       # SHA-1, directory mode (default: one file per prefix); no --single, no --ntlm
 cd backend
 npm run pwned:manifest -- <dir>/hibp-YYYYMMDD --downloader "haveibeenpwned-downloader <version>"   # version + treeSha256
 npm run pwned:verify   -- <dir>/hibp-YYYYMMDD           # recompute checksum before switching
-# set PWNED_PASSWORDS_DIR=<dir>/hibp-YYYYMMDD, restart, keep the previous directory until the new one is verified
+# text:    set PWNED_PASSWORDS_DIR=<dir>/hibp-YYYYMMDD, PWNED_PASSWORDS_FORMAT=text, restart
+# compact: (needs ≈ 17 GB more while the text directory exists)
+npm run pwned:compact -- convert  <dir>/hibp-YYYYMMDD <compactDir>/hibp-YYYYMMDD.bin   # prints sha256 + source tree
+npm run pwned:compact -- verify   <compactDir>/hibp-YYYYMMDD.bin
+npm run pwned:compact -- activate <compactDir> hibp-YYYYMMDD.bin <source tree sha256>
+#          set PWNED_PASSWORDS_DIR=<compactDir>, PWNED_PASSWORDS_FORMAT=compact, restart
+# keep the previous directory / .bin until the new version is verified in service
 ```
 
 ## Provisioning by IT — temporary password (P-4e)

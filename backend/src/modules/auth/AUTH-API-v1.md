@@ -83,7 +83,7 @@ reason codes never reach the client.
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | non-JSON content type on POST | no |
 | 429 | `RATE_LIMITED` | IP rate limit, evaluated **before** any Argon2 work (P-5, P-7): login **60 requests / 15 min / IP** (local, DECIDED); first-change threshold PENDING (§13.2) | no — per IP |
 | 500 | `INTERNAL_ERROR` | unexpected, non-retryable error. During login it must not depend on whether the account exists (implementation blocker IB-1, §4.5) | must not (login) |
-| 503 | `SERVICE_BUSY` | (a) password-hashing queue full / timed out — limits PENDING (P-6b); (b) unrecoverable database error after the retry limit on `40P01` / `40001` (§9) | (a) no — global; (b) reachable only after proof of the password (login) or with a valid Activation Session (first-change), §4.5 |
+| 503 | `SERVICE_BUSY` | (a) password-hashing queue full / timed out — limits PENDING (P-6b); (b) unrecoverable database error after the retry limit on `40P01` / `40001` (§9); (c) first-change only: offline breached-password dataset missing or invalid (fail closed, §5.3) | (a), (c) no — global; (b) reachable only after proof of the password (login) or with a valid Activation Session (first-change), §4.5 |
 
 ## 3. Sessions and cookie
 
@@ -294,7 +294,7 @@ before INV-10 may be reported as passing):
 | ≤ 512 UTF-8 bytes | DECIDED | `TOO_LONG_BYTES` |
 | No composition rules | DECIDED | — |
 | No C0 (U+0000–U+001F), DEL (U+007F) or C1 (U+0080–U+009F) control character | DECIDED (P-4c) | `CONTROL_CHARACTERS` |
-| Whole-password, **case-insensitive** match against the offline blocklist (never substrings) | DECIDED (P-4d); source, size, update process PENDING (P-4a/b) | `BLOCKLISTED` |
+| Whole-password match against the offline **Have I Been Pwned "Pwned Passwords"** dataset (SHA-1 range lookup, never substrings) of the NFC value in **at most 5 case variants**: as typed, lower case, UPPER CASE, Capitalised, Title Case. This is **not** a full case-insensitive match: the dataset holds hashes only, so other spellings of a breached password are not detected. Dataset missing or invalid → `503 SERVICE_BUSY` (fail closed) | DECIDED (P-4a source, P-4d as amended for a hash dataset); full dataset installation PENDING (P-4b) | `BLOCKLISTED` |
 | Whole-password, **case-insensitive** contextual checks (username, employee code, name variants, brand names + fixed suffixes) | DECIDED (P-4d) | `CONTEXT_MATCH` |
 | Must differ from the current password — checked by Argon2id verify of the NFC new password against the current `password_hash`; no plaintext of the old password is stored, kept or logged | DECIDED | `SAME_AS_CURRENT` |
 
@@ -411,7 +411,7 @@ contains a password, token, hash, attempted username, SQL text or driver message
 | CT-L6 | input | over-long password, wrong types, missing fields, C0, DEL or C1 character in the password | 400 VALIDATION_ERROR before any DB access |
 | CT-L7 | rate limit | 61st login request from one IP within 15 min (local config) | 429 before validation and Argon2 (spy: 0 calls); another IP unaffected |
 | CT-F1 | first-change | valid change | 200 PASSWORD_CHANGED_RELOGIN, cookie cleared, all sessions revoked, account ACTIVE, old password rejected, new password logs in |
-| CT-F2 | policy | each §5.3 reason, including `SAME_AS_CURRENT` (new = temporary password, also after NFC) and case variants of blocklist/contextual entries | 400 PASSWORD_POLICY with `details.reason`; no blocklist entry disclosed; no plaintext in DB or logs |
+| CT-F2 | policy | each §5.3 reason, including `SAME_AS_CURRENT` (new = temporary password, also after NFC), case variants of contextual entries, the 5 defined case variants of breached entries, and a breached spelling outside those variants (accepted — documented limit) | 400 PASSWORD_POLICY with `details.reason`; no blocklist entry disclosed; no plaintext in DB or logs |
 | CT-F3 | concurrency | two first-change requests in parallel | exactly one 200; the other 401 SESSION_INVALID; one new hash |
 | CT-F4 | allowlist | activation session calls another authenticated endpoint | 403 PASSWORD_CHANGE_REQUIRED |
 | CT-F5 | expiry | activation session older than 15 min (DB time) | 401 SESSION_INVALID |
@@ -443,7 +443,8 @@ contains a password, token, hash, attempted username, SQL text or driver message
 | AD-3, AD-4, AD-5, AD-6, P-1, P-4 (length, NFC, no trim, no composition), P-5, P-6a, SC-5 H-b, D = 30 s, writer protocol, D-B1-2, D-UI-1/2 | as written in this document |
 | AD-1 / D-B1-1 | a successful first change issues no Authenticated Session; the user must log in again |
 | P-4c | C0 (U+0000–U+001F), DEL (U+007F) and C1 (U+0080–U+009F) rejected — login `400 VALIDATION_ERROR`, first-change `PASSWORD_POLICY / CONTROL_CHARACTERS` |
-| P-4d | whole-password, case-insensitive blocklist match and contextual checks |
+| P-4d (amended) | contextual checks: whole-password, case-insensitive. Breached-password check (HIBP): whole-password, at most 5 case variants (as typed, lower, UPPER, Capitalised, Title Case) — not full case-insensitivity |
+| P-4a | breached-password source: HIBP Pwned Passwords, offline, SHA-1 ranges, outside Git and the database, manifest + checksum; missing/invalid dataset → fail closed |
 | `SAME_AS_CURRENT` | new password must differ from the current one; checked by Argon2id verify against the current hash; no plaintext stored |
 | P-6 (local) | Argon2id `m = 19 MiB, t = 2, p = 1` (local baseline, not a production benchmark) |
 | P-7 (local) | login: 60 requests / 15 min / IP, evaluated before validation and any Argon2 work, `429 RATE_LIMITED` |
@@ -460,7 +461,7 @@ contains a password, token, hash, attempted username, SQL text or driver message
 
 | Item | Why pending / concrete scope |
 |---|---|
-| P-4a/b blocklist | source, licence, size, update process |
+| P-4b blocklist dataset | download and installation of the full HIBP dataset (≈ 75–80 GB as text) and its storage format; manifest/verify tooling exists |
 | P-4e temporary password issued by IT | the provisioning sources (Spec v0.2, IAM SQL comments, Handoff §4) only fix: IT issues it, only the Argon2id hash is stored, `must_change_password = true`. Not decided: generation (length, character set, randomness source), whether the PW3 limits apply to it, delivery channel to the employee, expiry of an unused temporary password |
 | P-6b production | Argon2id production parameters, concurrency limit, p95 target, queue timeout — benchmark on deployment hardware |
 | P-7 beyond local login | production thresholds; threshold for `POST /api/auth/password/first-change` |

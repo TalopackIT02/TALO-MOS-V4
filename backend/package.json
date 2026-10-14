@@ -19,7 +19,8 @@
     "prisma:generate": "prisma generate",
     "provision:account": "tsx --env-file-if-exists=../.env src/modules/auth/provisioning/cli.ts",
     "pwned:manifest": "tsx src/modules/auth/tools/pwnedManifest.ts create",
-    "pwned:verify": "tsx src/modules/auth/tools/pwnedManifest.ts verify"
+    "pwned:verify": "tsx src/modules/auth/tools/pwnedManifest.ts verify",
+    "pwned:compact": "tsx src/modules/auth/tools/pwnedCompact.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "2.2.1",

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -39,6 +39,19 @@ describe('Pwned Passwords offline store', () => {
     expect(await store.isBreached('pAsswordPassword9')).toBe(true); // exact spelling
     expect(caseVariants('passwordpassword9')).not.toContain('pAsswordPassword9');
     expect(await store.isBreached('passwordpassword9')).toBe(false); // same letters, other case: NOT detected
+  });
+
+  it('P-4d (amended) contract and code agree: at most 5 named variants, documented limit, fail closed 503', async () => {
+    expect(caseVariants('xin chào hà nội')).toEqual(['xin chào hà nội', 'XIN CHÀO HÀ NỘI', 'Xin chào hà nội', 'Xin Chào Hà Nội']);
+    expect(caseVariants('mIxEd cAsE pAss')).toEqual(['mIxEd cAsE pAss', 'mixed case pass', 'MIXED CASE PASS', 'Mixed case pass', 'Mixed Case Pass']);
+    const contract = await readFile(join(import.meta.dirname, '../../../src/modules/auth/AUTH-API-v1.md'), 'utf8');
+    const openApi = await readFile(join(import.meta.dirname, '../../../src/modules/auth/AUTH-API-v1.yaml'), 'utf8');
+    expect(contract).toContain('**at most 5 case variants**: as typed, lower case, UPPER CASE, Capitalised, Title Case');
+    expect(contract).toContain('This is **not** a full case-insensitive match');
+    expect(contract).toContain('Dataset missing or invalid → `503 SERVICE_BUSY` (fail closed)');
+    expect(contract).toContain('contextual checks: whole-password, case-insensitive');
+    expect(openApi).toMatch(/case-insensitive whole-password contextual checks/);
+    expect(openApi).toMatch(/at most 5 case variants\s+—\s+not full case-insensitivity/);
   });
 
   it('is NFC-based: a decomposed input is normalised by the caller before lookup', async () => {

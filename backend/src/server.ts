@@ -26,6 +26,7 @@ async function main(): Promise<void> {
     const auth = await createAuthModule({
       prisma: getPrismaClient(config.databaseUrl), logger, production: config.nodeEnv === 'production',
       pwnedPasswordsDir: config.pwnedPasswordsDir,
+      pwnedPasswordsFormat: config.pwnedPasswordsFormat,
     });
     apiRouters.push(auth.router);
   } else {

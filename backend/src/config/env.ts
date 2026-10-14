@@ -14,6 +14,9 @@ export interface AppConfig {
   readonly databaseUrl: string | undefined;
   // Directory of the offline Pwned Passwords dataset (outside Git, outside the database). Required in production.
   readonly pwnedPasswordsDir: string | undefined;
+  // Dataset format in that directory: "text" (range files + manifest.json) or "compact" (current.json → *.bin).
+  // Chosen explicitly; there is no automatic fallback from one format to the other.
+  readonly pwnedPasswordsFormat: 'text' | 'compact';
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
 }
 
@@ -40,6 +43,7 @@ const RawEnv = z.object({
   TRUST_PROXY: optionalString,
   DATABASE_URL: optionalString,
   PWNED_PASSWORDS_DIR: optionalString,
+  PWNED_PASSWORDS_FORMAT: z.preprocess((value) => (value === '' ? undefined : value), z.enum(['text', 'compact']).default('text')),
   LOG_LEVEL: z.preprocess((value) => (value === '' ? undefined : value), z.enum(['debug', 'info', 'warn', 'error']).default('info')),
 });
 
@@ -129,6 +133,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     trustProxy: parseTrustProxy(raw.TRUST_PROXY, issues),
     databaseUrl: parseDatabaseUrl(raw.DATABASE_URL, issues),
     pwnedPasswordsDir: raw.PWNED_PASSWORDS_DIR,
+    pwnedPasswordsFormat: raw.PWNED_PASSWORDS_FORMAT,
     logLevel: raw.LOG_LEVEL,
   };
   if (config.nodeEnv === 'production' && config.pwnedPasswordsDir === undefined) issues.push('PWNED_PASSWORDS_DIR is required in production');

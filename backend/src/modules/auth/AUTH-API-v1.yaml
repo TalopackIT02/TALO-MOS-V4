@@ -343,8 +343,9 @@ components:
           type: string
           description: >
             Not trimmed. The server NFC-normalises, then enforces 15-128 code points, at most 512 UTF-8 bytes, no C0/DEL/C1
-            control character, case-insensitive whole-password blocklist and contextual checks, and difference from
-            the current password (Argon2id verify against the current hash); violations return 400 PASSWORD_POLICY
+            control character, case-insensitive whole-password contextual checks, the offline breached-password check
+            (Have I Been Pwned, whole password, at most 5 case variants — not full case-insensitivity), and difference
+            from the current password (Argon2id verify against the current hash); violations return 400 PASSWORD_POLICY
             with details.reason (not VALIDATION_ERROR). The UI's confirmation field is compared client-side and is not
             sent.
     FirstChangeSuccess:

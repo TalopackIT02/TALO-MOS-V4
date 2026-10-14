@@ -1,9 +1,11 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PWNED_FORMAT, PwnedPasswordsStore, caseVariants, sha1Hex } from '../../../src/modules/auth/pwnedPasswords.js';
 import type { PwnedManifest } from '../../../src/modules/auth/pwnedPasswords.js';
+import { openCompactDataset } from '../../../src/modules/auth/pwnedCompact.js';
+import { activateCompact, convertToCompact, verifyCompact } from '../../../src/modules/auth/tools/pwnedCompact.js';
 import { treeChecksum } from '../../../src/modules/auth/tools/pwnedManifest.js';
 
 // Real-format check of the offline lookup with a TINY live sample of the Pwned Passwords range API (a few ~75 kB range
@@ -51,6 +53,49 @@ describe.skipIf(!enabled)('Pwned Passwords offline lookup on a live HIBP sample'
       expect(await store.isBreached(value.toUpperCase()), `${value} upper`).toBe(true);
     }
     expect(await store.isBreached(SURELY_ABSENT)).toBe(false);
+  });
+
+  it('HIBP Compact on real range density: same answers, no false positive on random probes, size, lookup speed', async () => {
+    const compactDir = join(dir, 'compact');
+    await mkdir(compactDir);
+    const converted = await convertToCompact(dir, join(compactDir, 'hibp-sample.bin'));
+    await activateCompact(compactDir, 'hibp-sample.bin', converted.sourceTreeSha256);
+    const { store: compact } = await openCompactDataset(compactDir, { production: false });
+    try {
+      for (const value of [...KNOWN_BREACHED, ...KNOWN_BREACHED.map((v) => v.toUpperCase()), SURELY_ABSENT]) {
+        expect(await compact.isBreached(value), value).toBe(await store.isBreached(value));
+      }
+      // Random probes inside the downloaded ranges (densest real data): the 64-bit key must not add false positives.
+      const prefixes = KNOWN_BREACHED.map((v) => sha1Hex(v).slice(0, 5));
+      const real = new Set<string>();
+      for (const prefix of prefixes) {
+        for (const line of (await readFile(join(dir, `${prefix}.txt`), 'utf8')).split('\n')) real.add(`${prefix}${line.trim().slice(0, 35)}`);
+        for (const hash of real) if (hash.startsWith(prefix)) expect(await compact.containsHash(hash), hash).toBe(true);
+      }
+      let falsePositives = 0;
+      for (let i = 0; i < 20_000; i++) {
+        const hash = `${prefixes[i % prefixes.length]}${sha1Hex(`probe ${i} ${Math.random()}`).slice(5)}`;
+        if ((await compact.containsHash(hash)) !== real.has(hash)) falsePositives++;
+      }
+      expect(falsePositives).toBe(0);
+      expect(compact.entries).toBe(converted.entries);
+      const time = async (s: { isBreached(p: string): Promise<boolean> }) => {
+        const start = performance.now();
+        for (let i = 0; i < 100; i++) await s.isBreached(SURELY_ABSENT);
+        return (performance.now() - start) / 100;
+      };
+      const [textMs, compactMs] = [await time(store), await time(compact)];
+      const keysBytes = converted.entries * 8;
+      console.log([
+        `[HIBP compact, real density] ${converted.entries} hashes in ${stats.files} ranges (${(converted.entries / stats.files).toFixed(0)} per range)`,
+        `  text ${(stats.bytes / converted.entries).toFixed(1)} B/hash vs compact keys 8 B/hash (+ 8 MiB fixed index)`,
+        `  full miss (5 variants): text ${textMs.toFixed(3)} ms, compact ${compactMs.toFixed(3)} ms`,
+        `  extrapolated to 2^20 ranges: text ≈ ${((stats.bytes / stats.files) * 2 ** 20 / 1e9).toFixed(1)} GB in 1,048,576 files; compact ≈ ${((keysBytes / stats.files) * 2 ** 20 / 1e9 + 0.008).toFixed(1)} GB in 1 file`,
+      ].join('\n'));
+      expect((await verifyCompact(join(compactDir, 'hibp-sample.bin'))).ok).toBe(true);
+    } finally {
+      await compact.close();
+    }
   });
 
   it('lookup cost with real range sizes (5 variants = up to 5 file reads)', async () => {

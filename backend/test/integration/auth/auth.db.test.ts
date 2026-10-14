@@ -1,4 +1,6 @@
-import { resolve } from 'node:path';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import type { Express } from 'express';
 import request from 'supertest';
 import type { Response } from 'supertest';
@@ -16,6 +18,7 @@ import { LOCAL_ARGON2_OPTIONS, PasswordHasher } from '../../../src/modules/auth/
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
 import { PwnedPasswordsStore, UnavailableBlocklist } from '../../../src/modules/auth/pwnedPasswords.js';
 import type { BreachedPasswordChecker } from '../../../src/modules/auth/pwnedPasswords.js';
+import { activateCompact, convertToCompact } from '../../../src/modules/auth/tools/pwnedCompact.js';
 import { createPwnedFixture, removePwnedFixture } from '../../support/pwnedFixture.js';
 import { sqlstateOf } from '../../../src/modules/auth/sqlstate.js';
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
@@ -89,10 +92,12 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     readonly hasher?: PasswordHasher;
     readonly limit?: number;
     readonly breached?: BreachedPasswordChecker;
+    readonly compactDir?: string; // the module opens this HIBP Compact dataset itself (PWNED_PASSWORDS_FORMAT=compact)
   }
   async function makeApp(options: AppOptions = {}): Promise<Express> {
     const auth = await createAuthModule({
-      prisma, logger, production: false, hasher: options.hasher ?? hasher, breachedPasswords: options.breached ?? pwned,
+      prisma, logger, production: false, hasher: options.hasher ?? hasher,
+      ...(options.compactDir ? { pwnedPasswordsDir: options.compactDir, pwnedPasswordsFormat: 'compact' as const } : { breachedPasswords: options.breached ?? pwned }),
       loginLimiter: new SlidingWindowRateLimiter({ limit: options.limit ?? 10_000, windowMs: 15 * 60_000 }),
       ...(options.settings ? { settings: options.settings } : {}),
       ...(options.hooks ? { hooks: options.hooks } : {}),
@@ -480,6 +485,40 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     expect(await credential(other.accountId)).toEqual(before);
     expect((await getSession(noBlocklist, otherCookie)).status).toBe(200);
     expect(logs.some((line) => line.includes('password blocklist unavailable'))).toBe(true);
+  });
+
+  it('blocklist (HIBP Compact via createAuthModule): breached refused, valid accepted; damaged dataset → 503, no fallback to text', async () => {
+    const compactDir = await mkdtemp(join(tmpdir(), 'talo-pwned-compact-db-'));
+    try {
+      const converted = await convertToCompact(pwnedDir, join(compactDir, 'v1.bin'));
+      await activateCompact(compactDir, 'v1.bin', converted.sourceTreeSha256);
+      const app = await makeApp({ compactDir });
+      const acc = await create({ accountStatus: 'PROVISIONED' });
+      const cookie = cookieOf(await login(app, acc.username, acc.password));
+      for (const breached of ['matkhaumoi123456', 'MATKHAUMOI123456', 'Correct Horse Battery']) {
+        const res = await firstChange(app, cookie, breached);
+        expect(res.status, breached).toBe(400);
+        expect(res.body.error.details).toEqual({ reason: 'BLOCKLISTED' });
+      }
+      expect((await firstChange(app, cookie, 'mua thu ha noi co nang vang')).status).toBe(200);
+
+      // Damage the active file: the pointer checksum no longer matches. The text dataset is still valid, yet unused.
+      const data = await readFile(join(compactDir, 'v1.bin'));
+      data[data.length - 1] = (data[data.length - 1] ?? 0) ^ 1;
+      await writeFile(join(compactDir, 'v1.bin'), data);
+      logs.length = 0;
+      const broken = await makeApp({ compactDir });
+      const other = await create({ accountStatus: 'PROVISIONED' });
+      const otherCookie = cookieOf(await login(broken, other.username, other.password));
+      const before = await credential(other.accountId);
+      const refused = await firstChange(broken, otherCookie, 'mua thu ha noi co nang vang');
+      expect(refused.status).toBe(503);
+      expect(refused.body.error.code).toBe('SERVICE_BUSY');
+      expect(await credential(other.accountId)).toEqual(before);
+      expect(logs.some((line) => line.includes('checksum'))).toBe(true);
+    } finally {
+      await rm(compactDir, { recursive: true, force: true });
+    }
   });
 
   it('CT-F3: two first-change requests in parallel → exactly one 200, the other 401; one new hash', async () => {

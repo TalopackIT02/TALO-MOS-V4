@@ -36,6 +36,7 @@ describe('loadConfig', () => {
   it('requires APP_ORIGIN in production (no implicit default)', () => {
     expect(issuesOf({ NODE_ENV: 'production' })).toContain('APP_ORIGIN is required in production');
     expect(issuesOf({ NODE_ENV: 'production' })).toContain('PWNED_PASSWORDS_DIR is required in production');
+    expect(issuesOf({ PWNED_PASSWORDS_FORMAT: 'binary' }).length).toBeGreaterThan(0);
   });
 
   it('parses a comma-separated origin list and rejects non-origins', () => {

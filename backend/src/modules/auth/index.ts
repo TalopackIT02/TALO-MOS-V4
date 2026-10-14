@@ -10,6 +10,7 @@ import { DEFAULT_AUTH_SETTINGS } from './auth.settings.js';
 import type { AuthSettings } from './auth.settings.js';
 import { PasswordHasher } from './passwordHasher.js';
 import { LOGIN_RATE_LIMIT, SlidingWindowRateLimiter } from './rateLimiter.js';
+import { openCompactDataset } from './pwnedCompact.js';
 import { PwnedPasswordsStore, UnavailableBlocklist } from './pwnedPasswords.js';
 import type { BreachedPasswordChecker } from './pwnedPasswords.js';
 
@@ -20,6 +21,7 @@ export interface AuthModuleOptions {
   // Offline Pwned Passwords dataset directory (PWNED_PASSWORDS_DIR). Production: required and must open, else startup
   // fails. Elsewhere: when missing or invalid, first-change fails closed (503) and an error is logged.
   readonly pwnedPasswordsDir?: string | undefined;
+  readonly pwnedPasswordsFormat?: 'text' | 'compact';
   readonly breachedPasswords?: BreachedPasswordChecker;
   // Test seams (in-process only): repository wrapper, shorter intervals, hasher/limiter instances, fault hooks.
   readonly wrapRepository?: (repository: AuthRepository) => AuthRepository;
@@ -58,9 +60,16 @@ async function openBlocklist(options: AuthModuleOptions): Promise<BreachedPasswo
     options.logger.warn('PWNED_PASSWORDS_DIR not set: first-change is refused (blocklist unavailable, fail closed)');
     return new UnavailableBlocklist('PWNED_PASSWORDS_DIR not set');
   }
+  const format = options.pwnedPasswordsFormat ?? 'text';
   try {
+    if (format === 'compact') {
+      // No fallback to the text store: a missing or inconsistent compact dataset fails closed.
+      const { store, pointer } = await openCompactDataset(dir, { production: options.production });
+      options.logger.info('password blocklist ready', { format, file: pointer.file, entries: pointer.entries, activated: pointer.activatedAt, partial: pointer.partial });
+      return store;
+    }
     const store = await PwnedPasswordsStore.open(dir, { production: options.production });
-    options.logger.info('password blocklist ready', { prefixes: store.manifest.prefixCount, created: store.manifest.createdAt, partial: store.manifest.partial === true });
+    options.logger.info('password blocklist ready', { format, prefixes: store.manifest.prefixCount, created: store.manifest.createdAt, partial: store.manifest.partial === true });
     return store;
   } catch (error) {
     if (options.production) throw error;
