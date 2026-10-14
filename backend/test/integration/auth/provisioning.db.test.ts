@@ -13,6 +13,7 @@ import type { SqlExecutor } from '../../../src/modules/auth/provisioning/provisi
 import { REISSUE_FUNCTION_SIGNATURE, reissueTemporaryPassword } from '../../../src/modules/auth/provisioning/reissueTemporaryPassword.js';
 import { TEMPORARY_PASSWORD_ALPHABET, TEMPORARY_PASSWORD_LENGTH, generateTemporaryPassword } from '../../../src/modules/auth/provisioning/temporaryPassword.js';
 import { PwnedPasswordsStore } from '../../../src/modules/auth/pwnedPasswords.js';
+import { sqlstateOf } from '../../../src/modules/auth/sqlstate.js';
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
 import { checkSmokeUrl } from '../../smoke/dbSmoke.js';
 import { AuthFixtures } from '../../support/authFixtures.js';
@@ -179,17 +180,13 @@ describe.skipIf(!enabled)('P-4e provisioning as talo_provisioner (talo_mos_v4_te
   it('client against the database as talo_provisioner: clear refusal while the SECURITY DEFINER function is not installed', async () => {
     const [installed] = await p.ok(`SELECT to_regprocedure('${REISSUE_FUNCTION_SIGNATURE}') IS NOT NULL`);
     if (installed?.[0] === 't') return; // covered by the next test once installed
-    const operator = await fx.create();
-    await expect(reissueTemporaryPassword(psqlExecutor(p), hasher, { username: 'anyone', operatorAccountId: operator.accountId }))
-      .rejects.toThrow(/recovery function is not installed .*42883/);
-    await expect(reissueTemporaryPassword(psqlExecutor(p), hasher, { username: 'anyone', operatorAccountId: 'not-a-uuid' }))
-      .rejects.toThrow(/operator account id must be a UUID/);
+    await expect(reissueTemporaryPassword(psqlExecutor(p), hasher, 'anyone')).rejects.toThrow(/recovery function is not installed .*42883/);
+    await expect(reissueTemporaryPassword(psqlExecutor(p), hasher, 'bad\u0007name')).rejects.toThrow(/without control characters/);
   });
 
   it('re-issue through iam.reissue_temporary_credential as talo_provisioner (runs only once the approved function is installed)', async (ctx) => {
     const [installed] = await p.ok(`SELECT to_regprocedure('${REISSUE_FUNCTION_SIGNATURE}') IS NOT NULL`);
     if (installed?.[0] !== 't') ctx.skip();
-    const operator = await fx.create(); // ACTIVE account of the IT operator
     const created = await provisionAccount(psqlExecutor(p), hasher, {
       employeeCode: `${fx.runId}-R1`, fullName: 'Nhân viên cấp lại', username: `${fx.runId}-r1`.toLowerCase(), joinedAt: '2026-10-01',
     });
@@ -207,21 +204,130 @@ describe.skipIf(!enabled)('P-4e provisioning as talo_provisioner (talo_mos_v4_te
     expect((await post('/api/auth/password/first-change', { newPassword: personal }, activation)).status).toBe(200);
     const live = cookieOf(await post('/api/auth/login', { username: created.username, password: personal }));
 
-    const reissued = await reissueTemporaryPassword(psqlExecutor(p), hasher, { username: created.username.toUpperCase(), operatorAccountId: operator.accountId });
+    const reissued = await reissueTemporaryPassword(psqlExecutor(p), hasher, created.username.toUpperCase());
     expect(reissued.revokedSessions).toBe(1);
     expect((await request(app).get('/api/auth/session').set('Cookie', live)).status).toBe(401);
     expect((await post('/api/auth/login', { username: created.username, password: personal })).status).toBe(401);
     const again = await post('/api/auth/login', { username: created.username, password: reissued.temporaryPassword });
     expect(again.body.status).toBe('PASSWORD_CHANGE_REQUIRED');
     const [audit] = await h.ok(`SELECT actor_account_id::text, metadata::text FROM iam.iam_audit_logs WHERE target_id = ${lit(created.userAccountId)} AND action_code = 'CREDENTIAL_REISSUED'`);
-    expect(audit?.[0]).toBe(operator.accountId);
+    expect(audit?.[0]).toBe(''); // no claimed operator: actor_account_id NULL
+    expect(audit?.[1]).toContain('principal=talo_provisioner');
     expect(audit?.[1]).not.toContain('argon2');
     expect(audit?.[1]).not.toContain(reissued.temporaryPassword);
-    const refuse = (username: string, operatorAccountId: string) => reissueTemporaryPassword(psqlExecutor(p), hasher, { username, operatorAccountId });
-    await expect(refuse(`${fx.runId}-missing`, operator.accountId)).rejects.toThrow(/account not found/);
-    await expect(refuse(operator.username, operator.accountId)).rejects.toThrow(/TA403/); // self-recovery
+    const refuse = (username: string) => reissueTemporaryPassword(psqlExecutor(p), hasher, username);
+    await expect(refuse(`${fx.runId}-missing`)).rejects.toThrow(/account not found/);
     const disabled = await fx.create({ accountStatus: 'DISABLED' });
-    await expect(refuse(disabled.username, operator.accountId)).rejects.toThrow(/TA409/);
-    await expect(refuse(created.username, disabled.accountId)).rejects.toThrow(/TA401/); // operator not eligible
+    await expect(refuse(disabled.username)).rejects.toThrow(/TA409/);
+    // Database-side PHC rule (negative cases go straight to the function, bypassing the client check).
+    for (const hash of ['plaintext-password', '$argon2i$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+      '$argon2id$v=19$m=4096,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB']) {
+      const r = await p.query(`SELECT * FROM iam.reissue_temporary_credential(${lit(created.username)}, ${lit(hash)}, gen_random_uuid())`);
+      expect(r.sqlstate, hash.slice(0, 12)).toBe('TA422');
+    }
+    // Nobody but talo_provisioner can execute it.
+    expect((await h.query(`SELECT * FROM iam.reissue_temporary_credential('x', 'y', gen_random_uuid())`)).sqlstate).toBe('42501');
+  });
+
+  // ---- installed-only: refusals, transaction rollback, locking / concurrency ----
+
+  const fnInstalled = async () => (await p.ok(`SELECT to_regprocedure('${REISSUE_FUNCTION_SIGNATURE}') IS NOT NULL`))[0]?.[0] === 't';
+  const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+  const pending = async (promise: Promise<unknown>, ms: number) =>
+    Promise.race([promise.then(() => false, () => false), sleep(ms).then(() => true)]);
+  const state = async (accountId: string) => (await h.ok(`
+    SELECT c.password_hash, c.must_change_password::text, c.updated_at::text,
+           (SELECT count(*) FROM iam.iam_sessions s WHERE s.user_account_id = c.user_account_id AND s.revoked_at IS NULL)::text,
+           (SELECT count(*) FROM iam.iam_audit_logs l WHERE l.target_id = c.user_account_id AND l.action_code = 'CREDENTIAL_REISSUED')::text
+      FROM iam.iam_credentials c WHERE c.user_account_id = ${lit(accountId)}`))[0];
+  const call = (session: PsqlSession, username: string, hash: string) =>
+    session.query(`SELECT * FROM iam.reissue_temporary_credential(${lit(username)}, ${lit(hash)}, gen_random_uuid())`, 30_000);
+
+  it('refusals and invalid input change nothing; non-provisioner callers are denied', async (ctx) => {
+    if (!(await fnInstalled())) ctx.skip();
+    const hash = await hasher.hashPassword('valid temporary value 1');
+    const cases: [string, Parameters<AuthFixtures['create']>[0], string][] = [
+      ['membership EXITED', { membershipStatus: 'EXITED' }, 'TA409'],
+      ['left_at today', { leftAt: 'today' }, 'TA409'],
+      ['account LOCKED', { accountStatus: 'LOCKED' }, 'TA409'],
+      ['account DISABLED', { accountStatus: 'DISABLED' }, 'TA409'],
+      ['no credential', { withCredential: false }, 'TA409'],
+    ];
+    for (const [name, options, code] of cases) {
+      const acc = await fx.create(options);
+      const before = await state(acc.accountId);
+      const r = await call(p, acc.username, hash);
+      expect(r.sqlstate, name).toBe(code);
+      expect(await state(acc.accountId), name).toEqual(before);
+    }
+    const ok = await fx.create();
+    const before = await state(ok.accountId);
+    expect((await call(p, 'x'.repeat(201), hash)).sqlstate).toBe('TA422');            // oversized username, before any regex
+    expect((await call(p, ok.username, `${hash}${'A'.repeat(200)}`)).sqlstate).toBe('TA422'); // oversized hash
+    expect((await call(p, ok.username, hash.replace('t=2', 't=1'))).sqlstate).toBe('TA422');  // weak parameters
+    expect((await call(p, 'bad\tname', hash)).sqlstate).toBe('TA422');                 // control character
+    expect(await state(ok.accountId)).toEqual(before);
+    const viaApp = await prisma.$queryRawUnsafe(`SELECT * FROM iam.reissue_temporary_credential('x', 'y', gen_random_uuid())`).then(() => null, (e: unknown) => e);
+    expect(sqlstateOf(viaApp)).toBe('42501'); // talo_app has no EXECUTE
+  });
+
+  it('explicit transaction ROLLBACK leaves credential, sessions and audit untouched', async (ctx) => {
+    if (!(await fnInstalled())) ctx.skip();
+    const acc = await fx.create();
+    await prisma.$executeRawUnsafe(`INSERT INTO iam.iam_sessions (user_account_id, session_token_hash, assurance_level_snapshot, created_at, expires_at, last_seen_at)
+      VALUES ($1::uuid, $2, 1, statement_timestamp(), statement_timestamp() + interval '1 hour', statement_timestamp())`, acc.accountId, `${fx.runId}-rb-${Date.now()}`);
+    const before = await state(acc.accountId);
+    expect(before?.[3]).toBe('1');
+    await p.ok('BEGIN');
+    const inside = await call(p, acc.username, await hasher.hashPassword('valid temporary value 2'));
+    expect(inside.error).toBe(false);
+    await p.ok('ROLLBACK');
+    expect(await state(acc.accountId)).toEqual(before);
+  });
+
+  it('locking: waits for a writer lock (FOR NO KEY UPDATE) and for an FK KEY SHARE; lock_timeout → 55P03 with no change', async (ctx) => {
+    if (!(await fnInstalled())) ctx.skip();
+    const w = new PsqlSession(); // talo_test_harness: holds row locks like a writer / an in-flight FK insert
+    try {
+      const acc = await fx.create();
+      for (const lockMode of ['FOR NO KEY UPDATE', 'FOR KEY SHARE']) {
+        await w.ok('BEGIN');
+        await w.ok(`SELECT 1 FROM iam.iam_user_accounts WHERE user_account_id = ${lit(acc.accountId)} ${lockMode}`);
+        const running = call(p, acc.username, await hasher.hashPassword(`valid temporary value ${lockMode}`));
+        expect(await pending(running, 1000), lockMode).toBe(true); // blocked behind the lock
+        await w.ok('COMMIT');
+        expect((await running).error, lockMode).toBe(false);
+      }
+      const before = await state(acc.accountId);
+      await w.ok('BEGIN');
+      await w.ok(`SELECT 1 FROM iam.iam_user_accounts WHERE user_account_id = ${lit(acc.accountId)} FOR NO KEY UPDATE`);
+      const timedOut = await call(p, acc.username, await hasher.hashPassword('valid temporary value 3'));
+      await w.ok('COMMIT');
+      expect(timedOut.sqlstate).toBe('55P03'); // lock_timeout = 5s
+      expect(await state(acc.accountId)).toEqual(before);
+    } finally {
+      await w.close();
+    }
+  });
+
+  it('concurrency: two re-issues of the same account are serialized — both commit, the later hash wins, two audit rows', async (ctx) => {
+    if (!(await fnInstalled())) ctx.skip();
+    const p2 = new PsqlSession('talo_provisioner');
+    try {
+      const acc = await fx.create();
+      const [h1, h2] = [await hasher.hashPassword('concurrent value one'), await hasher.hashPassword('concurrent value two')];
+      await p.ok('BEGIN');
+      expect((await call(p, acc.username, h1)).error).toBe(false); // first holds the row lock until COMMIT
+      const second = call(p2, acc.username, h2);
+      expect(await pending(second, 1000)).toBe(true);
+      await p.ok('COMMIT');
+      expect((await second).error).toBe(false);
+      const after = await state(acc.accountId);
+      expect(after?.[0]).toBe(h2);
+      expect(after?.[1]).toBe('true');
+      expect(after?.[4]).toBe('2');
+    } finally {
+      await p2.close();
+    }
   });
 });

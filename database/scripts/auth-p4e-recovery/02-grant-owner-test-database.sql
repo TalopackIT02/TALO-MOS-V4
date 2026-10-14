@@ -13,6 +13,19 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'talo_credential_recovery' AND NOT rolcanlogin AND NOT rolsuper) THEN
     RAISE EXCEPTION 'Abort: talo_credential_recovery must exist, NOLOGIN, not superuser';
   END IF;
+  -- Fresh-owner guard: the owner must hold NO privilege in iam yet, so 90-rollback can revoke exactly what this file
+  -- grants without touching anything that existed before.
+  IF has_schema_privilege('talo_credential_recovery', 'iam', 'USAGE')
+     OR EXISTS (SELECT 1 FROM pg_class c
+                 WHERE c.relnamespace = 'iam'::regnamespace AND c.relkind = 'r'
+                   AND (has_any_column_privilege('talo_credential_recovery', c.oid, 'SELECT')
+                        OR has_any_column_privilege('talo_credential_recovery', c.oid, 'INSERT')
+                        OR has_any_column_privilege('talo_credential_recovery', c.oid, 'UPDATE')
+                        OR has_table_privilege('talo_credential_recovery', c.oid, 'DELETE')))
+     OR EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles r ON r.oid IN (m.member, m.roleid)
+                 WHERE r.rolname = 'talo_credential_recovery') THEN
+    RAISE EXCEPTION 'Abort: talo_credential_recovery already has privileges or memberships; review manually';
+  END IF;
 END
 $$;
 
