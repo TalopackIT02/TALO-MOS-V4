@@ -1,0 +1,71 @@
+import { afterAll, describe, expect, it } from 'vitest';
+import { createPrismaClient } from '../../src/infrastructure/prisma/client.js';
+import type { Prisma } from '../../src/infrastructure/prisma/generated/client.js';
+
+// Read-only verification of the deployed IAM v0.3 catalog. Skipped unless explicitly enabled with
+// TALO_IAM_SCHEMA_CHECK=1 and a DATABASE_URL. Every query runs inside a READ ONLY transaction; nothing is written.
+
+const enabled = process.env['TALO_IAM_SCHEMA_CHECK'] === '1' && Boolean(process.env['DATABASE_URL']);
+
+const EXPECTED_TABLES = [
+  'iam_account_verifications', 'iam_audit_logs', 'iam_credentials', 'iam_memberships', 'iam_permissions',
+  'iam_role_permissions', 'iam_roles', 'iam_sessions', 'iam_user_accounts', 'iam_user_permissions', 'iam_user_roles',
+];
+
+// Indexes PostgreSQL enforces but the Prisma schema does not represent (see database/prisma/README.md).
+const EXPECTED_DB_ONLY_INDEXES: Record<string, string> = {
+  uq_iam_account_username: 'lower((username)::text)',
+  uq_iam_role_code: 'lower((role_code)::text)',
+  uq_iam_permission_code: 'lower((permission_code)::text)',
+  uq_iam_membership_current_account: 'WHERE (disabled_at IS NULL)',
+  uq_iam_user_active_role: 'WHERE (revoked_at IS NULL)',
+  uq_iam_user_active_direct_permission: 'WHERE (revoked_at IS NULL)',
+  ix_iam_user_roles_account: 'WHERE (revoked_at IS NULL)',
+  ix_iam_user_permission_account: 'WHERE (revoked_at IS NULL)',
+};
+
+describe.skipIf(!enabled)('IAM v0.3 catalog (read-only)', () => {
+  const client = enabled ? createPrismaClient(process.env['DATABASE_URL'] ?? '') : undefined;
+
+  afterAll(async () => {
+    await client?.$disconnect();
+  });
+
+  async function readOnly<T>(query: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    if (!client) throw new Error('client not configured');
+    return client.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+      return query(tx);
+    });
+  }
+
+  it('has exactly the 11 IAM tables', async () => {
+    const rows = await readOnly((db) => db.$queryRaw<{ table_name: string }[]>`
+      select table_name from information_schema.tables where table_schema = 'iam' order by table_name`);
+    expect(rows.map((row) => row.table_name)).toEqual(EXPECTED_TABLES);
+  });
+
+  it('has 16 foreign keys, 12 CHECK constraints and 18 non-primary-key indexes', async () => {
+    const [counts] = await readOnly((db) => db.$queryRaw<{ fk: number; ck: number; ix: number }[]>`
+      select
+        (select count(*)::int from pg_constraint where connamespace = 'iam'::regnamespace and contype = 'f') as fk,
+        (select count(*)::int from pg_constraint where connamespace = 'iam'::regnamespace and contype = 'c') as ck,
+        (select count(*)::int from pg_indexes where schemaname = 'iam' and indexname not like '%pkey') as ix`);
+    expect(counts).toEqual({ fk: 16, ck: 12, ix: 18 });
+  });
+
+  it('still enforces the partial and expression indexes that Prisma does not model', async () => {
+    const rows = await readOnly((db) => db.$queryRaw<{ indexname: string; indexdef: string }[]>`
+      select indexname, indexdef from pg_indexes where schemaname = 'iam'`);
+    const byName = new Map(rows.map((row) => [row.indexname, row.indexdef]));
+    for (const [name, fragment] of Object.entries(EXPECTED_DB_ONLY_INDEXES)) {
+      expect(byName.get(name), name).toContain(fragment);
+    }
+  });
+
+  it('has no active_role_id column (v0.3)', async () => {
+    const rows = await readOnly((db) => db.$queryRaw<{ n: number }[]>`
+      select count(*)::int as n from information_schema.columns where table_schema = 'iam' and column_name = 'active_role_id'`);
+    expect(rows[0]?.n).toBe(0);
+  });
+});

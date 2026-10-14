@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { describeDatabaseUrl } from './config/database.js';
 import { ConfigError, loadConfig } from './config/env.js';
 import { createLogger } from './core/logging/logger.js';
+import { disconnectPrismaClient } from './infrastructure/prisma/client.js';
 
 function main(): void {
   let config;
@@ -31,7 +32,12 @@ function main(): void {
 
   const shutdown = (signal: string) => {
     logger.info('shutdown requested', { signal });
-    server.close(() => process.exit(0));
+    server.close(() => {
+      disconnectPrismaClient().then(
+        () => process.exit(0),
+        () => process.exit(1),
+      );
+    });
     setTimeout(() => process.exit(1), 10_000).unref();
   };
   process.on('SIGINT', () => shutdown('SIGINT'));

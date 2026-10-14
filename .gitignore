@@ -13,3 +13,4 @@ database/backups/*
 tests/test-results/
 tests/playwright-report/
 tests/e2e/__screenshots__/
+backend/src/infrastructure/prisma/generated/

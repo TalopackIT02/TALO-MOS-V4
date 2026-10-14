@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { parseEnv } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig } from '../../src/config/env.js';
 import { describeDatabaseUrl } from '../../src/config/database.js';
@@ -59,6 +62,15 @@ describe('loadConfig', () => {
     const issues = issuesOf({ DATABASE_URL: secretUrl, NODE_ENV: 'bogus' });
     expect(issues.join(' ')).not.toContain('TopSecret');
     expect(issues.join(' ')).not.toContain('bogus');
+  });
+});
+
+describe('.env.example', () => {
+  it('is accepted by loadConfig and contains only placeholders for credentials', () => {
+    const example = parseEnv(readFileSync(resolve(import.meta.dirname, '../../../.env.example'), 'utf8'));
+    const config = loadConfig(example);
+    expect(config).toMatchObject({ host: '127.0.0.1', port: 3000, appOrigins: ['http://127.0.0.1:5173'], trustProxy: false });
+    expect(example['DATABASE_URL']).toMatch(/<app_user>:<app_password>@/);
   });
 });
 
