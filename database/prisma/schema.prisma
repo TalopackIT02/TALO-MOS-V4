@@ -1,0 +1,11 @@
+generator client {
+  provider               = "prisma-client"
+  output                 = "../../backend/src/infrastructure/prisma/generated"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["iam"]
+}
