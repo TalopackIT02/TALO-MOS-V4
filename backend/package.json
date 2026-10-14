@@ -14,6 +14,7 @@
     "start:local": "node --env-file-if-exists=../.env dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit",
     "test": "vitest run",
+    "smoke:db": "tsx --env-file-if-exists=../.env test/smoke/db-runtime.smoke.ts",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate"
   },

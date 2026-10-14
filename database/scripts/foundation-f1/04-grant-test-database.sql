@@ -35,7 +35,8 @@ GRANT USAGE ON SCHEMA iam TO talo_app, talo_provisioner;
 -- talo_app — backend runtime (login, session, first-time password change, audit insert)
 -- No DELETE, TRUNCATE, DDL or TEMP anywhere. IAM v0.3 uses UUID keys: no sequences to grant.
 -- ---------------------------------------------------------------------------------------------
--- Membership eligibility (AD-3)
+-- Membership eligibility (AD-3). SELECT only: talo_app cannot lock membership rows (FOR UPDATE/SHARE need an
+-- UPDATE privilege). Intentional — the SC-5 SUCCESS transaction re-reads the membership instead (finding F2-04).
 GRANT SELECT ON iam.iam_memberships TO talo_app;
 
 -- Account lookup; activation PROVISIONED -> ACTIVE (AD-1/AD-2)
@@ -52,7 +53,8 @@ GRANT UPDATE (password_hash, password_changed_at, must_change_password, failed_a
 GRANT SELECT, INSERT ON iam.iam_sessions TO talo_app;
 GRANT UPDATE (revoked_at, last_seen_at) ON iam.iam_sessions TO talo_app;
 
--- Audit: append-only. PENDING VALIDATION: inserts must not use RETURNING (no SELECT is granted).
+-- Audit: append-only. Inserts must not use RETURNING (no SELECT is granted). Statically verified in F2:
+-- Prisma createMany emits INSERT without RETURNING; Prisma create emits RETURNING and would be denied.
 GRANT INSERT ON iam.iam_audit_logs TO talo_app;
 
 -- Not granted in Phase B: iam_roles, iam_permissions, iam_role_permissions, iam_user_roles,

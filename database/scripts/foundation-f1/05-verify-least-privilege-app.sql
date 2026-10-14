@@ -18,6 +18,9 @@ BEGIN
   IF (SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN
     RAISE EXCEPTION 'FAIL: talo_app has elevated role attributes';
   END IF;
+  IF EXISTS (SELECT 1 FROM pg_auth_members WHERE member = (SELECT oid FROM pg_roles WHERE rolname = current_user)) THEN
+    RAISE EXCEPTION 'FAIL: talo_app is a member of other roles (privileges could be inherited or SET ROLE)';
+  END IF;
 END
 $$;
 
@@ -32,6 +35,7 @@ DECLARE
     'DELETE FROM iam.iam_credentials',
     'DELETE FROM iam.iam_user_accounts',
     'DELETE FROM iam.iam_audit_logs',
+    'DELETE FROM iam.iam_memberships',
     'TRUNCATE iam.iam_audit_logs',
     'UPDATE iam.iam_user_accounts SET username = username',
     'UPDATE iam.iam_user_accounts SET membership_id = membership_id',
@@ -41,6 +45,10 @@ DECLARE
     'UPDATE iam.iam_sessions SET expires_at = expires_at',
     'UPDATE iam.iam_audit_logs SET outcome = outcome',
     'UPDATE iam.iam_memberships SET membership_status = membership_status',
+    -- Row locks need UPDATE on >= 1 column (PostgreSQL docs, SELECT). talo_app may NOT lock membership rows:
+    -- the SC-5 SUCCESS transaction must re-read, not lock, the membership (finding F2-04).
+    'SELECT 1 FROM iam.iam_memberships FOR UPDATE',
+    'SELECT 1 FROM iam.iam_memberships FOR SHARE',
     'SELECT 1 FROM iam.iam_audit_logs',
     'SELECT 1 FROM iam.iam_roles',
     'SELECT 1 FROM iam.iam_permissions',
@@ -92,11 +100,31 @@ BEGIN
 END
 $$;
 
--- 3) Row locking used by SC-5 / first-change must be permitted (works on an empty table)
-SELECT count(*) AS locked_rows FROM (SELECT 1 FROM iam.iam_credentials FOR UPDATE) AS locked;
+-- 3) Row locking used by SC-5 / first-change / activation-session serialisation must be permitted
+--    (column UPDATE privilege is sufficient; works on empty tables)
+SELECT count(*) AS locked_credentials FROM (SELECT 1 FROM iam.iam_credentials FOR UPDATE) AS locked;
+SELECT count(*) AS locked_accounts FROM (SELECT 1 FROM iam.iam_user_accounts FOR UPDATE) AS locked;
+SELECT count(*) AS locked_sessions FROM (SELECT 1 FROM iam.iam_sessions FOR UPDATE) AS locked;
+
+-- 4) Database-level privileges: CONNECT but no TEMP on the test database (FAIL otherwise)
+DO $$
+BEGIN
+  IF NOT has_database_privilege(current_database(), 'CONNECT') THEN RAISE EXCEPTION 'FAIL: no CONNECT on %', current_database(); END IF;
+  IF has_database_privilege(current_database(), 'TEMP') THEN RAISE EXCEPTION 'FAIL: TEMP allowed on %', current_database(); END IF;
+  IF has_schema_privilege('public', 'CREATE') OR has_schema_privilege('iam', 'CREATE') THEN RAISE EXCEPTION 'FAIL: CREATE allowed on schema public or iam'; END IF;
+  RAISE NOTICE 'OK: CONNECT only, no TEMP, no CREATE';
+END
+$$;
+
+-- 5) Informational (not a failure): other databases still reachable through PUBLIC defaults (finding F2-05)
+SELECT datname, has_database_privilege(datname, 'CONNECT') AS can_connect, has_database_privilege(datname, 'TEMP') AS can_temp
+FROM pg_database WHERE datallowconn ORDER BY datname;
 
 ROLLBACK;
 
+-- Statically verified (F2, fake Prisma driver adapter, no database): sessions.create = INSERT ... RETURNING all
+-- columns (needs SELECT: granted); audit_logs.createMany = INSERT without RETURNING (INSERT-only works);
+-- audit_logs.create = INSERT ... RETURNING (would be DENIED: auth code must use createMany or raw INSERT);
+-- credentials.update = UPDATE ... RETURNING (SELECT granted); updateMany = UPDATE without RETURNING.
 -- PENDING VALIDATION (needs test data, therefore a later approved step): run the backend integration tests
--- with DATABASE_URL pointing to talo_mos_v4_test as talo_app, covering INSERT ... RETURNING on iam_sessions,
--- audit inserts without RETURNING, and the column-restricted UPDATEs issued by Prisma.
+-- with DATABASE_URL pointing to talo_mos_v4_test as talo_app.

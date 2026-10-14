@@ -15,6 +15,9 @@ BEGIN
   IF (SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN
     RAISE EXCEPTION 'FAIL: talo_provisioner has elevated role attributes';
   END IF;
+  IF EXISTS (SELECT 1 FROM pg_auth_members WHERE member = (SELECT oid FROM pg_roles WHERE rolname = current_user)) THEN
+    RAISE EXCEPTION 'FAIL: talo_provisioner is a member of other roles (privileges could be inherited or SET ROLE)';
+  END IF;
 END
 $$;
 
@@ -32,6 +35,8 @@ DECLARE
     'DELETE FROM iam.iam_credentials',
     'TRUNCATE iam.iam_audit_logs',
     'SELECT 1 FROM iam.iam_credentials',
+    'SELECT 1 FROM iam.iam_memberships FOR UPDATE',
+    'SELECT 1 FROM iam.iam_user_accounts FOR UPDATE',
     'SELECT 1 FROM iam.iam_sessions',
     'INSERT INTO iam.iam_sessions (user_account_id, session_token_hash, expires_at) VALUES (gen_random_uuid(), ''x'', now() + interval ''1 minute'')',
     'SELECT 1 FROM iam.iam_audit_logs',
@@ -69,5 +74,15 @@ BEGIN
   RAISE NOTICE 'OK: all expected privileges present';
 END
 $$;
+
+DO $$
+BEGIN
+  IF has_database_privilege(current_database(), 'TEMP') THEN RAISE EXCEPTION 'FAIL: TEMP allowed on %', current_database(); END IF;
+  IF has_schema_privilege('public', 'CREATE') OR has_schema_privilege('iam', 'CREATE') THEN RAISE EXCEPTION 'FAIL: CREATE allowed on schema public or iam'; END IF;
+END
+$$;
+
+-- Note (statically verified): a Prisma credentials.create would use RETURNING and be DENIED (INSERT only);
+-- the provisioning tool must insert credentials with createMany or a raw INSERT without RETURNING.
 
 ROLLBACK;
