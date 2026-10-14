@@ -5,6 +5,14 @@ import { STATE_VIEWPORTS, VIEWPORTS, openLogin, viewportName } from './viewports
 // Screenshots are named without the project, so "demo" writes the reference image
 // and the React projects are compared pixel-for-pixel against it.
 
+// Screenshot tolerance (approved 2026-10-14, Phase A option a): the React page shows non-deterministic
+// anti-aliasing noise on rounded corners/icons that the demo does not (measured max ≈ 0.0178 YIQ,
+// ≤ 4 pixels above 0.01 per image, in both layout and interaction-state screenshots).
+// Pixels within threshold 0.01 are ignored; at most 10 pixels may exceed it. Negative controls
+// (1px shift, 4/255 colour change, 1px radius change) produce 222+ pixels above 0.01 and still fail.
+// Computed-style and geometry assertions below have no tolerance.
+const SCREENSHOT_TOLERANCE = { threshold: 0.01, maxDiffPixels: 10 };
+
 for (const viewport of VIEWPORTS) {
   const name = viewportName(viewport);
 
@@ -13,7 +21,7 @@ for (const viewport of VIEWPORTS) {
 
     test('layout matches HTML v2', async ({ page }, testInfo) => {
       await openLogin(page, testInfo);
-      await expect(page).toHaveScreenshot(`layout-${name}.png`);
+      await expect(page).toHaveScreenshot(`layout-${name}.png`, SCREENSHOT_TOLERANCE);
     });
 
     test('no page overflow and every control reachable', async ({ page }, testInfo) => {
@@ -118,7 +126,7 @@ for (const viewport of STATE_VIEWPORTS) {
     test('username focused', async ({ page }, testInfo) => {
       await openLogin(page, testInfo);
       await page.locator('#username').focus();
-      await expect(page).toHaveScreenshot(`state-focus-${name}.png`);
+      await expect(page).toHaveScreenshot(`state-focus-${name}.png`, SCREENSHOT_TOLERANCE);
     });
 
     test('password visible', async ({ page }, testInfo) => {
@@ -127,7 +135,7 @@ for (const viewport of STATE_VIEWPORTS) {
       await page.locator('#password-toggle').click();
       await page.mouse.move(0, 0);
       await page.locator('#password').blur();
-      await expect(page).toHaveScreenshot(`state-password-visible-${name}.png`);
+      await expect(page).toHaveScreenshot(`state-password-visible-${name}.png`, SCREENSHOT_TOLERANCE);
     });
 
     test('validation error message', async ({ page }, testInfo) => {
@@ -135,7 +143,7 @@ for (const viewport of STATE_VIEWPORTS) {
       await page.locator('.login-button').click();
       await page.mouse.move(0, 0);
       await page.locator('.login-button').blur();
-      await expect(page).toHaveScreenshot(`state-error-${name}.png`);
+      await expect(page).toHaveScreenshot(`state-error-${name}.png`, SCREENSHOT_TOLERANCE);
     });
 
     test('demo success message', async ({ page }, testInfo) => {
@@ -145,13 +153,13 @@ for (const viewport of STATE_VIEWPORTS) {
       await page.locator('.login-button').click();
       await page.mouse.move(0, 0);
       await page.locator('.login-button').blur();
-      await expect(page).toHaveScreenshot(`state-success-${name}.png`);
+      await expect(page).toHaveScreenshot(`state-success-${name}.png`, SCREENSHOT_TOLERANCE);
     });
 
     test('login button hover', async ({ page }, testInfo) => {
       await openLogin(page, testInfo);
       await page.locator('.login-button').hover();
-      await expect(page).toHaveScreenshot(`state-hover-${name}.png`);
+      await expect(page).toHaveScreenshot(`state-hover-${name}.png`, SCREENSHOT_TOLERANCE);
     });
   });
 }
