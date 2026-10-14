@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TALOPACK | Đổi mật khẩu lần đầu (Demo)</title>
+  <style>
+    /* ===== Base: copied from frontend/TALO-MOS-Login-Demo-Responsive-v2.html (Phase A, frozen); only the login-only .options/.remember rules are omitted ===== */
+    :root { --green: #0fa958; --green-hover: #0b8e4a; --ink:#3d2a20; --muted:#7b8492; --line:#d8dee6; }
+    * { box-sizing: border-box; }
+    html, body { width:100%; height:100%; margin:0; }
+    body { min-height:100dvh; font-family:Arial,"Segoe UI",sans-serif; color:#171e2c; background:#f3f5f7; display:flex; justify-content:center; align-items:center; padding:16px 20px; overflow:hidden; }
+    .login-shell { width:min(1280px, calc((100dvh - 32px) * 1.68421), calc(100vw - 40px)); height:calc(100dvh - 32px); max-height:760px; display:grid; grid-template-columns:40% 60%; background:#fff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; box-shadow:0 12px 34px rgba(39,54,71,.10); }
+    .login-panel { min-width:0; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:clamp(18px,4vh,48px) clamp(22px,3vw,40px) 24px; overflow-y:auto; }
+    .logo { display:block; width:min(300px,90%); max-height:clamp(120px,24vh,220px); height:auto; object-fit:contain; margin:0 auto clamp(14px,3vh,28px); }
+    h1 { margin:0; text-align:center; color:var(--ink); font-size:clamp(20px,2vw,24px); line-height:1.3; font-weight:700; }
+    .subtitle { margin:8px -10px clamp(16px,3vh,30px); text-align:center; color:var(--muted); font-size:14px; line-height:1.55; }
+    .login-form { width:100%; max-width:440px; }
+    .field { position:relative; display:block; margin-bottom:16px; }
+    .field input { width:100%; height:52px; padding:0 48px; outline:0; border:1px solid var(--line); border-radius:6px; background:#fff; color:#1f2937; font:400 15px Arial,"Segoe UI",sans-serif; }
+    .field input::placeholder { color:#9099a8; }
+    .field input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(15,169,88,.10); }
+    .field-icon { position:absolute; width:21px; height:21px; left:17px; top:15px; color:#6b7788; pointer-events:none; }
+    .password-toggle { position:absolute; top:7px; right:10px; width:39px; height:39px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:#657386; cursor:pointer; }
+    .password-toggle:hover { background:#f3f5f7; }
+    .password-toggle svg { width:21px; height:21px; }
+    .forgot { padding:4px 0; color:var(--green); border:0; background:transparent; font-size:14px; white-space:nowrap; cursor:pointer; }
+    .forgot:hover { text-decoration:underline; }
+    .login-button { width:100%; height:56px; display:flex; align-items:center; justify-content:center; gap:12px; border:0; border-radius:6px; background:var(--green); color:#fff; font:700 16px Arial,"Segoe UI",sans-serif; cursor:pointer; }
+    .login-button:hover { background:var(--green-hover); }
+    .login-button:disabled { opacity:.6; cursor:not-allowed; }
+    .login-button:focus-visible, .forgot:focus-visible, .password-toggle:focus-visible { outline:3px solid #a0e6c5; outline-offset:2px; }
+    .message { font-size:13px; line-height:1.5; margin:12px 0 0; color:#ad3939; }
+    .message:empty { display:none; }
+    .footer { margin-top:clamp(16px,4vh,38px); color:#929aa5; text-align:center; font-size:13px; }
+    .illustration { min-height:0; overflow:hidden; background:#f4f8f6; }
+    .illustration img { display:block; width:100%; height:100%; object-fit:cover; object-position:center center; }
+
+    /* ===== First-change additions (same tokens, no new fonts or colours except status colours) ===== */
+    /* Overflow-safe vertical centring without the 'safe' keyword (old Safari): auto margins centre the content when
+       there is room and collapse to 0 when it overflows, so the top is never clipped and the column scrolls. */
+    .first-change .login-panel { justify-content:flex-start; }
+    .first-change .login-panel > :first-child { margin-top:auto; }
+    .first-change .login-panel > :last-child { margin-bottom:auto; }
+    .first-change .logo { max-height:clamp(72px,12vh,120px); margin-bottom:clamp(8px,1.6vh,16px); }
+    .first-change .subtitle { display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:clamp(14px,2.6vh,24px); }
+    .first-change .subtitle svg { width:16px; height:16px; flex:none; }
+    .first-change .subtitle strong { color:#1f2937; }
+    .field input[aria-invalid="true"] { border-color:#ad3939; }
+    .field input[aria-invalid="true"]:focus { box-shadow:0 0 0 3px rgba(173,57,57,.10); }
+    .field input:disabled { background:#f3f5f7; color:#9099a8; cursor:not-allowed; }
+    .policy { margin:2px 0 14px; padding:0; list-style:none; font-size:13px; line-height:1.5; color:var(--muted); }
+    .policy-title { margin:0 0 4px; font-size:13px; color:#4b5563; font-weight:700; }
+    .policy li { position:relative; padding-left:16px; margin-bottom:2px; }
+    .policy li::before { content:""; position:absolute; left:3px; top:7px; width:6px; height:6px; border-radius:50%; background:#b6bec9; }
+    .policy li.ok { color:#0b8e4a; }
+    .policy li.ok::before { background:var(--green); }
+    .countdown { display:flex; align-items:center; gap:8px; margin:0 0 16px; padding:9px 12px; border:1px solid var(--line); border-radius:6px; background:#f7f9fa; color:#4b5563; font-size:13px; line-height:1.4; }
+    .countdown svg { width:18px; height:18px; flex:none; color:#6b7788; }
+    .countdown.warning { border-color:#f0c58a; background:#fff8ec; color:#8a4b00; }
+    .countdown.warning svg { color:#b26a00; }
+    .countdown[hidden] { display:none; }
+    .spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,.45); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation:none; } }
+    .message.success { color:#0b8e4a; }
+    .message.info { color:#4b5563; }
+    .message.warning { color:#8a4b00; background:#fff8ec; border:1px solid #f0c58a; border-radius:6px; padding:8px 12px; }
+    .message.warning .ref { color:#8a4b00; }
+    .message .ref { display:block; color:#929aa5; }
+    .after { width:100%; max-width:440px; }
+    .after[hidden] { display:none; }
+    .after .message { margin:0 0 16px; text-align:center; font-size:14px; }
+    .secondary-actions { display:flex; justify-content:center; margin-top:14px; }
+    .secondary-actions[hidden], .login-form[hidden] { display:none; }
+    .forgot:disabled { color:#9099a8; cursor:not-allowed; text-decoration:none; }
+    .first-change .footer { margin-top:clamp(12px,2vh,22px); }
+    .visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+
+    /* ===== Tablet: Phase A rules (46/54), first-change overrides marked .first-change ===== */
+    @media (max-width:1080px) and (min-width:641px) {
+      body { padding:16px; }
+      .login-shell { width:calc(100vw - 32px); height:calc(100dvh - 32px); max-height:none; grid-template-columns:46% 54%; }
+      .login-panel { padding:24px; }
+      .logo { width:min(245px,90%); }
+      .subtitle { font-size:13px; }
+      .forgot { font-size:13px; }
+    }
+    /* ===== Mobile: Phase A rules (background photo + 82% white veil), first-change overrides marked .first-change ===== */
+    @media (max-width:640px) {
+      body { padding:0; background:#f4f8f6; }
+      .login-shell { position:relative; isolation:isolate; display:flex; align-items:center; justify-content:center; width:100vw; height:100dvh; max-height:none; border:0; border-radius:0; box-shadow:none; background:transparent; }
+      .login-shell::before { content:""; position:absolute; z-index:-2; inset:0; background:url("../../frontend/src/assets/images/warehouse-illustration.png") center center / cover no-repeat; }
+      .login-shell::after { content:""; position:absolute; z-index:-1; inset:0; background:rgba(255,255,255,.82); }
+      .illustration { display:none; }
+      .login-panel { position:relative; width:100%; max-width:440px; max-height:100%; min-height:0; padding:clamp(20px,5vh,48px) 24px; overflow-y:auto; background:rgba(255,255,255,.35); border-radius:12px; }
+      .logo { width:min(235px,75%); max-height:clamp(120px,21dvh,195px); margin-bottom:clamp(14px,3dvh,25px); }
+      .first-change .logo { max-height:clamp(80px,14dvh,150px); margin-bottom:clamp(10px,2dvh,18px); }
+      h1 { font-size:clamp(20px,5vw,23px); }
+      .subtitle { font-size:13px; margin:8px 0 clamp(20px,4dvh,30px); }
+      .first-change .subtitle { margin:8px 0 clamp(14px,3dvh,22px); }
+      .field { margin-bottom:14px; }
+      .field input { height:50px; background:rgba(255,255,255,.96); }
+      .field-icon { top:14px; }
+      .password-toggle { top:5px; }
+      .countdown { background:rgba(247,249,250,.96); }
+      .countdown.warning { background:rgba(255,248,236,.96); }
+      .forgot { font-size:13px; }
+      .login-button { height:52px; }
+      .footer { margin-top:clamp(18px,4dvh,32px); }
+    }
+    @media(max-width:360px){ .login-panel{padding-left:16px;padding-right:16px;} .forgot{font-size:12px;} }
+    @media(max-height:620px) and (min-width:641px){ .logo { max-height:120px; margin-bottom:12px; } .first-change .logo { max-height:80px; } .subtitle { margin-bottom:12px; } .field { margin-bottom:10px; } .footer { margin-top:12px; } }
+
+    /* ===== Demo-only state switcher (not part of the design; hidden with ?demo=off) ===== */
+    .demo-switcher { position:fixed; right:12px; bottom:12px; z-index:10; font:12px Arial,"Segoe UI",sans-serif; color:#374151; background:#fff; border:1px dashed #9aa3af; border-radius:6px; box-shadow:0 4px 14px rgba(39,54,71,.12); }
+    .demo-switcher summary { padding:6px 10px; cursor:pointer; }
+    .demo-switcher div { padding:0 10px 10px; display:grid; gap:6px; }
+    .demo-switcher select { font:12px Arial,"Segoe UI",sans-serif; max-width:230px; }
+    .demo-off .demo-switcher { display:none; }
+  </style>
+</head>
+<body>
+  <main class="login-shell first-change">
+    <section class="login-panel" aria-labelledby="fc-title">
+      <img class="logo" src="../../frontend/src/assets/images/talopack-logo.png" alt="TALOPACK" />
+      <h1 id="fc-title" data-msg="FC.TITLE"></h1>
+      <p class="subtitle"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.2" r="4.1"/><path d="M3.2 21v-2.2c0-4 3.8-6.6 8.8-6.6s8.8 2.6 8.8 6.6V21Z"/></svg><span id="account-line"></span></p>
+
+      <form class="login-form" id="fc-form" novalidate>
+        <label class="field">
+          <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="4.2" y="10.2" width="15.6" height="11" rx="2"/><path d="M8 10.2V7a4 4 0 0 1 8 0v3.2"/><circle cx="12" cy="15.2" r="1" fill="currentColor"/><path d="M12 16v2"/></svg>
+          <input id="new-password" name="newPassword" type="password" autocomplete="new-password" aria-describedby="policy-list" />
+          <button type="button" class="password-toggle" data-target="new-password" aria-controls="new-password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.7-6 10-6 10 6 10 6-3.7 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </label>
+        <label class="field">
+          <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="4.2" y="10.2" width="15.6" height="11" rx="2"/><path d="M8 10.2V7a4 4 0 0 1 8 0v3.2"/><circle cx="12" cy="15.2" r="1" fill="currentColor"/><path d="M12 16v2"/></svg>
+          <input id="confirm-password" name="confirmPassword" type="password" autocomplete="new-password" />
+          <button type="button" class="password-toggle" data-target="confirm-password" aria-controls="confirm-password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.7-6 10-6 10 6 10 6-3.7 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </label>
+
+        <p class="policy-title" data-msg="FC.HINT_TITLE"></p>
+        <ul class="policy" id="policy-list">
+          <li id="hint-length" data-msg="FC.HINT_LENGTH"></li>
+          <li data-msg="FC.HINT_FREE"></li>
+          <li data-msg="FC.HINT_AVOID"></li>
+          <li data-msg="FC.HINT_DIFFERENT"></li>
+        </ul>
+
+        <p class="countdown" id="countdown" role="timer" aria-live="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="countdown-text"></span></p>
+
+        <button class="login-button" type="submit" id="submit-button"></button>
+        <p class="message" id="message" role="status" aria-live="polite"></p>
+      </form>
+
+      <div class="after" id="after" hidden>
+        <p class="message" id="after-message" role="status" aria-live="polite"></p>
+        <a class="login-button" id="back-to-login" href="../../frontend/TALO-MOS-Login-Demo-Responsive-v2.html" style="text-decoration:none" data-msg="FC.BACK_TO_LOGIN"></a>
+      </div>
+
+      <div class="secondary-actions" id="logout-row"><button class="forgot" type="button" id="logout-button" data-msg="FC.LOGOUT"></button></div>
+      <footer class="footer">© 2026 TALOPACK</footer>
+    </section>
+    <aside class="illustration" aria-label="Minh họa nhà kho TALOPACK"><img src="../../frontend/src/assets/images/warehouse-illustration.png" alt="Nhà kho và hoạt động vận chuyển TALOPACK" /></aside>
+  </main>
+
+  <details class="demo-switcher" id="demo-switcher">
+    <summary>Demo: trạng thái</summary>
+    <div>
+      <select id="demo-state" aria-label="Chọn trạng thái demo"></select>
+      <span>Chỉ dùng cho demo — không thuộc thiết kế.</span>
+    </div>
+  </details>
+
+  <script>
+    // P-11 copy — must stay identical to design/auth-b1/AUTH-B1.3-messages-vi.md (checked by verify script).
+    const MESSAGES = {
+      'FC.TITLE': 'ĐỔI MẬT KHẨU LẦN ĐẦU',
+      'FC.ACCOUNT': 'Tài khoản: {username}',
+      'FC.NEW_PLACEHOLDER': 'Mật khẩu mới',
+      'FC.CONFIRM_PLACEHOLDER': 'Xác nhận mật khẩu mới',
+      'FC.SHOW': 'Hiện mật khẩu',
+      'FC.HIDE': 'Ẩn mật khẩu',
+      'FC.HINT_TITLE': 'Yêu cầu mật khẩu:',
+      'FC.HINT_LENGTH': 'Từ 15 đến 128 ký tự, có thể dùng cụm từ có khoảng trắng.',
+      'FC.HINT_FREE': 'Không bắt buộc chữ hoa, chữ số hay ký tự đặc biệt.',
+      'FC.HINT_AVOID': 'Không dùng mật khẩu phổ biến, tên đăng nhập, mã nhân viên, họ tên hoặc tên công ty.',
+      'FC.HINT_DIFFERENT': 'Phải khác mật khẩu tạm đã được cấp.',
+      'FC.SUBMIT': 'CẬP NHẬT MẬT KHẨU',
+      'FC.SUBMITTING': 'ĐANG CẬP NHẬT...',
+      'FC.LOGOUT': 'Đăng xuất',
+      'FC.BACK_TO_LOGIN': 'QUAY LẠI ĐĂNG NHẬP',
+      'FC.EMPTY_NEW': 'Vui lòng nhập mật khẩu mới.',
+      'FC.EMPTY_CONFIRM': 'Vui lòng nhập lại mật khẩu mới để xác nhận.',
+      'FC.MISMATCH': 'Mật khẩu xác nhận không khớp với mật khẩu mới.',
+      'FC.SUCCESS': 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.',
+      'FC.VALIDATION_ERROR': 'Dữ liệu mật khẩu không hợp lệ. Vui lòng nhập lại.',
+      'FC.NOT_REQUIRED': 'Tài khoản của bạn không cần đổi mật khẩu lần đầu.',
+      'FC.SERVICE_BUSY': 'Hệ thống đang bận, mật khẩu chưa được thay đổi. Vui lòng thử lại sau ít phút.',
+      'FC.INTERNAL_ERROR': 'Hệ thống gặp lỗi khi cập nhật mật khẩu. Vui lòng thử lại; nếu vẫn lỗi, hãy đăng nhập lại hoặc liên hệ quản trị viên.',
+      'POLICY.TOO_SHORT': 'Mật khẩu mới phải có ít nhất 15 ký tự.',
+      'POLICY.TOO_LONG': 'Mật khẩu mới không được vượt quá 128 ký tự.',
+      'POLICY.TOO_LONG_BYTES': 'Mật khẩu mới quá dài khi lưu trữ. Vui lòng rút ngắn hoặc bớt biểu tượng, ký tự đặc biệt.',
+      'POLICY.CONTROL_CHARACTERS': 'Mật khẩu mới chứa ký tự điều khiển không hợp lệ. Vui lòng nhập lại.',
+      'POLICY.BLOCKLISTED': 'Mật khẩu này quá phổ biến hoặc dễ đoán. Vui lòng chọn mật khẩu khác.',
+      'POLICY.CONTEXT_MATCH': 'Mật khẩu không được trùng với tên đăng nhập, mã nhân viên, họ tên hoặc tên công ty.',
+      'POLICY.SAME_AS_CURRENT': 'Mật khẩu mới phải khác mật khẩu tạm hiện tại.',
+      'POLICY.UNKNOWN': 'Mật khẩu mới chưa đáp ứng yêu cầu. Vui lòng chọn mật khẩu khác.',
+      'SESSION.ACTIVATION_REMAINING': 'Thời gian còn lại để đổi mật khẩu: {n} phút.',
+      'SESSION.ACTIVATION_REMAINING_LT1': 'Thời gian còn lại để đổi mật khẩu: dưới 1 phút.',
+      'SESSION.ACTIVATION_EXPIRED': 'Phiên đổi mật khẩu đã hết hạn. Vui lòng đăng nhập lại để tiếp tục.',
+      'LOGOUT.LOADING': 'Đang đăng xuất...',
+      'LOGOUT.DONE': 'Bạn đã đăng xuất.',
+      'LOGOUT.FAILED': 'Không xác nhận được việc đăng xuất với máy chủ. Nếu bạn dùng máy tính chung, hãy đóng trình duyệt.',
+      'COMMON.RATE_LIMITED': 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng chờ ít phút rồi thử lại.',
+      'COMMON.REQUEST_INVALID': 'Yêu cầu không hợp lệ. Vui lòng tải lại trang và thử lại.',
+      'COMMON.NETWORK': 'Không kết nối được máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.',
+      'COMMON.REFERENCE': 'Mã tham chiếu: {requestId}'
+    };
+    const t = (id, vars = {}) => MESSAGES[id].replace(/\{(\w+)\}/g, (_, k) => String(vars[k]));
+
+    // ---- Demo fixtures (fictional; no real account) ----
+    const DEMO = {
+      username: 'NV0001',
+      temporaryPassword: 'mat khau tam demo 2026',             // stands in for the server-side SAME_AS_CURRENT check
+      blocklist: ['matkhaumoi123456', '123456789012345', 'qwertyuiopasdfgh'],
+      context: ['nv0001nv0001nv0001', 'talopack@123456', 'talopack2026talopack'],
+      activationSeconds: 14 * 60 + 30                          // expiresAt - serverTime as returned by login
+    };
+
+    const $ = id => document.getElementById(id);
+    const form = $('fc-form'), newPw = $('new-password'), confirmPw = $('confirm-password');
+    const submit = $('submit-button'), message = $('message'), after = $('after'), afterMessage = $('after-message');
+    const countdown = $('countdown'), countdownText = $('countdown-text'), logoutButton = $('logout-button');
+    const hintLength = $('hint-length');
+
+    document.querySelectorAll('[data-msg]').forEach(el => { el.textContent = t(el.dataset.msg); });
+    const accountText = t('FC.ACCOUNT', { username: DEMO.username }).split(DEMO.username);
+    $('account-line').append(accountText[0], Object.assign(document.createElement('strong'), { textContent: DEMO.username }), accountText[1] || '');
+    newPw.placeholder = t('FC.NEW_PLACEHOLDER'); newPw.setAttribute('aria-label', t('FC.NEW_PLACEHOLDER'));
+    confirmPw.placeholder = t('FC.CONFIRM_PLACEHOLDER'); confirmPw.setAttribute('aria-label', t('FC.CONFIRM_PLACEHOLDER'));
+
+    function setSubmitIdle() { submit.disabled = false; logoutButton.disabled = false; submit.replaceChildren(t('FC.SUBMIT')); }
+    function setSubmitLoading() {
+      submit.disabled = true; logoutButton.disabled = true;       // no logout race while the change is in flight
+      submit.replaceChildren(spinnerEl(), t('FC.SUBMITTING'));
+    }
+    function spinnerEl() { const s = document.createElement('span'); s.className = 'spinner'; s.setAttribute('aria-hidden', 'true'); return s; }
+    setSubmitIdle();
+
+    document.querySelectorAll('.password-toggle').forEach(btn => {
+      const input = $(btn.dataset.target);
+      const sync = () => {
+        const visible = input.type === 'text';
+        btn.setAttribute('aria-pressed', String(visible));
+        btn.setAttribute('aria-label', t(visible ? 'FC.HIDE' : 'FC.SHOW'));
+        btn.title = t(visible ? 'FC.HIDE' : 'FC.SHOW');
+      };
+      btn.addEventListener('click', () => { input.type = input.type === 'password' ? 'text' : 'password'; sync(); });
+      sync();
+    });
+
+    // ---- Client-side checks that need no server data (AUTH-API-v1 §5.3) ----
+    const CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
+    const codePoints = s => [...s.normalize('NFC')].length;
+    const utf8Bytes = s => new TextEncoder().encode(s.normalize('NFC')).length;
+    function clientCheck(pw, confirm) {
+      if (!pw) return { id: 'FC.EMPTY_NEW', field: newPw };
+      if (CONTROL.test(pw)) return { id: 'POLICY.CONTROL_CHARACTERS', field: newPw };
+      if (codePoints(pw) < 15) return { id: 'POLICY.TOO_SHORT', field: newPw };
+      if (codePoints(pw) > 128) return { id: 'POLICY.TOO_LONG', field: newPw };
+      if (utf8Bytes(pw) > 512) return { id: 'POLICY.TOO_LONG_BYTES', field: newPw };
+      if (!confirm) return { id: 'FC.EMPTY_CONFIRM', field: confirmPw };
+      if (pw.normalize('NFC') !== confirm.normalize('NFC')) return { id: 'FC.MISMATCH', field: confirmPw };
+      return null;
+    }
+    // Simulated server answer (the real checks run only on the server).
+    function simulatedServer(pw) {
+      const v = pw.normalize('NFC').toLowerCase();
+      if (DEMO.blocklist.includes(v)) return { status: 400, code: 'PASSWORD_POLICY', reason: 'BLOCKLISTED' };
+      if (DEMO.context.includes(v)) return { status: 400, code: 'PASSWORD_POLICY', reason: 'CONTEXT_MATCH' };
+      if (pw.normalize('NFC') === DEMO.temporaryPassword) return { status: 400, code: 'PASSWORD_POLICY', reason: 'SAME_AS_CURRENT' };
+      return { status: 200 };
+    }
+
+    function updateHints() {
+      const n = codePoints(newPw.value);
+      hintLength.classList.toggle('ok', n >= 15 && n <= 128);
+    }
+    newPw.addEventListener('input', () => { updateHints(); clearFieldErrors(); });
+    confirmPw.addEventListener('input', clearFieldErrors);
+
+    function clearFieldErrors() { newPw.removeAttribute('aria-invalid'); confirmPw.removeAttribute('aria-invalid'); }
+    function show(el, kind, text, requestId) {
+      el.className = 'message' + (kind === 'error' ? '' : ' ' + kind);
+      el.replaceChildren(text);
+      if (requestId) el.append(Object.assign(document.createElement('span'), { className: 'ref', textContent: t('COMMON.REFERENCE', { requestId }) }));
+      el.scrollIntoView({ block: 'nearest' });     // short screens: the status area must never stay below the fold
+    }
+    function clearMessage() { message.className = 'message'; message.replaceChildren(); }
+    function setFormEnabled(enabled) {
+      [newPw, confirmPw, ...document.querySelectorAll('.password-toggle')].forEach(el => { el.disabled = !enabled; });
+      submit.disabled = !enabled;
+    }
+    function endState(kind, text) {               // success, expired, logged out: form replaced by one action
+      stopCountdown();
+      form.hidden = true;
+      $('logout-row').hidden = true;
+      after.hidden = false;
+      show(afterMessage, kind, text);
+      newPw.value = ''; confirmPw.value = '';     // never keep a password in the DOM after the flow ends
+    }
+
+    // ---- Activation countdown (D-UI-2): text in whole minutes, monotonic clock, server decides expiry ----
+    let deadline = null, timer = null;
+    function startCountdown(seconds) {
+      deadline = performance.now() + seconds * 1000;
+      clearInterval(timer);
+      timer = setInterval(renderCountdown, 1000);
+      renderCountdown();
+    }
+    function stopCountdown() { clearInterval(timer); countdown.hidden = true; }
+    function renderCountdown() {
+      const left = Math.max(0, (deadline - performance.now()) / 1000);
+      if (left <= 0) { endState('error', t('SESSION.ACTIVATION_EXPIRED')); return; }
+      const minutes = Math.floor(left / 60);
+      countdown.hidden = false;
+      countdown.classList.toggle('warning', left <= 120);
+      countdownText.textContent = minutes >= 1 ? t('SESSION.ACTIVATION_REMAINING', { n: minutes }) : t('SESSION.ACTIVATION_REMAINING_LT1');
+    }
+
+    const DEMO_REQUEST_ID = '3f6b1c2e-8d4a-4b7e-9c1d-2a5e6f7b8c9d';
+    function applyServerResult(r) {
+      function spinnerEl() { const s = document.createElement('span'); s.className = 'spinner'; s.setAttribute('aria-hidden', 'true'); return s; }
+    setSubmitIdle();
+      setFormEnabled(true);
+      if (r.status === 200) return endState('success', t('FC.SUCCESS'));
+      if (r.status === 'network') return show(message, 'error', t('COMMON.NETWORK'));
+      switch (r.code) {
+        case 'PASSWORD_POLICY': newPw.setAttribute('aria-invalid', 'true'); return show(message, 'error', t(MESSAGES['POLICY.' + r.reason] ? 'POLICY.' + r.reason : 'POLICY.UNKNOWN'));
+        case 'VALIDATION_ERROR': return show(message, 'error', t('FC.VALIDATION_ERROR'));
+        case 'SESSION_INVALID': return endState('error', t('SESSION.ACTIVATION_EXPIRED'));
+        case 'NOT_REQUIRED': return endState('info', t('FC.NOT_REQUIRED'));
+        case 'RATE_LIMITED': return show(message, 'warning', t('COMMON.RATE_LIMITED'));
+        case 'SERVICE_BUSY': return show(message, 'warning', t('FC.SERVICE_BUSY'), DEMO_REQUEST_ID);
+        case 'INTERNAL_ERROR': return show(message, 'error', t('FC.INTERNAL_ERROR'), DEMO_REQUEST_ID);
+        default: return show(message, 'error', t('COMMON.REQUEST_INVALID'));
+      }
+    }
+
+    let forced = null;   // server outcome forced by the demo switcher
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      clearFieldErrors(); clearMessage();
+      const problem = clientCheck(newPw.value, confirmPw.value);
+      if (problem) { problem.field.setAttribute('aria-invalid', 'true'); problem.field.focus({ preventScroll: true }); show(message, 'error', t(problem.id)); return; }
+      setSubmitLoading();
+      [newPw, confirmPw, ...document.querySelectorAll('.password-toggle')].forEach(el => { el.disabled = true; });
+      setTimeout(() => applyServerResult(forced || simulatedServer(newPw.value)), 1200);
+    });
+
+    logoutButton.addEventListener('click', () => {
+      logoutButton.disabled = true;
+      logoutButton.textContent = t('LOGOUT.LOADING');
+      setFormEnabled(false);
+      setTimeout(() => endState('info', t('LOGOUT.DONE')), 800);
+    });
+
+    // ---- Demo state switcher (?state=<id>, ?demo=off) ----
+    const VALID = 'mua thu ha noi co nang vang';
+    const STATES = {
+      'default': ['Mặc định (form trống)', () => {}],
+      'typing': ['Đang nhập — đạt độ dài', () => { fill(VALID, VALID); }],
+      'empty-submit': ['Validation: bỏ trống', () => { form.requestSubmit(); }],
+      'too-short': ['Validation: quá ngắn', () => { fill('ngan qua', 'ngan qua'); form.requestSubmit(); }],
+      'control-char': ['Validation: ký tự điều khiển', () => { fill('mat khau co tab\tở giữa', 'mat khau co tab\tở giữa'); form.requestSubmit(); }],
+      'mismatch': ['Validation: xác nhận không khớp', () => { fill(VALID, VALID + ' x'); form.requestSubmit(); }],
+      'loading': ['Đang gửi (loading)', () => {}],
+      'blocklisted': ['Server: BLOCKLISTED', () => { fill('MatKhauMoi123456', 'MatKhauMoi123456'); form.requestSubmit(); }],
+      'context-match': ['Server: CONTEXT_MATCH', () => { fill('TaloPack@123456', 'TaloPack@123456'); form.requestSubmit(); }],
+      'same-as-current': ['Server: SAME_AS_CURRENT', () => { fill(DEMO.temporaryPassword, DEMO.temporaryPassword); form.requestSubmit(); }],
+      'rate-limited': ['Server: 429 RATE_LIMITED', () => { fill(VALID, VALID); forced = { status: 429, code: 'RATE_LIMITED' }; form.requestSubmit(); }],
+      'service-busy': ['Server: 503 SERVICE_BUSY', () => { fill(VALID, VALID); forced = { status: 503, code: 'SERVICE_BUSY' }; form.requestSubmit(); }],
+      'system-error': ['Server: 500 INTERNAL_ERROR', () => { fill(VALID, VALID); forced = { status: 500, code: 'INTERNAL_ERROR' }; form.requestSubmit(); }],
+      'network-error': ['Lỗi mạng', () => { fill(VALID, VALID); forced = { status: 'network' }; form.requestSubmit(); }],
+      'success': ['Thành công → đăng nhập lại', () => { fill(VALID, VALID); form.requestSubmit(); }],
+      'expiring': ['Phiên sắp hết hạn (≤ 2 phút)', () => { startCountdown(105); }],
+      'expired': ['Phiên đã hết hạn (client)', () => { startCountdown(0); }],
+      'session-invalid': ['Server: 401 SESSION_INVALID', () => { fill(VALID, VALID); forced = { status: 401, code: 'SESSION_INVALID' }; form.requestSubmit(); }],
+      'logged-out': ['Đăng xuất', () => { logoutButton.click(); }]
+    };
+    function fill(a, b) { newPw.value = a; confirmPw.value = b; updateHints(); }
+
+    const params = new URLSearchParams(location.search);
+    if (params.get('demo') === 'off') document.body.classList.add('demo-off');
+    const select = $('demo-state');
+    Object.entries(STATES).forEach(([id, [label]]) => select.add(new Option(label, id)));
+    const initial = STATES[params.get('state')] ? params.get('state') : 'default';
+    select.value = initial;
+    select.addEventListener('change', () => {
+      const url = new URL(location.href); url.searchParams.set('state', select.value); location.href = url.toString();
+    });
+
+    startCountdown(DEMO.activationSeconds);
+    updateHints();
+    if (initial === 'loading') {
+      fill(VALID, VALID); setSubmitLoading();
+      [newPw, confirmPw, ...document.querySelectorAll('.password-toggle')].forEach(el => { el.disabled = true; });
+    } else {
+      window.addEventListener('load', () => STATES[initial][1]());   // after images, so scrolling uses the final layout
+    }
+  </script>
+</body>
+</html>

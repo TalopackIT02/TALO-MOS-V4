@@ -1,22 +1,27 @@
 openapi: 3.1.0
 info:
   title: TALO-MOS-V4 Authentication API
-  version: 1.0.0-draft
+  version: 1.0.0
   description: >
-    DRAFT contract (AUTH-B1.1), design only — not implemented. Narrative rules, processing order, audit and the
-    contract test matrix are in AUTH-API-v1.md. All security times come from PostgreSQL. PENDING parameters
-    (P-4a..e, P-6b, P-7, P-8, P-10, P-11) are intentionally not specified.
+    Contract v1 (AUTH-B1.1, finalized). Design only — no endpoint is implemented yet; this describes the required behaviour.
+    Narrative rules (lifecycle, processing order, H-b lockout with D = 30 s, writer protocol, audit, contract tests)
+    are in AUTH-API-v1.md and take precedence. All security times come from PostgreSQL. Passwords: NFC, 15-128 code
+    points, at most 512 UTF-8 bytes, not trimmed, Argon2id via @node-rs/argon2 (local baseline m=19 MiB, t=2, p=1).
+    Values listed as PENDING in AUTH-API-v1.md section 13.2 are intentionally not specified here. INV-10 is NOT
+    VERIFIED until the implementation passes the contract tests (blockers IB-1..IB-3, AUTH-API-v1.md section 4.5).
 servers:
   - url: http://127.0.0.1:3000/api
     description: local development (Vite proxies /api from http://127.0.0.1:5173)
 tags:
   - name: auth
+    description: Login, first password change, session description and logout (AUTH-API-v1.md).
 paths:
   /auth/login:
     post:
       tags: [auth]
       operationId: login
       summary: Verify username and password; issue an Activation or an Authenticated Session.
+      security: []
       parameters:
         - $ref: '#/components/parameters/Origin'
       requestBody:
@@ -39,12 +44,16 @@ paths:
                   - $ref: '#/components/schemas/LoginPasswordChangeRequired'
                 discriminator:
                   propertyName: status
+                  mapping:
+                    AUTHENTICATED: '#/components/schemas/LoginAuthenticated'
+                    PASSWORD_CHANGE_REQUIRED: '#/components/schemas/LoginPasswordChangeRequired'
         '400': { $ref: '#/components/responses/ValidationError' }
         '401':
           description: >
             Uniform failure (INV-10) for unknown username, no credential, wrong password, temporary lock, no attempt
-            slot, credential changed, attempt deadline exceeded, stale success on a locked cycle, transient database
-            error. Status, headers and body are identical except `requestId`. No Set-Cookie, no Retry-After.
+            slot, credential changed, attempt deadline exceeded, stale success on a locked cycle. Status, headers and
+            body are identical except `requestId` / X-Request-Id (a fresh UUID v4 per request, accepted to differ;
+            contract tests normalise it). No Set-Cookie, no Retry-After. A database error never produces this 401.
           headers:
             X-Request-Id: { $ref: '#/components/headers/RequestId' }
             Cache-Control: { $ref: '#/components/headers/NoStore' }
@@ -59,7 +68,15 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorEnvelope' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
-        '429': { $ref: '#/components/responses/RateLimited' }
+        '429':
+          description: RATE_LIMITED — local limit 60 login requests per 15 minutes per client IP, before validation and Argon2.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ServiceBusy' }
   /auth/password/first-change:
     post:
@@ -122,12 +139,17 @@ paths:
                   - $ref: '#/components/schemas/SessionActivation'
                 discriminator:
                   propertyName: status
+                  mapping:
+                    AUTHENTICATED: '#/components/schemas/SessionAuthenticated'
+                    PASSWORD_CHANGE_REQUIRED: '#/components/schemas/SessionActivation'
         '401': { $ref: '#/components/responses/SessionInvalid' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /auth/logout:
     post:
       tags: [auth]
       operationId: logout
       summary: Revoke the current session. Always 204 (idempotent), cookie cleared.
+      security: []
       parameters:
         - $ref: '#/components/parameters/Origin'
       responses:
@@ -142,6 +164,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorEnvelope' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/InternalError' }
 
 components:
   securitySchemes:
@@ -198,17 +221,23 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorEnvelope' }
     RateLimited:
-      description: RATE_LIMITED — per IP, before any password hashing. Thresholds PENDING (P-7).
+      description: RATE_LIMITED — per IP, before any password hashing (P-7). Threshold for this endpoint PENDING.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorEnvelope' }
     ServiceBusy:
-      description: SERVICE_BUSY — password-hashing capacity exhausted. PENDING with P-6b.
+      description: >
+        SERVICE_BUSY — (a) password-hashing queue full or timed out (global, limits PENDING with P-6b); or (b) the
+        database transaction failed with 40P01/40001 and its single retry failed too (or no retry was allowed). Case (b)
+        is reachable on login only after the correct password was verified, on first-change only with a valid
+        Activation Session. Never replaced by 401. No session issued, no state change.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorEnvelope' }
     InternalError:
-      description: INTERNAL_ERROR (never on an account-dependent login path).
+      description: >
+        INTERNAL_ERROR — unexpected, non-retryable error. On login it must not depend on whether the account exists
+        (implementation blocker IB-1).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorEnvelope' }
@@ -258,6 +287,9 @@ components:
         maxBytes: { type: integer, const: 512 }
     LoginRequest:
       type: object
+      description: >
+        There is deliberately no `remember` field: "Ghi nhớ tên đăng nhập" stores only the username in the browser and
+        never affects sessions. Unknown properties are rejected.
       required: [username, password]
       additionalProperties: false
       properties:
@@ -266,7 +298,9 @@ components:
           type: string
           minLength: 1
           maxLength: 128
-          description: Not trimmed; NFC-normalised server-side; at most 128 code points and 512 UTF-8 bytes.
+          description: >
+            Not trimmed; NFC-normalised server-side; at most 128 code points and 512 UTF-8 bytes; no C0
+            (U+0000-U+001F), DEL (U+007F) or C1 (U+0080-U+009F) control character (400 VALIDATION_ERROR).
     AccountSummary:
       type: object
       required: [userAccountId, username, fullName]
@@ -307,9 +341,12 @@ components:
       properties:
         newPassword:
           type: string
-          minLength: 15
-          maxLength: 128
-          description: Not trimmed; NFC-normalised; 15-128 code points, at most 512 UTF-8 bytes; confirmation is client-side.
+          description: >
+            Not trimmed. The server NFC-normalises, then enforces 15-128 code points, at most 512 UTF-8 bytes, no C0/DEL/C1
+            control character, case-insensitive whole-password blocklist and contextual checks, and difference from
+            the current password (Argon2id verify against the current hash); violations return 400 PASSWORD_POLICY
+            with details.reason (not VALIDATION_ERROR). The UI's confirmation field is compared client-side and is not
+            sent.
     FirstChangeSuccess:
       type: object
       required: [status]
