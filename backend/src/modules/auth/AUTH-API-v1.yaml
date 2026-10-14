@@ -1,0 +1,338 @@
+openapi: 3.1.0
+info:
+  title: TALO-MOS-V4 Authentication API
+  version: 1.0.0-draft
+  description: >
+    DRAFT contract (AUTH-B1.1), design only — not implemented. Narrative rules, processing order, audit and the
+    contract test matrix are in AUTH-API-v1.md. All security times come from PostgreSQL. PENDING parameters
+    (P-4a..e, P-6b, P-7, P-8, P-10, P-11) are intentionally not specified.
+servers:
+  - url: http://127.0.0.1:3000/api
+    description: local development (Vite proxies /api from http://127.0.0.1:5173)
+tags:
+  - name: auth
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Verify username and password; issue an Activation or an Authenticated Session.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Authenticated Session or Activation Session issued (see `status`).
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SessionCookie' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LoginAuthenticated'
+                  - $ref: '#/components/schemas/LoginPasswordChangeRequired'
+                discriminator:
+                  propertyName: status
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401':
+          description: >
+            Uniform failure (INV-10) for unknown username, no credential, wrong password, temporary lock, no attempt
+            slot, credential changed, attempt deadline exceeded, stale success on a locked cycle, transient database
+            error. Status, headers and body are identical except `requestId`. No Set-Cookie, no Retry-After.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              example: { error: { code: INVALID_CREDENTIALS, message: '<P-11>', requestId: 00000000-0000-4000-8000-000000000000 } }
+        '403':
+          description: ACCOUNT_NOT_ALLOWED (correct password, ineligible account/membership) or ORIGIN_NOT_ALLOWED (CSRF X1).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceBusy' }
+  /auth/password/first-change:
+    post:
+      tags: [auth]
+      operationId: firstChangePassword
+      summary: Set the first personal password; activates the account, revokes all sessions, requires a new login.
+      security:
+        - activationSession: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FirstChangeRequest' }
+      responses:
+        '200':
+          description: Password changed. All sessions (including this one) revoked; cookie cleared; log in again (D-B1-1).
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/ClearCookie' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FirstChangeSuccess' }
+        '400':
+          description: PASSWORD_POLICY (with details.reason) or VALIDATION_ERROR.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403':
+          description: NOT_REQUIRED (Authenticated Session) or ORIGIN_NOT_ALLOWED.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceBusy' }
+  /auth/session:
+    get:
+      tags: [auth]
+      operationId: getSession
+      summary: Describe the current session. Never extends an Activation Session; counts as activity otherwise.
+      security:
+        - activationSession: []
+        - authenticatedSession: []
+      responses:
+        '200':
+          description: Current session.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SessionAuthenticated'
+                  - $ref: '#/components/schemas/SessionActivation'
+                discriminator:
+                  propertyName: status
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Revoke the current session. Always 204 (idempotent), cookie cleared.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      responses:
+        '204':
+          description: Logged out (or nothing to log out).
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/ClearCookie' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+        '403':
+          description: ORIGIN_NOT_ALLOWED (CSRF X1).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+
+components:
+  securitySchemes:
+    activationSession:
+      type: apiKey
+      in: cookie
+      name: talo_sid
+      description: Activation Session (15 min, not extended); allowed only on first-change, session, logout.
+    authenticatedSession:
+      type: apiKey
+      in: cookie
+      name: talo_sid
+      description: Authenticated Session (10 h absolute, 60 min idle).
+  parameters:
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      description: CSRF X1 — must equal an APP_ORIGIN entry; requests also need Content-Type application/json.
+      schema: { type: string, examples: ['http://127.0.0.1:5173'] }
+  headers:
+    SessionCookie:
+      description: 'talo_sid=<32-byte base64url token>; HttpOnly; SameSite=Strict; Path=/ (+ Secure in production). No Max-Age/Expires.'
+      schema: { type: string }
+    ClearCookie:
+      description: 'talo_sid=; Max-Age=0; HttpOnly; SameSite=Strict; Path=/'
+      schema: { type: string }
+    RequestId:
+      description: Server-generated UUID v4.
+      schema: { type: string, format: uuid }
+    NoStore:
+      schema: { type: string, const: no-store }
+  responses:
+    ValidationError:
+      description: VALIDATION_ERROR or INVALID_JSON (input only, independent of any account).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    SessionInvalid:
+      description: SESSION_INVALID — missing, unknown, expired, idle, revoked or ineligible session; cookie cleared.
+      headers:
+        Set-Cookie: { $ref: '#/components/headers/ClearCookie' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    PayloadTooLarge:
+      description: PAYLOAD_TOO_LARGE (body over 10 kB).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    UnsupportedMediaType:
+      description: UNSUPPORTED_MEDIA_TYPE (POST without application/json).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    RateLimited:
+      description: RATE_LIMITED — per IP, before any password hashing. Thresholds PENDING (P-7).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    ServiceBusy:
+      description: SERVICE_BUSY — password-hashing capacity exhausted. PENDING with P-6b.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    InternalError:
+      description: INTERNAL_ERROR (never on an account-dependent login path).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - INVALID_JSON
+                - PASSWORD_POLICY
+                - INVALID_CREDENTIALS
+                - SESSION_INVALID
+                - ACCOUNT_NOT_ALLOWED
+                - PASSWORD_CHANGE_REQUIRED
+                - NOT_REQUIRED
+                - ORIGIN_NOT_ALLOWED
+                - NOT_FOUND
+                - PAYLOAD_TOO_LARGE
+                - UNSUPPORTED_MEDIA_TYPE
+                - RATE_LIMITED
+                - INTERNAL_ERROR
+                - SERVICE_BUSY
+            message: { type: string, description: Vietnamese text (P-11). }
+            requestId: { type: string, format: uuid }
+            details: { $ref: '#/components/schemas/PasswordPolicyDetails' }
+    PasswordPolicyDetails:
+      type: object
+      description: Present only with PASSWORD_POLICY. Never reveals the matched blocklist entry.
+      required: [reason]
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          enum: [TOO_SHORT, TOO_LONG, TOO_LONG_BYTES, BLOCKLISTED, CONTEXT_MATCH, SAME_AS_CURRENT, CONTROL_CHARACTERS]
+        minLength: { type: integer, const: 15 }
+        maxLength: { type: integer, const: 128 }
+        maxBytes: { type: integer, const: 512 }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      additionalProperties: false
+      properties:
+        username: { type: string, minLength: 1, maxLength: 80, description: Trimmed; compared case-insensitively. }
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Not trimmed; NFC-normalised server-side; at most 128 code points and 512 UTF-8 bytes.
+    AccountSummary:
+      type: object
+      required: [userAccountId, username, fullName]
+      additionalProperties: false
+      properties:
+        userAccountId: { type: string, format: uuid }
+        username: { type: string }
+        fullName: { type: string }
+    ActivationAccount:
+      type: object
+      required: [username]
+      additionalProperties: false
+      properties:
+        username: { type: string }
+    LoginAuthenticated:
+      type: object
+      required: [status, account, assuranceLevel, expiresAt, serverTime]
+      additionalProperties: false
+      properties:
+        status: { type: string, const: AUTHENTICATED }
+        account: { $ref: '#/components/schemas/AccountSummary' }
+        assuranceLevel: { type: integer, const: 1 }
+        expiresAt: { type: string, format: date-time, description: PostgreSQL time; created_at + 10 hours. }
+        serverTime: { type: string, format: date-time }
+    LoginPasswordChangeRequired:
+      type: object
+      required: [status, account, expiresAt, serverTime]
+      additionalProperties: false
+      properties:
+        status: { type: string, const: PASSWORD_CHANGE_REQUIRED }
+        account: { $ref: '#/components/schemas/ActivationAccount' }
+        expiresAt: { type: string, format: date-time, description: PostgreSQL time; created_at + 15 minutes. }
+        serverTime: { type: string, format: date-time }
+    FirstChangeRequest:
+      type: object
+      required: [newPassword]
+      additionalProperties: false
+      properties:
+        newPassword:
+          type: string
+          minLength: 15
+          maxLength: 128
+          description: Not trimmed; NFC-normalised; 15-128 code points, at most 512 UTF-8 bytes; confirmation is client-side.
+    FirstChangeSuccess:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status: { type: string, const: PASSWORD_CHANGED_RELOGIN }
+    SessionAuthenticated:
+      type: object
+      required: [status, account, assuranceLevel, expiresAt, idleExpiresAt, serverTime]
+      additionalProperties: false
+      properties:
+        status: { type: string, const: AUTHENTICATED }
+        account: { $ref: '#/components/schemas/AccountSummary' }
+        assuranceLevel: { type: integer, const: 1 }
+        expiresAt: { type: string, format: date-time }
+        idleExpiresAt: { type: string, format: date-time, description: last_seen_at + 60 minutes. }
+        serverTime: { type: string, format: date-time }
+    SessionActivation:
+      type: object
+      required: [status, account, expiresAt, serverTime]
+      additionalProperties: false
+      properties:
+        status: { type: string, const: PASSWORD_CHANGE_REQUIRED }
+        account: { $ref: '#/components/schemas/ActivationAccount' }
+        expiresAt: { type: string, format: date-time }
+        serverTime: { type: string, format: date-time }
