@@ -1,0 +1,7 @@
+Đọc `AUTH-CONTEXT/00-START-HERE.md` và `AUTH-CONTEXT/01-SOURCE-MAP.md` rồi kiểm tra `git status`/HEAD local. Đây chỉ là bản đồ, source local mới là sự thật.
+
+Tiếp tục đúng phần còn thiếu của Authentication Security và Provisioning; Authentication E2E hiện đã chạy, chỉ regression khi thay đổi liên quan. Không đọc lại toàn bộ F1/F2/B0/SC5/B1, không lập thêm plan, không viết lại code đã có, không tạo test helper trùng.
+
+Tự sửa phần độc lập trong scope hiện tại và chạy targeted tests. Chỉ xin quyết định nếu cần đổi P-4d, tải dataset HIBP lớn, cấp quyền DB/sửa schema, hoặc có rủi ro bảo mật thực chất. Không sửa DB dev, không AppShell, không commit/push.
+
+Khi xong báo cáo ngắn: thay đổi file nào; test đã thực chạy; còn blocker gì; Git status. Không tự tuyên bố production-ready.

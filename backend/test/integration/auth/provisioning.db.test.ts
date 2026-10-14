@@ -10,6 +10,7 @@ import { createAuthModule } from '../../../src/modules/auth/index.js';
 import { PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
 import { ProvisioningError, provisionAccount } from '../../../src/modules/auth/provisioning/provisionAccount.js';
 import type { SqlExecutor } from '../../../src/modules/auth/provisioning/provisionAccount.js';
+import { REISSUE_FUNCTION_SIGNATURE, reissueTemporaryPassword } from '../../../src/modules/auth/provisioning/reissueTemporaryPassword.js';
 import { TEMPORARY_PASSWORD_ALPHABET, TEMPORARY_PASSWORD_LENGTH, generateTemporaryPassword } from '../../../src/modules/auth/provisioning/temporaryPassword.js';
 import { PwnedPasswordsStore } from '../../../src/modules/auth/pwnedPasswords.js';
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
@@ -31,11 +32,17 @@ function psqlExecutor(session: PsqlSession): SqlExecutor {
     async query(sql, params) {
       const text = bind(sql, params).trim();
       const returnsRows = /^select/i.test(text) || /returning/i.test(text);
+      const run = async (statement: string) => {
+        const r = await session.query(statement);
+        if (r.error) throw Object.assign(new Error(`SQL failed [${r.sqlstate}]`), { code: r.sqlstate });
+        return r.rows;
+      };
       if (!returnsRows) {
-        await session.ok(text);
+        await run(text);
         return [];
       }
-      const rows = await session.ok(`WITH q AS (${text}) SELECT row_to_json(q)::text FROM q`);
+      const rows = await run(/^select/i.test(text) && /\bfrom\s+iam\.\w+\(/i.test(text)
+        ? `SELECT row_to_json(q)::text FROM (${text}) q` : `WITH q AS (${text}) SELECT row_to_json(q)::text FROM q`);
       return rows.map(([json]): Record<string, string | null> => JSON.parse(json ?? "{}"));
     },
     async transaction(work) {
@@ -150,11 +157,71 @@ describe.skipIf(!enabled)('P-4e provisioning as talo_provisioner (talo_mos_v4_te
     expect(await count()).toBe(before);
   });
 
-  it('re-issuing a temporary password is NOT possible with the current grants (talo_provisioner has no UPDATE)', async () => {
-    const result = await p.query(`UPDATE iam.iam_credentials SET must_change_password = true WHERE false`);
-    expect(result.error).toBe(true);
-    expect(result.sqlstate).toBe('42501');
-    const sessions = await p.query(`UPDATE iam.iam_sessions SET revoked_at = statement_timestamp() WHERE false`);
-    expect(sessions.sqlstate).toBe('42501');
+  it('decision holds: talo_provisioner has NO direct UPDATE / lock on IAM (EXPLAIN only, READ ONLY)', async () => {
+    const nil = '00000000-0000-0000-0000-000000000000';
+    const probes: [string, string][] = [
+      ['account row lock', `SELECT 1 FROM iam.iam_user_accounts WHERE user_account_id = '${nil}' FOR NO KEY UPDATE`],
+      ['credential update', `UPDATE iam.iam_credentials SET must_change_password = true WHERE user_account_id = '${nil}'`],
+      ['session revoke', `UPDATE iam.iam_sessions SET revoked_at = statement_timestamp() WHERE user_account_id = '${nil}'`],
+      ['audit insert', `INSERT INTO iam.iam_audit_logs (action_code, target_type, outcome) VALUES ('X', 'X', 'SUCCESS')`],
+    ];
+    const outcome: Record<string, string> = {};
+    for (const [name, sql] of probes) {
+      await p.ok('BEGIN READ ONLY');
+      const r = await p.query(`EXPLAIN ${sql}`);
+      await p.query('ROLLBACK');
+      outcome[name] = r.error ? `DENIED ${r.sqlstate}` : 'ALLOWED';
+    }
+    console.log(`[P-4e reissue] talo_provisioner direct: ${JSON.stringify(outcome)}`);
+    expect(outcome).toEqual({ 'account row lock': 'DENIED 42501', 'credential update': 'DENIED 42501', 'session revoke': 'DENIED 42501', 'audit insert': 'ALLOWED' });
+  });
+
+  it('client against the database as talo_provisioner: clear refusal while the SECURITY DEFINER function is not installed', async () => {
+    const [installed] = await p.ok(`SELECT to_regprocedure('${REISSUE_FUNCTION_SIGNATURE}') IS NOT NULL`);
+    if (installed?.[0] === 't') return; // covered by the next test once installed
+    const operator = await fx.create();
+    await expect(reissueTemporaryPassword(psqlExecutor(p), hasher, { username: 'anyone', operatorAccountId: operator.accountId }))
+      .rejects.toThrow(/recovery function is not installed .*42883/);
+    await expect(reissueTemporaryPassword(psqlExecutor(p), hasher, { username: 'anyone', operatorAccountId: 'not-a-uuid' }))
+      .rejects.toThrow(/operator account id must be a UUID/);
+  });
+
+  it('re-issue through iam.reissue_temporary_credential as talo_provisioner (runs only once the approved function is installed)', async (ctx) => {
+    const [installed] = await p.ok(`SELECT to_regprocedure('${REISSUE_FUNCTION_SIGNATURE}') IS NOT NULL`);
+    if (installed?.[0] !== 't') ctx.skip();
+    const operator = await fx.create(); // ACTIVE account of the IT operator
+    const created = await provisionAccount(psqlExecutor(p), hasher, {
+      employeeCode: `${fx.runId}-R1`, fullName: 'Nhân viên cấp lại', username: `${fx.runId}-r1`.toLowerCase(), joinedAt: '2026-10-01',
+    });
+    fx.adopt(created.membershipId, created.userAccountId, created.username);
+    const auth = await createAuthModule({ prisma, logger: silentLogger, production: false, hasher,
+      breachedPasswords: await PwnedPasswordsStore.open(pwnedDir, { production: false }) });
+    const app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger: silentLogger, apiRouters: [auth.router] });
+    const post = (path: string, body: unknown, cookie?: string) => {
+      const req = request(app).post(path).set('Origin', TEST_ORIGIN).set('Content-Type', 'application/json').set('User-Agent', fx.userAgent);
+      return (cookie ? req.set('Cookie', cookie) : req).send(JSON.stringify(body));
+    };
+    const cookieOf = (res: { headers: Record<string, unknown> }) => { const c = res.headers['set-cookie']; return (Array.isArray(c) ? String(c[0] ?? '') : '').split(';')[0] ?? ''; };
+    const personal = 'mua thu ha noi co nang vang';
+    const activation = cookieOf(await post('/api/auth/login', { username: created.username, password: created.temporaryPassword }));
+    expect((await post('/api/auth/password/first-change', { newPassword: personal }, activation)).status).toBe(200);
+    const live = cookieOf(await post('/api/auth/login', { username: created.username, password: personal }));
+
+    const reissued = await reissueTemporaryPassword(psqlExecutor(p), hasher, { username: created.username.toUpperCase(), operatorAccountId: operator.accountId });
+    expect(reissued.revokedSessions).toBe(1);
+    expect((await request(app).get('/api/auth/session').set('Cookie', live)).status).toBe(401);
+    expect((await post('/api/auth/login', { username: created.username, password: personal })).status).toBe(401);
+    const again = await post('/api/auth/login', { username: created.username, password: reissued.temporaryPassword });
+    expect(again.body.status).toBe('PASSWORD_CHANGE_REQUIRED');
+    const [audit] = await h.ok(`SELECT actor_account_id::text, metadata::text FROM iam.iam_audit_logs WHERE target_id = ${lit(created.userAccountId)} AND action_code = 'CREDENTIAL_REISSUED'`);
+    expect(audit?.[0]).toBe(operator.accountId);
+    expect(audit?.[1]).not.toContain('argon2');
+    expect(audit?.[1]).not.toContain(reissued.temporaryPassword);
+    const refuse = (username: string, operatorAccountId: string) => reissueTemporaryPassword(psqlExecutor(p), hasher, { username, operatorAccountId });
+    await expect(refuse(`${fx.runId}-missing`, operator.accountId)).rejects.toThrow(/account not found/);
+    await expect(refuse(operator.username, operator.accountId)).rejects.toThrow(/TA403/); // self-recovery
+    const disabled = await fx.create({ accountStatus: 'DISABLED' });
+    await expect(refuse(disabled.username, operator.accountId)).rejects.toThrow(/TA409/);
+    await expect(refuse(created.username, disabled.accountId)).rejects.toThrow(/TA401/); // operator not eligible
   });
 });
