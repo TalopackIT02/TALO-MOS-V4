@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { auditMetadata, clientInfo } from '../../../src/modules/auth/audit.js';
 import { HashQueueBusyError, PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
 import {
-  checkNewPassword, codePointLength, contextualCandidates, hasControlCharacters, isAcceptableLoginPassword, normalizePassword,
+  checkContext, checkPasswordShape, codePointLength, contextualCandidates, hasControlCharacters, isAcceptableLoginPassword, normalizePassword,
 } from '../../../src/modules/auth/passwordPolicy.js';
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
 import { hashSessionToken, newSessionToken } from '../../../src/modules/auth/sessionCookie.js';
@@ -22,29 +22,23 @@ describe('password policy (AD-6 / P-4)', () => {
       expect(hasControlCharacters(`abc${c}def`)).toBe(true);
     }
     expect(hasControlCharacters('mật khẩu có dấu và khoảng trắng')).toBe(false);
-    expect(checkNewPassword('a quite long phrase\twith tab', context)?.reason).toBe('CONTROL_CHARACTERS');
+    expect(checkPasswordShape('a quite long phrase\twith tab')?.reason).toBe('CONTROL_CHARACTERS');
   });
 
   it('enforces 15–128 code points and 512 bytes with details', () => {
-    expect(checkNewPassword('short phrase', context)).toEqual({ reason: 'TOO_SHORT', minLength: 15 });
-    expect(checkNewPassword('x'.repeat(129), context)).toEqual({ reason: 'TOO_LONG', maxLength: 128 });
+    expect(checkPasswordShape('short phrase')).toEqual({ reason: 'TOO_SHORT', minLength: 15 });
+    expect(checkPasswordShape('x'.repeat(129))).toEqual({ reason: 'TOO_LONG', maxLength: 128 });
     // 128 code points × at most 4 UTF-8 bytes = 512: the byte limit is reached exactly at the code-point limit.
-    expect(checkNewPassword('😀'.repeat(128), context)).toBeNull();
-    expect(checkNewPassword('mua thu ha noi co nang vang', context)).toBeNull();
-    expect(checkNewPassword('  leading and trailing spaces  ', context)).toBeNull(); // no trimming
-  });
-
-  it('matches the blocklist whole-password and case-insensitively (P-4d), never substrings', () => {
-    expect(checkNewPassword('MatKhauMoi123456', context)?.reason).toBe('BLOCKLISTED');
-    expect(checkNewPassword('PASSWORDPASSWORD', context)?.reason).toBe('BLOCKLISTED');
-    expect(checkNewPassword('passwordpassword is long enough', context)).toBeNull();
+    expect(checkPasswordShape('😀'.repeat(128))).toBeNull();
+    expect(checkPasswordShape('mua thu ha noi co nang vang')).toBeNull();
+    expect(checkPasswordShape('  leading and trailing spaces  ')).toBeNull(); // no trimming
   });
 
   it('rejects contextual whole-password matches (username, employee code, name variants, brand + suffix)', () => {
-    expect(checkNewPassword('TaloPack@123456', context)?.reason).toBe('CONTEXT_MATCH');
-    expect(checkNewPassword('NguyenVanAn2026!', { ...context }) ?? { reason: 'none' }).toEqual({ reason: 'none' }); // suffix "2026!" not in list
-    expect(checkNewPassword('nguyenvanan123456', context)?.reason).toBe('CONTEXT_MATCH');
-    expect(checkNewPassword('Nguyễn Văn An 2026', context)).toBeNull();
+    expect(checkContext('TaloPack@123456', context)?.reason).toBe('CONTEXT_MATCH');
+    expect(checkContext('NguyenVanAn2026!', { ...context }) ?? { reason: 'none' }).toEqual({ reason: 'none' }); // suffix "2026!" not in list
+    expect(checkContext('nguyenvanan123456', context)?.reason).toBe('CONTEXT_MATCH');
+    expect(checkContext('Nguyễn Văn An 2026', context)).toBeNull();
     expect(contextualCandidates(context).has('nv0001nv0001123')).toBe(true);
   });
 

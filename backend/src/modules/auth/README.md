@@ -34,7 +34,45 @@ cd backend  && npm run dev        # API on http://127.0.0.1:3000 (auth mounted w
 cd frontend && npm run dev        # UI on  http://127.0.0.1:5173, /api proxied to :3000 (TALO_API_TARGET to change)
 ```
 
-Accounts are provisioned outside this API (IT, role `talo_provisioner`, P-10 / P-4e PENDING).
+## Password blocklist — HIBP Pwned Passwords offline (P-4a/b)
+
+`PWNED_PASSWORDS_DIR` points to a directory **outside Git and outside the database** holding the SHA-1 range files of
+Have I Been Pwned "Pwned Passwords" (hashes only, no plaintext). Terms: the Pwned Passwords API documentation states
+there are no licensing or attribution requirements; the official downloader is BSD-3-Clause. The data is used
+internally and never redistributed. SHA-1 is only the lookup key of this dataset; storage stays Argon2id.
+
+- Production: the variable is required; the server refuses to start if the dataset is missing, partial or invalid.
+- Development / test: if missing, first-change fails closed (`503 SERVICE_BUSY`) and an error is logged.
+- Size (2026-10, measured on one range ≈ 1,900 lines / 75 kB): ≈ 1,048,576 files, ≈ 75–80 GB, ≈ 2 billion hashes.
+- **P-4d limit:** a hash dataset cannot be matched case-insensitively. The lookup checks the NFC value as typed,
+  lower case, UPPER CASE, Capitalised and Title Case. Other spellings of a breached password are not detected.
+
+Install / update (new version = new directory, then switch):
+
+```text
+haveibeenpwned-downloader <dir>/hibp-YYYYMMDD            # official .NET tool, directory mode (one file per prefix), SHA-1
+cd backend
+npm run pwned:manifest -- <dir>/hibp-YYYYMMDD --downloader "haveibeenpwned-downloader <version>"   # version + treeSha256
+npm run pwned:verify   -- <dir>/hibp-YYYYMMDD           # recompute checksum before switching
+# set PWNED_PASSWORDS_DIR=<dir>/hibp-YYYYMMDD, restart, keep the previous directory until the new one is verified
+```
+
+## Provisioning by IT — temporary password (P-4e)
+
+Role `talo_provisioner` (no other grant needed for a NEW account). Set `PROVISIONER_DATABASE_URL` (role
+`talo_provisioner`, password from the secret store — never committed), then on an interactive terminal:
+
+```text
+cd backend
+npm run provision:account -- --employee-code NV0001 --full-name "Nguyễn Văn A" --username nv0001 --joined-at 2026-10-01
+```
+
+- 24-character temporary password from a CSPRNG (letters, digits, `!#%+-=?@_`), shown once, only on a TTY; only the
+  Argon2id hash is stored; account `PROVISIONED`, `must_change_password = true`; audit `ACCOUNT_PROVISIONED`.
+- Hand it over through a separate channel after verifying the recipient; never in the same message as the username.
+- The first login opens an Activation Session (15 min); the new password must differ from the temporary one.
+- **Re-issue after loss or suspected exposure is NOT available yet:** `talo_provisioner` has no UPDATE on
+  `iam_credentials`, no account lock (`FOR NO KEY UPDATE`) and no session revocation (needs a grant decision).
 
 ## Tests
 
@@ -43,6 +81,7 @@ cd backend
 npm test                                                     # unit + HTTP branches without a database
 TALO_AUTH_PRIV=1 npx vitest run test/integration/auth/auth.privileges.test.ts   # EXPLAIN-only privilege proof
 TALO_AUTH_DB=1  npx vitest run test/integration/auth         # PostgreSQL runtime: contract matrix, INV-10, IB-1..3, CT-R1..R4
+TALO_AUTH_DB=1 TALO_AUTH_TIMING=1 npx vitest run test/integration/auth/auth.timing.test.ts --reporter=verbose   # IB-2 per-phase timing + AUC
 cd ../tests
 npx playwright test -c playwright.auth.config.ts             # browser E2E: own servers on :3100 / :5174
 npx playwright test login-layout-geometry --project=react-dev # Login layout identical to HTML v2 (colours only changed)

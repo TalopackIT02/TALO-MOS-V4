@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
-import { STATE_VIEWPORTS, VIEWPORTS, openLogin, viewportName } from './viewports';
+import { STATE_VIEWPORTS, VIEWPORTS, isDemo, openLogin, viewportName } from './viewports';
 
 // Screenshots are named without the project, so "demo" writes the reference image
 // and the React projects are compared pixel-for-pixel against it.
@@ -147,6 +147,9 @@ for (const viewport of STATE_VIEWPORTS) {
     });
 
     test('demo success message', async ({ page }, testInfo) => {
+      // Demo-only behaviour: the React login now calls the real API (AUTH-IMPLEMENTATION-E2E) and a success leaves the
+      // Login screen. Real outcomes are covered by tests/e2e/auth-flow.e2e.spec.ts.
+      test.skip(!isDemo(testInfo), 'demo-only simulated success, replaced by the real API in React');
       await openLogin(page, testInfo);
       await page.locator('#username').fill('NV0001');
       await page.locator('#password').fill('MatKhau@2026');

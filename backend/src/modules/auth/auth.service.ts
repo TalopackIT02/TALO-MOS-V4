@@ -10,7 +10,9 @@ import type { AuthSettings } from './auth.settings.js';
 import { ASSURANCE_ACTIVATION, USERNAME_MAX_LENGTH } from './auth.settings.js';
 import { HashQueueBusyError } from './passwordHasher.js';
 import type { PasswordHasher } from './passwordHasher.js';
-import { checkNewPassword, isAcceptableLoginPassword, normalizePassword } from './passwordPolicy.js';
+import { checkContext, checkPasswordShape, isAcceptableLoginPassword, normalizePassword } from './passwordPolicy.js';
+import { BlocklistUnavailableError } from './pwnedPasswords.js';
+import type { BreachedPasswordChecker } from './pwnedPasswords.js';
 import type { PolicyDetails } from './passwordPolicy.js';
 import { hashSessionToken, newSessionToken } from './sessionCookie.js';
 import { isRetryable, sqlstateOf } from './sqlstate.js';
@@ -92,6 +94,7 @@ export interface AuthServiceDeps {
   readonly hasher: PasswordHasher;
   readonly settings: AuthSettings;
   readonly logger: Logger;
+  readonly breachedPasswords: BreachedPasswordChecker;
   readonly hooks?: AuthTestHooks;
 }
 
@@ -100,9 +103,11 @@ export class AuthService {
   private readonly hasher: PasswordHasher;
   private readonly settings: AuthSettings;
   private readonly logger: Logger;
+  private readonly breached: BreachedPasswordChecker;
   private readonly hooks: AuthTestHooks;
 
   constructor(deps: AuthServiceDeps) {
+    this.breached = deps.breachedPasswords;
     this.repo = deps.repository;
     this.hasher = deps.hasher;
     this.settings = deps.settings;
@@ -259,8 +264,11 @@ export class AuthService {
       await this.repo.insertAudit(this.changeAudit('FAILURE', 'POLICY_VIOLATION', accountId, row, client, details.reason));
       throw new AuthError(400, 'PASSWORD_POLICY', { details });
     };
-    const policy = checkNewPassword(newPassword, context);
-    if (policy) await policyFailure(policy);
+    const shape = checkPasswordShape(newPassword);
+    if (shape) await policyFailure(shape);
+    if (await this.isBreached(newPassword)) await policyFailure({ reason: 'BLOCKLISTED' });
+    const contextual = checkContext(newPassword, context);
+    if (contextual) await policyFailure(contextual);
     // SAME_AS_CURRENT: Argon2id verify of the NFC new password against the current hash; no plaintext kept.
     if (await this.verify(context.passwordHash, newPassword)) await policyFailure({ reason: 'SAME_AS_CURRENT' });
     const newHash = await this.hash(newPassword);
@@ -337,6 +345,16 @@ export class AuthService {
     } catch (error) {
       if (error instanceof HashQueueBusyError) throw serviceBusy();
       throw error;
+    }
+  }
+
+  // Offline Pwned Passwords lookup. Fail closed: without a usable dataset no new password is accepted (503).
+  private async isBreached(password: string): Promise<boolean> {
+    try {
+      return await this.breached.isBreached(password);
+    } catch (error) {
+      this.logger.error('password blocklist unavailable', { reason: error instanceof BlocklistUnavailableError ? error.message : 'lookup error' });
+      throw serviceBusy();
     }
   }
 

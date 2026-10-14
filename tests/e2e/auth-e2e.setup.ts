@@ -29,5 +29,10 @@ export default function globalSetup(): () => void {
     const result = fixtures('cleanup', runId, { AUTH_E2E_CLEANUP: JSON.stringify({ memberships, accounts, startedAt, unknownRequestIds }) });
     rmSync(UNKNOWN_IDS_FILE, { force: true });
     process.stdout.write(`[auth-e2e] cleanup ${result}\n`);
+    const pwnedDir = process.env['AUTH_E2E_PWNED_DIR'];
+    if (pwnedDir) {
+      execFileSync('npx', ['tsx', 'test/support/pwnedFixtureCli.ts', 'remove', pwnedDir], { cwd: backendDir, shell: process.platform === 'win32', stdio: 'inherit' });
+      process.stdout.write(`[auth-e2e] blocklist fixture removed: ${existsSync(pwnedDir) ? 'NO' : 'yes'}\n`);
+    }
   };
 }

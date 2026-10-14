@@ -14,6 +14,9 @@ import type { AuthSettings } from '../../../src/modules/auth/auth.settings.js';
 import { createAuthModule } from '../../../src/modules/auth/index.js';
 import { LOCAL_ARGON2_OPTIONS, PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
+import { PwnedPasswordsStore, UnavailableBlocklist } from '../../../src/modules/auth/pwnedPasswords.js';
+import type { BreachedPasswordChecker } from '../../../src/modules/auth/pwnedPasswords.js';
+import { createPwnedFixture, removePwnedFixture } from '../../support/pwnedFixture.js';
 import { sqlstateOf } from '../../../src/modules/auth/sqlstate.js';
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
 import { checkSmokeUrl } from '../../smoke/dbSmoke.js';
@@ -73,6 +76,8 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
   let w: PsqlSession;
   let fx: AuthFixtures;
   let hasher: CountingHasher;
+  let pwnedDir: string;
+  let pwned: BreachedPasswordChecker;
   const deletedTotals: Record<string, number> = {};
   const logs: string[] = [];
   const logger = createLogger({ level: 'warn', sink: (line) => logs.push(line) });
@@ -83,10 +88,11 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     readonly wrap?: (repository: AuthRepository) => AuthRepository;
     readonly hasher?: PasswordHasher;
     readonly limit?: number;
+    readonly breached?: BreachedPasswordChecker;
   }
   async function makeApp(options: AppOptions = {}): Promise<Express> {
     const auth = await createAuthModule({
-      prisma, logger, production: false, hasher: options.hasher ?? hasher,
+      prisma, logger, production: false, hasher: options.hasher ?? hasher, breachedPasswords: options.breached ?? pwned,
       loginLimiter: new SlidingWindowRateLimiter({ limit: options.limit ?? 10_000, windowMs: 15 * 60_000 }),
       ...(options.settings ? { settings: options.settings } : {}),
       ...(options.hooks ? { hooks: options.hooks } : {}),
@@ -149,6 +155,8 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     if (identity?.db !== 'talo_mos_v4_test' || identity.usr !== 'talo_app') throw new Error('guard: API must run as talo_app on talo_mos_v4_test');
     hasher = new CountingHasher();
     await hasher.init();
+    pwnedDir = await createPwnedFixture();
+    pwned = await PwnedPasswordsStore.open(pwnedDir, { production: false });
     h = await AuthFixtures.connect();
     w = new PsqlSession();
     fx = new AuthFixtures(h, hasher);
@@ -166,6 +174,7 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     await w?.close();
     await h?.close();
     await prisma?.$disconnect();
+    if (pwnedDir) await removePwnedFixture(pwnedDir);
     expect(remaining).toBe(0);
   });
 
@@ -447,6 +456,30 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     expect(policies).toEqual(['TOO_SHORT', 'TOO_LONG', 'CONTROL_CHARACTERS', 'BLOCKLISTED', 'CONTEXT_MATCH', 'SAME_AS_CURRENT']);
     expect(await credential(acc.accountId)).toMatchObject({ mustChange: true });
     expect((await getSession(app, cookie)).status).toBe(200); // session still valid after policy errors
+  });
+
+  it('blocklist (HIBP offline): breached spellings refused with BLOCKLISTED; missing dataset fails closed with 503 and changes nothing', async () => {
+    const app = await makeApp();
+    const acc = await create({ accountStatus: 'PROVISIONED' });
+    const cookie = cookieOf(await login(app, acc.username, acc.password));
+    for (const breached of ['matkhaumoi123456', 'MATKHAUMOI123456', 'passwordpassword1', 'Correct Horse Battery']) {
+      const res = await firstChange(app, cookie, breached);
+      expect(res.status, breached).toBe(400);
+      expect(res.body.error.details).toEqual({ reason: 'BLOCKLISTED' });
+    }
+    const valid = await firstChange(app, cookie, 'mua thu ha noi co nang vang');
+    expect(valid.status).toBe(200);
+
+    const noBlocklist = await makeApp({ breached: new UnavailableBlocklist('not configured') });
+    const other = await create({ accountStatus: 'PROVISIONED' });
+    const otherCookie = cookieOf(await login(noBlocklist, other.username, other.password));
+    const before = await credential(other.accountId);
+    const refused = await firstChange(noBlocklist, otherCookie, 'mua thu ha noi co nang vang');
+    expect(refused.status).toBe(503);
+    expect(refused.body.error.code).toBe('SERVICE_BUSY');
+    expect(await credential(other.accountId)).toEqual(before);
+    expect((await getSession(noBlocklist, otherCookie)).status).toBe(200);
+    expect(logs.some((line) => line.includes('password blocklist unavailable'))).toBe(true);
   });
 
   it('CT-F3: two first-change requests in parallel → exactly one 200, the other 401; one new hash', async () => {

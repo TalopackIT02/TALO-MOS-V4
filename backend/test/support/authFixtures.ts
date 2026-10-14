@@ -73,6 +73,13 @@ export class AuthFixtures {
     this.startedAt = row?.[0] ?? '';
   }
 
+  // Takes ownership of rows created by another tool during the run (e.g. the provisioning CLI) so cleanup deletes them.
+  adopt(membershipId: string, accountId: string, username: string): void {
+    if (!this.memberships.includes(membershipId)) this.memberships.push(membershipId);
+    this.accounts.push(accountId);
+    this.usernames.add(username.toLowerCase());
+  }
+
   isFixtureUsername(username: string): boolean {
     return this.usernames.has(username.trim().toLowerCase());
   }

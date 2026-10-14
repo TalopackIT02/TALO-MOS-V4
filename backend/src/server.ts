@@ -23,7 +23,10 @@ async function main(): Promise<void> {
   const apiRouters: Router[] = [healthRouter()];
   if (config.databaseUrl) {
     // Prepares the dummy Argon2id hash before the first request (P-5).
-    const auth = await createAuthModule({ prisma: getPrismaClient(config.databaseUrl), logger, production: config.nodeEnv === 'production' });
+    const auth = await createAuthModule({
+      prisma: getPrismaClient(config.databaseUrl), logger, production: config.nodeEnv === 'production',
+      pwnedPasswordsDir: config.pwnedPasswordsDir,
+    });
     apiRouters.push(auth.router);
   } else {
     logger.warn('DATABASE_URL not configured: /api/auth/* is not mounted');

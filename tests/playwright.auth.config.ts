@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { resolve } from 'node:path';
 import { defineConfig } from '@playwright/test';
 
 // AUTH-IMPLEMENTATION-E2E — real browser flow against the real backend and PostgreSQL test database.
@@ -8,6 +10,10 @@ import { defineConfig } from '@playwright/test';
 
 process.env['AUTH_E2E_RUN'] ??= `AUTHT-${Date.now().toString(36)}-${randomUUID().slice(0, 6)}`;
 const runId = process.env['AUTH_E2E_RUN'];
+// Synthetic Pwned-Passwords-format dataset (OS temp, outside Git) for the backend under test; removed in teardown.
+process.env['AUTH_E2E_PWNED_DIR'] ??= execFileSync('npx', ['tsx', 'test/support/pwnedFixtureCli.ts', 'create'], {
+  cwd: resolve(__dirname, '../backend'), encoding: 'utf8', shell: process.platform === 'win32',
+}).trim();
 const FRONTEND = 'http://127.0.0.1:5174';
 const BACKEND = 'http://127.0.0.1:3100';
 
@@ -32,7 +38,7 @@ export default defineConfig({
       url: `${BACKEND}/api/health`,
       reuseExistingServer: false,
       timeout: 60_000,
-      env: { PORT: '3100', HOST: '127.0.0.1', APP_ORIGIN: FRONTEND, NODE_ENV: 'development', LOG_LEVEL: 'warn' },
+      env: { PORT: '3100', HOST: '127.0.0.1', APP_ORIGIN: FRONTEND, NODE_ENV: 'development', LOG_LEVEL: 'warn', PWNED_PASSWORDS_DIR: process.env['AUTH_E2E_PWNED_DIR'] ?? '' },
     },
     {
       command: 'npx vite --port 5174 --strictPort',

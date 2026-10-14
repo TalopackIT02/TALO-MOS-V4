@@ -16,7 +16,10 @@
     "test": "vitest run",
     "smoke:db": "tsx --env-file-if-exists=../.env test/smoke/db-runtime.smoke.ts",
     "prisma:validate": "prisma validate",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "provision:account": "tsx --env-file-if-exists=../.env src/modules/auth/provisioning/cli.ts",
+    "pwned:manifest": "tsx src/modules/auth/tools/pwnedManifest.ts create",
+    "pwned:verify": "tsx src/modules/auth/tools/pwnedManifest.ts verify"
   },
   "dependencies": {
     "@node-rs/argon2": "2.2.1",

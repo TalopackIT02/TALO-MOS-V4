@@ -1,4 +1,3 @@
-import { OFFLINE_BLOCKLIST } from './blocklist.js';
 import { PASSWORD_MAX_BYTES, PASSWORD_MAX_CODE_POINTS, PASSWORD_MIN_CODE_POINTS } from './auth.settings.js';
 
 // Password rules (AD-6 PW3, P-4, AUTH-API-v1 §5.3). Values are NFC-normalised and never trimmed. No composition rules.
@@ -83,15 +82,17 @@ export function contextualCandidates(context: PasswordContext): ReadonlySet<stri
   return candidates;
 }
 
-// Checks that need no stored hash. SAME_AS_CURRENT is checked by the caller with Argon2id verify (§5.3).
-export function checkNewPassword(normalized: string, context: PasswordContext): PolicyDetails | null {
+// Order of the checks (§5.3): shape (control characters, length, bytes) → BLOCKLISTED (offline Pwned Passwords, async,
+// done by the caller between the two functions) → CONTEXT_MATCH → SAME_AS_CURRENT (Argon2id verify, caller).
+export function checkPasswordShape(normalized: string): PolicyDetails | null {
   if (hasControlCharacters(normalized)) return { reason: 'CONTROL_CHARACTERS' };
   const length = codePointLength(normalized);
   if (length < PASSWORD_MIN_CODE_POINTS) return { reason: 'TOO_SHORT', minLength: PASSWORD_MIN_CODE_POINTS };
   if (length > PASSWORD_MAX_CODE_POINTS) return { reason: 'TOO_LONG', maxLength: PASSWORD_MAX_CODE_POINTS };
   if (utf8Length(normalized) > PASSWORD_MAX_BYTES) return { reason: 'TOO_LONG_BYTES', maxBytes: PASSWORD_MAX_BYTES };
-  const folded = foldCase(normalized);
-  if (OFFLINE_BLOCKLIST.has(folded)) return { reason: 'BLOCKLISTED' };
-  if (contextualCandidates(context).has(folded)) return { reason: 'CONTEXT_MATCH' };
   return null;
+}
+
+export function checkContext(normalized: string, context: PasswordContext): PolicyDetails | null {
+  return contextualCandidates(context).has(foldCase(normalized)) ? { reason: 'CONTEXT_MATCH' } : null;
 }

@@ -149,4 +149,29 @@ describe.skipIf(!enabled)('IB-2 timing analysis (talo_mos_v4_test)', { timeout: 
     }
     console.log(lines.join('\n'));
   });
+
+  it('WAL overhead of the IB-2 RESERVE wrapper (local measurement)', async () => {
+    const nil = '00000000-0000-0000-0000-000000000000';
+    const plain = `UPDATE iam.iam_credentials SET updated_at = updated_at WHERE user_account_id = $1::uuid AND false`;
+    const wrapped = `WITH r AS (${plain} RETURNING 1) SELECT x.lsn::text FROM (SELECT pg_logical_emit_message(true, 'talo.auth.reserve', '') AS lsn) x LEFT JOIN r ON true`;
+    const lsn = async () => (await prisma.$queryRawUnsafe<{ l: string }[]>('SELECT pg_current_wal_lsn()::text AS l'))[0]?.l ?? '0/0';
+    const diff = async (a: string, b: string) =>
+      Number((await prisma.$queryRawUnsafe<{ d: string }[]>('SELECT pg_wal_lsn_diff($1::pg_lsn, $2::pg_lsn)::text AS d', b, a))[0]?.d ?? 0);
+    const N = 300;
+    const measure = async (sql: string) => {
+      for (let i = 0; i < 20; i++) await prisma.$queryRawUnsafe(sql, nil);
+      const start = await lsn();
+      const t0 = performance.now();
+      for (let i = 0; i < N; i++) await prisma.$queryRawUnsafe(sql, nil);
+      const ms = (performance.now() - t0) / N;
+      const end = await lsn();
+      return { bytesPerCall: (await diff(start, end)) / N, msPerCall: ms };
+    };
+    const a = await measure(plain);
+    const b = await measure(wrapped);
+    console.log(`[IB-2 WAL] ${N} calls each (other sessions may add WAL noise):\n`
+      + `  no-row RESERVE without wrapper: ${a.bytesPerCall.toFixed(1)} B WAL/call, ${a.msPerCall.toFixed(2)} ms/call\n`
+      + `  no-row RESERVE with wrapper:    ${b.bytesPerCall.toFixed(1)} B WAL/call, ${b.msPerCall.toFixed(2)} ms/call`);
+    expect(b.bytesPerCall).toBeGreaterThan(a.bytesPerCall);
+  });
 });

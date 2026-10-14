@@ -36,14 +36,37 @@ export function viewportName({ width, height }: Viewport): string {
   return `${width}x${height}`;
 }
 
-// Opens the approved demo (project "demo") or the React app (react-dev / react-preview).
+// Accepted colour palette M-2 (design/auth-b1/AUTH-B1-color-accessibility.md §4, AUTH-B1 design acceptance) — colour
+// properties only. The frozen demo file is never edited (SHA-256 checked below); for the comparison the reference is
+// "demo layout + M-2 colours", produced by appending exactly these overrides at test time.
+export const M2_DEMO_OVERRIDE = `
+  :root { --muted:#4b5563; --line:#8a94a3; }
+  .field input::placeholder { color:#6b7280; }
+  .forgot { color:#076b38; }
+  .login-button { background:#0b8043; }
+  .login-button:hover { background:#086d37; }
+  .login-button:focus-visible, .forgot:focus-visible, .password-toggle:focus-visible { outline-color:#0b8043; }
+  .footer { color:#4b5563; }
+`;
+
+export const isDemo = (testInfo: TestInfo) => testInfo.project.name === 'demo';
+
+// Opens the approved demo (project "demo", + M-2 colours) or the React app (react-dev / react-preview). The React app
+// asks GET /api/auth/session at start; it is answered inside the browser with "no session" (401) so the page is in its
+// initial Login state and no request leaves the browser. Other /api calls are answered by the individual tests.
 export async function openLogin(page: Page, testInfo: TestInfo): Promise<void> {
-  if (testInfo.project.name === 'demo') {
+  if (isDemo(testInfo)) {
     const sha = createHash('sha256').update(readFileSync(DEMO_FILE)).digest('hex');
     expect(sha, 'Approved HTML v2 demo file has changed').toBe(DEMO_SHA256);
     await page.goto(pathToFileURL(DEMO_FILE).href);
+    await page.addStyleTag({ content: M2_DEMO_OVERRIDE });
   } else {
+    await page.route('**/api/auth/session', (route) => route.fulfill({
+      status: 401, contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'SESSION_INVALID', message: '', requestId: '00000000-0000-4000-8000-000000000000' } }),
+    }));
     await page.goto('/');
+    await page.locator('#login-form').waitFor();
   }
   await waitForAssets(page);
 }
