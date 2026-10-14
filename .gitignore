@@ -10,3 +10,6 @@ coverage/
 .vscode/
 database/backups/*
 !database/backups/.gitkeep
+tests/test-results/
+tests/playwright-report/
+tests/e2e/__screenshots__/

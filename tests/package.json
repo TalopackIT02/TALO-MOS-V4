@@ -1,0 +1,16 @@
+{
+  "name": "talo-mos-v4-tests",
+  "private": true,
+  "version": "0.0.0",
+  "description": "TALO-MOS-V4 UI tests (Playwright). AUTH-LOGIN-001 Phase A compares the React login against the approved HTML v2 demo.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:visual": "playwright test login-ui.visual --project=demo --update-snapshots=all && playwright test login-ui.visual --project=react-dev --project=react-preview",
+    "test:ui": "playwright test login-ui.interaction login-css-scope --project=demo --project=react-dev --project=react-preview"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.0",
+    "typescript": "7.0.2"
+  }
+}

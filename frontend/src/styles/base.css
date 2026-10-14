@@ -1,0 +1,2 @@
+/* Application-wide minimum: let the root element fill the viewport. Screen styles live in their own scoped files. */
+html, body, #root { width:100%; height:100%; margin:0; }
