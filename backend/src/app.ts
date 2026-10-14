@@ -21,6 +21,9 @@ export function createApp({ config, logger, apiRouters }: AppDependencies): Expr
   const app = express();
 
   app.disable('x-powered-by');
+  // No ETag: it is derived from the body (which carries the random requestId) and would make otherwise identical
+  // responses differ in a header (INV-10); every API response is no-store anyway.
+  app.set('etag', false);
   app.set('trust proxy', config.trustProxy);
 
   app.use(requestId);

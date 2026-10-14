@@ -18,8 +18,9 @@ phiên làm việc và Đăng xuất; demo `first-change-demo.html` dùng nguyê
    hiển thị cho lỗi đăng nhập để giao diện các nhánh 401 hoàn toàn giống nhau.
 5. Không đưa thời gian chờ cụ thể vào `RATE_LIMITED` (API không có `Retry-After`, ngưỡng production còn PENDING).
 6. Câu ngắn, xưng “bạn”, kết thúc bằng dấu chấm; tiêu đề/nút viết HOA như màn Login Phase A.
-7. Màu (mọi màn auth): lỗi `#ad3939`; cảnh báo `#8a4b00` trên nền `#fff8ec` cho `429`, `503` và thời gian còn lại
-   ≤ 2 phút; thành công `#0b8e4a`; thông tin `#4b5563`.
+7. Màu chữ trạng thái trên màn Đổi mật khẩu lần đầu (đo tương phản thực tế, xem `AUTH-B1-color-accessibility.md`):
+   lỗi / chưa đạt `#ad3939`; cảnh báo `#8a4b00` trên nền `#fff8ec` cho `429`, `503` và thời gian còn lại ≤ 2 phút;
+   thành công / đạt `#076b38`; hướng dẫn, thông tin, mã tham chiếu `#4b5563`. Mọi màu này ≥ 4,5:1 trên nền thực tế.
 
 ## 1. Nhãn giao diện — Đổi mật khẩu lần đầu
 
@@ -31,14 +32,19 @@ phiên làm việc và Đăng xuất; demo `first-change-demo.html` dùng nguyê
 | `FC.CONFIRM_PLACEHOLDER` | Xác nhận mật khẩu mới |
 | `FC.SHOW` / `FC.HIDE` | Hiện mật khẩu / Ẩn mật khẩu (aria-label của nút mắt) |
 | `FC.HINT_TITLE` | Yêu cầu mật khẩu: |
-| `FC.HINT_LENGTH` | Từ 15 đến 128 ký tự, có thể dùng cụm từ có khoảng trắng. |
+| `FC.HINT_LENGTH` | 15–128 ký tự, được dùng khoảng trắng. |
 | `FC.HINT_FREE` | Không bắt buộc chữ hoa, chữ số hay ký tự đặc biệt. |
 | `FC.HINT_AVOID` | Không dùng mật khẩu phổ biến, tên đăng nhập, mã nhân viên, họ tên hoặc tên công ty. |
 | `FC.HINT_DIFFERENT` | Phải khác mật khẩu tạm đã được cấp. |
+| `FC.HINT_STATE_OK` | (đạt) |
+| `FC.HINT_STATE_FAIL` | (chưa đạt) |
 | `FC.SUBMIT` | CẬP NHẬT MẬT KHẨU |
 | `FC.SUBMITTING` | ĐANG CẬP NHẬT... |
 | `FC.LOGOUT` | Đăng xuất |
 | `FC.BACK_TO_LOGIN` | QUAY LẠI ĐĂNG NHẬP |
+
+`FC.HINT_STATE_OK` / `FC.HINT_STATE_FAIL` chỉ dành cho screen reader (ẩn trên màn hình), nối sau `FC.HINT_LENGTH`;
+trên màn hình trạng thái thể hiện bằng ký hiệu và màu (AUTH-B1.2 §3.1).
 
 ## 2. Đăng nhập (`POST /api/auth/login`)
 
@@ -107,6 +113,17 @@ Không câu nào nêu mục blocklist bị trùng (AUTH-API-v1 §5.3).
 
 Số phút hiển thị = phần nguyên của số phút còn lại (ví dụ còn 14 phút 30 giây → “14 phút”). Khi còn ≤ 2 phút, câu giữ
 nguyên nhưng hiển thị màu cảnh báo. Đồng hồ client chỉ phục vụ hiển thị; server quyết định hết hạn.
+
+## 4b. Màn chào mừng tối giản (AUTH-IMPLEMENTATION-E2E)
+
+Chỉ để xác nhận Authenticated Session; không phải AppShell.
+
+| Mã | Câu chữ |
+|---|---|
+| `WELCOME.TITLE` | ĐĂNG NHẬP THÀNH CÔNG |
+| `WELCOME.GREETING` | Xin chào, {fullName}. |
+| `WELCOME.NOTE` | Bạn đã đăng nhập vào hệ thống TALO-MOS. Các phân hệ nghiệp vụ sẽ được bổ sung ở giai đoạn sau. |
+| `WELCOME.LOGOUT` | ĐĂNG XUẤT |
 
 ## 5. Đăng xuất (`POST /api/auth/logout`)
 

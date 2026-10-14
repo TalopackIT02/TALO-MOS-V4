@@ -1,37 +1,52 @@
-# Module `auth` — architectural boundary (Foundation F1)
+# Module `auth` — Authentication (AUTH-IMPLEMENTATION-E2E)
 
-**Status: no implementation.** Foundation F1 only reserves this boundary. There are no routes, services or
-repositories here, and no `/api/auth/*` endpoint exists. Implementation requires a separate, approved task.
+Implements `AUTH-API-v1.md` / `AUTH-API-v1.yaml` (contract v1, AUTH-B1.1) on PostgreSQL IAM v0.3 as role `talo_app`.
+No grant beyond AUTH-DB-F2 is needed (proved by `test/integration/auth/auth.privileges.test.ts`).
 
-## Responsibility (when implemented)
-
-Authentication against PostgreSQL IAM v0.3 (`iam` schema): login, logout, session validation and the
-first-time password change, following the approved **Phase B0 Authentication Decision & Security Contract**.
-
-Out of scope for this module: authorization (effective permissions, ON_LEAVE business rights), account /
-role / permission management, AppShell, email verification, password recovery flows.
-
-## Decided contract highlights (Phase B0)
-
-| Area | Decision |
+| Endpoint | Purpose |
 |---|---|
-| Membership | `ACTIVE`/`ON_LEAVE` may log in while `left_at` is null or after today (Asia/Ho_Chi_Minh); `EXITED` denied; account `LOCKED`/`DISABLED` always denied |
-| Sessions | Server-side; token hash stored in `iam_sessions`; 10 h absolute, 60 min idle; HttpOnly session cookie |
-| Activation session | 15 min absolute, no extension; only `POST /api/auth/password/first-change`, `GET /api/auth/session`, `POST /api/auth/logout` |
-| Remember me | Remembers the **username** only (frontend `localStorage`); no effect on sessions; no `remember` field in the API |
-| Lockout | 5 failed attempts → `locked_until` = 15 min; never sets `account_status = LOCKED` |
-| Passwords | Argon2id via `@node-rs/argon2` (PHC strings); NFC; 15–128 code points, ≤ 512 UTF-8 bytes; no trimming; no composition rules; offline + contextual blocklist |
-| Enumeration | One uniform 401 response; dummy Argon2id verification for unknown user / no credential / locked / no reservation; IP rate limit before hashing |
-| CSRF | X1: SameSite=Strict cookie, Origin allowlist (`core/middleware/originCheck.ts`), JSON content type |
+| `POST /api/auth/login` | Activation Session (15 min) or Authenticated Session (10 h, 60 min idle) |
+| `POST /api/auth/password/first-change` | first personal password; account → ACTIVE; all sessions revoked; log in again |
+| `GET /api/auth/session` | describe the session (never extends an Activation Session) |
+| `POST /api/auth/logout` | revoke the current session; always 204 |
 
-## Open items before implementation
+## Files
 
-- SC-5 attempt-reservation algorithm: must be verified (concurrency, generation resets, stale SUCCESS) and approved.
-- P-6b Argon2id parameters/benchmark, rate-limit thresholds, audit IP/UA & retention, message copy, provisioning role.
-- Least-privilege DB role `talo_app` validated on the test database (scripts in `database/scripts/foundation-f1/`, not yet run).
+| File | Content |
+|---|---|
+| `auth.repository.ts` | every SQL statement (H-b RESERVE, SUCCESS / first-change transactions, sessions, audit) |
+| `auth.service.ts` | flows §4–§7, retry once on 40P01/40001 then 503, audit entries |
+| `auth.routes.ts` | Express handlers, cookie, rate limit, error envelope |
+| `passwordHasher.ts` | Argon2id (`@node-rs/argon2`, local m=19 MiB t=2 p=1), dummy hash, ONE global queue (IB-3) |
+| `passwordPolicy.ts`, `blocklist.ts` | AD-6 / P-4 rules; blocklist is an INTERIM seed (P-4a/b PENDING) |
+| `sessionCookie.ts`, `rateLimiter.ts`, `audit.ts`, `sqlstate.ts`, `auth.settings.ts`, `auth.messages.ts` | helpers and contract constants |
 
-## Dependencies this module will use
+Contract constants live in `auth.settings.ts` and cannot be changed by configuration or endpoint. Tests may pass shorter
+intervals **in-process only** (`createAuthModule({ settings })`) to exercise expiry branches.
 
-- `core/*` (errors, HTTP envelope, origin check, logging) — never logs passwords, tokens, cookies or bodies.
-- `infrastructure/prisma/client.ts` — the only source of the Prisma client.
-- The Prisma models in `database/prisma/schema.prisma` (note: partial/expression indexes are DB-only).
+## Run locally
+
+Requirements: Docker container `talo-mos-v4-postgres` (127.0.0.1:5433), root `.env` with
+`DATABASE_URL=postgresql://talo_app:<password>@127.0.0.1:5433/talo_mos_v4_test` (git-ignored; never commit it).
+
+```text
+cd backend  && npm run dev        # API on http://127.0.0.1:3000 (auth mounted when DATABASE_URL is set)
+cd frontend && npm run dev        # UI on  http://127.0.0.1:5173, /api proxied to :3000 (TALO_API_TARGET to change)
+```
+
+Accounts are provisioned outside this API (IT, role `talo_provisioner`, P-10 / P-4e PENDING).
+
+## Tests
+
+```text
+cd backend
+npm test                                                     # unit + HTTP branches without a database
+TALO_AUTH_PRIV=1 npx vitest run test/integration/auth/auth.privileges.test.ts   # EXPLAIN-only privilege proof
+TALO_AUTH_DB=1  npx vitest run test/integration/auth         # PostgreSQL runtime: contract matrix, INV-10, IB-1..3, CT-R1..R4
+cd ../tests
+npx playwright test -c playwright.auth.config.ts             # browser E2E: own servers on :3100 / :5174
+npx playwright test login-layout-geometry --project=react-dev # Login layout identical to HTML v2 (colours only changed)
+```
+
+DB suites write only synthetic `AUTHT-` rows in `talo_mos_v4_test` through `talo_test_harness` / `talo_app` and delete
+them by UUID afterwards (`test/support/authFixtures.ts`); they refuse to start when leftovers exist.

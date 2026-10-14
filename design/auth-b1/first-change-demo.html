@@ -49,13 +49,19 @@
     .field input[aria-invalid="true"] { border-color:#ad3939; }
     .field input[aria-invalid="true"]:focus { box-shadow:0 0 0 3px rgba(173,57,57,.10); }
     .field input:disabled { background:#f3f5f7; color:#9099a8; cursor:not-allowed; }
-    .policy { margin:2px 0 14px; padding:0; list-style:none; font-size:13px; line-height:1.5; color:var(--muted); }
+    /* M-1: hint text #4b5563 (>= 4.5:1). Markers: length rule = live check (idle hollow circle / ok check mark /
+       fail filled circle), other rules = dash (checked by the server or informational). */
+    .policy-block { margin:2px 0 14px; }
+    .policy { margin:0; padding:0; list-style:none; font-size:13px; line-height:1.5; color:#4b5563; }
     .policy-title { margin:0 0 4px; font-size:13px; color:#4b5563; font-weight:700; }
     .policy li { position:relative; padding-left:16px; margin-bottom:2px; }
-    .policy li::before { content:""; position:absolute; left:3px; top:7px; width:6px; height:6px; border-radius:50%; background:#b6bec9; }
-    .policy li.ok { color:#0b8e4a; }
-    .policy li.ok::before { background:var(--green); }
-    .countdown { display:flex; align-items:center; gap:8px; margin:0 0 16px; padding:9px 12px; border:1px solid var(--line); border-radius:6px; background:#f7f9fa; color:#4b5563; font-size:13px; line-height:1.4; }
+    .policy li::before { content:""; position:absolute; left:2px; top:9px; width:7px; height:2px; background:#4b5563; }
+    .policy li.check::before { left:1px; top:5px; width:8px; height:8px; border:1.5px solid #4b5563; border-radius:50%; background:transparent; box-sizing:border-box; }
+    .policy li.check[data-state="ok"] { color:#076b38; }
+    .policy li.check[data-state="ok"]::before { left:3px; top:4px; width:5px; height:9px; border:solid #076b38; border-width:0 2px 2px 0; border-radius:0; transform:rotate(45deg); }
+    .policy li.check[data-state="fail"] { color:#ad3939; }
+    .policy li.check[data-state="fail"]::before { border-color:#ad3939; background:#ad3939; }
+    .countdown { display:flex; align-items:center; gap:8px; margin:0 0 16px; padding:9px 12px; border:1px solid transparent; border-radius:6px; background:#f7f9fa; color:#4b5563; font-size:13px; line-height:1.4; }
     .countdown svg { width:18px; height:18px; flex:none; color:#6b7788; }
     .countdown.warning { border-color:#f0c58a; background:#fff8ec; color:#8a4b00; }
     .countdown.warning svg { color:#b26a00; }
@@ -63,11 +69,13 @@
     .spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,.45); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .spinner { animation:none; } }
-    .message.success { color:#0b8e4a; }
+    .first-change .login-form .message { min-height:1.5em; }
+    .first-change .login-form .message:empty { display:block; }
+    .message.success { color:#076b38; }
     .message.info { color:#4b5563; }
     .message.warning { color:#8a4b00; background:#fff8ec; border:1px solid #f0c58a; border-radius:6px; padding:8px 12px; }
     .message.warning .ref { color:#8a4b00; }
-    .message .ref { display:block; color:#929aa5; }
+    .message .ref { display:block; color:#4b5563; }
     .after { width:100%; max-width:440px; }
     .after[hidden] { display:none; }
     .after .message { margin:0 0 16px; text-align:center; font-size:14px; }
@@ -103,6 +111,7 @@
       .field input { height:50px; background:rgba(255,255,255,.96); }
       .field-icon { top:14px; }
       .password-toggle { top:5px; }
+      .policy-block { padding:8px 10px; border-radius:6px; background:rgba(255,255,255,.96); }
       .countdown { background:rgba(247,249,250,.96); }
       .countdown.warning { background:rgba(255,248,236,.96); }
       .forgot { font-size:13px; }
@@ -139,13 +148,15 @@
           <button type="button" class="password-toggle" data-target="confirm-password" aria-controls="confirm-password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.7-6 10-6 10 6 10 6-3.7 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
         </label>
 
+        <div class="policy-block">
         <p class="policy-title" data-msg="FC.HINT_TITLE"></p>
         <ul class="policy" id="policy-list">
-          <li id="hint-length" data-msg="FC.HINT_LENGTH"></li>
+          <li id="hint-length" class="check" data-state="idle"><span data-msg="FC.HINT_LENGTH"></span><span class="visually-hidden" id="hint-length-state"></span></li>
           <li data-msg="FC.HINT_FREE"></li>
           <li data-msg="FC.HINT_AVOID"></li>
           <li data-msg="FC.HINT_DIFFERENT"></li>
         </ul>
+        </div>
 
         <p class="countdown" id="countdown" role="timer" aria-live="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="countdown-text"></span></p>
 
@@ -182,7 +193,9 @@
       'FC.SHOW': 'Hiện mật khẩu',
       'FC.HIDE': 'Ẩn mật khẩu',
       'FC.HINT_TITLE': 'Yêu cầu mật khẩu:',
-      'FC.HINT_LENGTH': 'Từ 15 đến 128 ký tự, có thể dùng cụm từ có khoảng trắng.',
+      'FC.HINT_LENGTH': '15–128 ký tự, được dùng khoảng trắng.',
+      'FC.HINT_STATE_OK': '(đạt)',
+      'FC.HINT_STATE_FAIL': '(chưa đạt)',
       'FC.HINT_FREE': 'Không bắt buộc chữ hoa, chữ số hay ký tự đặc biệt.',
       'FC.HINT_AVOID': 'Không dùng mật khẩu phổ biến, tên đăng nhập, mã nhân viên, họ tên hoặc tên công ty.',
       'FC.HINT_DIFFERENT': 'Phải khác mật khẩu tạm đã được cấp.',
@@ -283,9 +296,14 @@
       return { status: 200 };
     }
 
+    // Length rule state: idle until typed; ok inside 15-128; fail above 128, or below 15 after a submit attempt
+    // (no red while the user is still typing the first characters).
+    let submitted = false;
     function updateHints() {
       const n = codePoints(newPw.value);
-      hintLength.classList.toggle('ok', n >= 15 && n <= 128);
+      const state = n >= 15 && n <= 128 ? 'ok' : (n > 128 || (submitted && n > 0)) ? 'fail' : 'idle';
+      hintLength.dataset.state = state;
+      $('hint-length-state').textContent = state === 'ok' ? ' ' + t('FC.HINT_STATE_OK') : state === 'fail' ? ' ' + t('FC.HINT_STATE_FAIL') : '';
     }
     newPw.addEventListener('input', () => { updateHints(); clearFieldErrors(); });
     confirmPw.addEventListener('input', clearFieldErrors);
@@ -351,6 +369,7 @@
     let forced = null;   // server outcome forced by the demo switcher
     form.addEventListener('submit', event => {
       event.preventDefault();
+      submitted = true; updateHints();
       clearFieldErrors(); clearMessage();
       const problem = clientCheck(newPw.value, confirmPw.value);
       if (problem) { problem.field.setAttribute('aria-invalid', 'true'); problem.field.focus({ preventScroll: true }); show(message, 'error', t(problem.id)); return; }

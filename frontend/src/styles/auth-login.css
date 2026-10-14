@@ -2,8 +2,10 @@
   AUTH-LOGIN-001 — ported from frontend/TALO-MOS-Login-Demo-Responsive-v2.html (approved UI).
   Values and rule order are unchanged. Every selector is scoped under .auth-login-page,
   which takes over the role that <body> has in the demo.
+  AUTH-IMPLEMENTATION-E2E: colours only changed to the accepted WCAG AA palette M-2
+  (design/auth-b1/AUTH-B1-color-accessibility.md §4, footer #4b5563). Layout and assets untouched.
 */
-.auth-login-page { --green: #0fa958; --green-hover: #0b8e4a; --ink:#3d2a20; --muted:#7b8492; --line:#d8dee6; }
+.auth-login-page { --green: #0fa958; --green-hover: #0b8e4a; --ink:#3d2a20; --muted:#4b5563; --line:#8a94a3; --action:#0b8043; --action-hover:#086d37; --text-link:#076b38; --focus-ring:#0b8043; }
 .auth-login-page, .auth-login-page * { box-sizing: border-box; }
 .auth-login-page { width:100%; height:100%; min-height:100dvh; font-family:Arial,"Segoe UI",sans-serif; color:#171e2c; background:#f3f5f7; display:flex; justify-content:center; align-items:center; padding:16px 20px; overflow:hidden; }
 /* Desktop: container always follows viewport height. Width is scaled against the original 1280:760 design ratio. */
@@ -15,7 +17,7 @@
 .auth-login-page .login-form { width:100%; max-width:440px; }
 .auth-login-page .field { position:relative; display:block; margin-bottom:16px; }
 .auth-login-page .field input { width:100%; height:52px; padding:0 48px; outline:0; border:1px solid var(--line); border-radius:6px; background:#fff; color:#1f2937; font:400 15px Arial,"Segoe UI",sans-serif; }
-.auth-login-page .field input::placeholder { color:#9099a8; }
+.auth-login-page .field input::placeholder { color:#6b7280; }
 .auth-login-page .field input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(15,169,88,.10); }
 .auth-login-page .field-icon { position:absolute; width:21px; height:21px; left:17px; top:15px; color:#6b7788; pointer-events:none; }
 .auth-login-page .password-toggle { position:absolute; top:7px; right:10px; width:39px; height:39px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:#657386; cursor:pointer; }
@@ -24,15 +26,15 @@
 .auth-login-page .options { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:24px 0; font-size:14px; }
 .auth-login-page .remember { display:flex; align-items:center; gap:8px; white-space:nowrap; cursor:pointer; }
 .auth-login-page .remember input { width:18px; height:18px; accent-color:var(--green); margin:0; cursor:pointer; }
-.auth-login-page .forgot { padding:4px 0; color:var(--green); border:0; background:transparent; font-size:14px; white-space:nowrap; cursor:pointer; }
+.auth-login-page .forgot { padding:4px 0; color:var(--text-link); border:0; background:transparent; font-size:14px; white-space:nowrap; cursor:pointer; }
 .auth-login-page .forgot:hover { text-decoration:underline; }
-.auth-login-page .login-button { width:100%; height:56px; display:flex; align-items:center; justify-content:center; gap:12px; border:0; border-radius:6px; background:var(--green); color:#fff; font:700 16px Arial,"Segoe UI",sans-serif; cursor:pointer; }
-.auth-login-page .login-button:hover { background:var(--green-hover); }
+.auth-login-page .login-button { width:100%; height:56px; display:flex; align-items:center; justify-content:center; gap:12px; border:0; border-radius:6px; background:var(--action); color:#fff; font:700 16px Arial,"Segoe UI",sans-serif; cursor:pointer; }
+.auth-login-page .login-button:hover { background:var(--action-hover); }
 .auth-login-page .login-button:disabled { opacity:.6; cursor:not-allowed; }
-.auth-login-page .login-button:focus-visible, .auth-login-page .forgot:focus-visible, .auth-login-page .password-toggle:focus-visible { outline:3px solid #a0e6c5; outline-offset:2px; }
+.auth-login-page .login-button:focus-visible, .auth-login-page .forgot:focus-visible, .auth-login-page .password-toggle:focus-visible { outline:3px solid var(--focus-ring); outline-offset:2px; }
 .auth-login-page .message { font-size:13px; line-height:1.5; margin:12px 0 0; color:#ad3939; }
 .auth-login-page .message:empty { display:none; }
-.auth-login-page .footer { margin-top:clamp(16px,4vh,38px); color:#929aa5; text-align:center; font-size:13px; }
+.auth-login-page .footer { margin-top:clamp(16px,4vh,38px); color:#4b5563; text-align:center; font-size:13px; }
 .auth-login-page .illustration { min-height:0; overflow:hidden; background:#f4f8f6; }
 .auth-login-page .illustration img { display:block; width:100%; height:100%; object-fit:cover; object-position:center center; }
 /* Tablet: maintain viewport-height frame and prioritize form; decorative photo stays visible. */

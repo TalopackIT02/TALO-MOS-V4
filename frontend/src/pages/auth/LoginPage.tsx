@@ -2,36 +2,53 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import logoUrl from '../../assets/images/talopack-logo.png';
 import warehouseUrl from '../../assets/images/warehouse-illustration.png';
+import { authApi } from '../../services/auth/authApi';
+import type { SessionInfo } from '../../services/auth/authApi';
+import { messageForFailure } from '../../services/auth/errorMessages';
+import type { Tone, UiMessage } from '../../services/auth/errorMessages';
+import { t } from '../../services/auth/messages';
+import { forgetUsername, readRememberedUsername, rememberUsername } from '../../utils/rememberedUsername';
 import '../../styles/auth-login.css';
 
-// AUTH-LOGIN-001 — React port of the approved TALO-MOS-Login-Demo-Responsive-v2.html.
-// Phase A keeps the demo's simulated behaviour; no authentication is wired yet.
+// AUTH-LOGIN-001 — React port of the approved TALO-MOS-Login-Demo-Responsive-v2.html, wired to POST /api/auth/login.
+// Markup and layout are the Phase A ones; only colours follow palette M-2. "Ghi nhớ đăng nhập" stores the username only
+// (R4 + S1): written at a successful login when checked, removed when unchecked. No token or password is ever stored.
 
-type MessageTone = 'error' | 'success';
-type FormMessage = { text: string; tone: MessageTone };
+const MESSAGE_COLOR: Record<Tone, string> = { error: '#ad3939', success: '#076b38', warning: '#8a4b00', info: '#4b5563' };
 
-const MESSAGE_COLOR: Record<MessageTone, string> = { error: '#ad3939', success: '#0b8e4a' };
+export interface LoginPageProps {
+  readonly flash?: UiMessage | undefined;
+  readonly onSession: (session: SessionInfo) => void;
+}
 
-const DEMO_MESSAGES = {
-  forgot: 'Chức năng quên mật khẩu chưa được tích hợp trong bản demo.',
-  missingFields: 'Vui lòng nhập tên đăng nhập và mật khẩu.',
-  submitted: 'Đây là bản demo giao diện, chưa kết nối hệ thống đăng nhập.',
-};
-
-export function LoginPage() {
-  const [username, setUsername] = useState('');
+export function LoginPage({ flash, onSession }: LoginPageProps) {
+  const [username, setUsername] = useState(() => readRememberedUsername() ?? '');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const [message, setMessage] = useState<FormMessage | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<UiMessage | null>(flash ?? null);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const complete = username.trim() !== '' && password.length > 0;
-    setMessage(
-      complete
-        ? { text: DEMO_MESSAGES.submitted, tone: 'success' }
-        : { text: DEMO_MESSAGES.missingFields, tone: 'error' },
-    );
+    if (submitting) return;
+    if (username.trim() === '' || password.length === 0) {
+      setMessage({ text: t('LOGIN.MISSING_FIELDS'), tone: 'error' });
+      return;
+    }
+    setSubmitting(true);
+    setMessage({ text: t('LOGIN.LOADING'), tone: 'info' });
+    const result = await authApi.login(username, password);
+    setSubmitting(false);
+    if (!result.ok) {
+      setPassword('');
+      setMessage(messageForFailure('login', result));
+      return;
+    }
+    if (remember) rememberUsername(username.trim());
+    else forgetUsername();
+    setPassword('');
+    onSession(result.data);
   }
 
   return (
@@ -78,22 +95,24 @@ export function LoginPage() {
               ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.7-6 10-6 10 6 10 6-3.7 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg></button>
             </label>
             <div className="options">
-              <label className="remember"><input type="checkbox" defaultChecked /> Ghi nhớ đăng nhập</label>
+              <label className="remember">
+                <input type="checkbox" id="remember" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> Ghi nhớ đăng nhập
+              </label>
               <button
                 className="forgot"
                 type="button"
                 id="forgot-button"
-                onClick={() => setMessage({ text: DEMO_MESSAGES.forgot, tone: 'error' })}
+                onClick={() => setMessage({ text: t('LOGIN.FORGOT'), tone: 'info' })}
               >Quên mật khẩu?</button>
             </div>
-            <button className="login-button" type="submit">ĐĂNG NHẬP <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12h16M13 5l7 7-7 7" /></svg></button>
+            <button className="login-button" type="submit" disabled={submitting}>ĐĂNG NHẬP <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12h16M13 5l7 7-7 7" /></svg></button>
             <p
               className="message"
               id="message"
               role="status"
               aria-live="polite"
               style={message ? { color: MESSAGE_COLOR[message.tone] } : undefined}
-            >{message ? message.text : null}</p>
+            >{message ? message.text : null}{message?.reference ? <><br />{message.reference}</> : null}</p>
           </form>
           <footer className="footer">© 2026 TALOPACK</footer>
         </section>

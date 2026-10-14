@@ -4,6 +4,7 @@
 |---|---|
 | `AUTH-B1.2-first-change-ui.md` | Đặc tả UI màn Đổi mật khẩu lần đầu: bố cục, hành vi, trạng thái, khả năng truy cập |
 | `AUTH-B1.3-messages-vi.md` | Bảng câu chữ tiếng Việt và mapping `error.code` → thông báo UI |
+| `AUTH-B1-color-accessibility.md` | Phân tích tương phản WCAG AA (M-2) và đề xuất hệ màu chung Login / First Change |
 | `first-change-demo.html` | Demo HTML responsive, một file, không phụ thuộc mạng |
 | `screenshots/` | Ảnh chụp cho Visual UI Review (Chromium): 1440×900 và 390×844 — `default`, `too-short`, `mismatch` |
 

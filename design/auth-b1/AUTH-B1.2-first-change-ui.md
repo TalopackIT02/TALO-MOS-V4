@@ -1,6 +1,7 @@
 # AUTH-B1.2 — Thiết kế UI màn “Đổi mật khẩu lần đầu”
 
-**Trạng thái:** UI Design Acceptance — **chấp thuận có điều kiện** (6 quyết định, §5); chờ **Visual UI Review**. Chưa có React component, chưa gọi API thật.
+**Trạng thái:** Visual UI Review — chấp thuận có điều kiện; **AUTH-B1 Visual Finalization** đã áp dụng M-1 và các MINOR
+(§5.1). M-2 (hệ màu chung với Login) chờ quyết định: `AUTH-B1-color-accessibility.md`. Chưa có React component, chưa gọi API thật.
 Demo: `first-change-demo.html` (cùng thư mục). Câu chữ: `AUTH-B1.3-messages-vi.md` (P-11).
 Hợp đồng API: `backend/src/modules/auth/AUTH-API-v1.md` §3, §5, §6, §7.
 
@@ -34,10 +35,13 @@ Thứ tự trong cột form:
    `account.username` của phản hồi login / session.
 4. Ô **Mật khẩu mới** — icon ổ khóa, nút mắt ẩn/hiện riêng, `autocomplete="new-password"`.
 5. Ô **Xác nhận mật khẩu mới** — giống ô trên, nút mắt riêng.
-6. Khối “Yêu cầu mật khẩu:” — 4 dòng hướng dẫn (`FC.HINT_*`); dòng độ dài chuyển xanh khi đạt 15–128 code point.
-7. Hộp thời gian còn lại của Activation Session (icon đồng hồ, chữ).
+6. Khối “Yêu cầu mật khẩu:” — 4 dòng hướng dẫn (`FC.HINT_*`), chữ `#4b5563`; trên mobile khối có nền trắng 96 %
+   (như ô nhập). Ký hiệu: xem §3.1.
+7. Hộp thời gian còn lại của Activation Session (icon đồng hồ, chữ), nền `#f7f9fa`, **không viền** ở trạng thái thường;
+   trạng thái cảnh báo có nền `#fff8ec` và viền `#f0c58a`.
 8. Nút chính `CẬP NHẬT MẬT KHẨU` (style nút Login).
-9. Vùng thông báo trạng thái (`role="status"`, `aria-live="polite"`, cùng vị trí với Login: ngay dưới nút).
+9. Vùng thông báo trạng thái (`role="status"`, `aria-live="polite"`, cùng vị trí với Login: ngay dưới nút), luôn
+   giữ sẵn chiều cao **một dòng** (`min-height: 1.5em`) để thông báo một dòng không làm xê dịch bố cục.
 10. Link `Đăng xuất` (style link “Quên mật khẩu?” của Login).
 11. Footer `© 2026 TALOPACK`.
 
@@ -48,7 +52,7 @@ Thứ tự trong cột form:
 | Logo nhỏ hơn: desktop/tablet tối đa **120 px** (`clamp(72px, 12vh, 120px)`), mobile `clamp(80px, 14dvh, 150px)`; cùng asset gốc, tỉ lệ giữ bằng `height:auto` + `object-fit:contain` | màn này có thêm ô xác nhận, khối hướng dẫn, hộp thời gian; giữ logo cỡ Login thì 1440×900 bị tràn và cắt logo |
 | Cột form: `justify-content:flex-start` + `margin-top:auto` ở phần tử đầu, `margin-bottom:auto` ở phần tử cuối | căn giữa khi đủ chỗ; khi nội dung cao hơn khung (1280×720, 360×640) margin về 0 nên cột cuộn được và không cắt phần đầu. Không dùng từ khóa `safe` (Safari cũ không hỗ trợ) — kỹ thuật auto-margin chạy trên mọi trình duyệt có flexbox |
 | Subtitle thay bằng dòng tài khoản | yêu cầu hiển thị username đang đăng nhập; không thêm dòng mới |
-| Màu trạng thái bổ sung: cảnh báo `#8a4b00` trên nền `#fff8ec` (viền `#f0c58a`); viền đỏ `#ad3939` cho ô lỗi | đỏ `#ad3939` và xanh `#0b8e4a` đã có trong Login; chỉ màu cảnh báo là mới |
+| Màu trạng thái: cảnh báo `#8a4b00` trên `#fff8ec` (viền `#f0c58a`); lỗi / chưa đạt `#ad3939`; thành công / đạt `#076b38`; hướng dẫn `#4b5563` | mọi màu chữ riêng của màn này ≥ 4,5:1 trên nền thực tế (đo bằng pixel, `AUTH-B1-color-accessibility.md` §3). `#076b38` thay `#0b8e4a` của Login (4,21:1 — không đạt) |
 | Nút loading có vòng xoay đơn giản (border tròn) | biểu thị đang xử lý; tắt animation khi `prefers-reduced-motion` |
 
 Không dùng đường cong CSS phức tạp, không thêm font, không thêm ảnh.
@@ -62,6 +66,15 @@ Không dùng đường cong CSS phức tạp, không thêm font, không thêm �
   point → > 512 byte → ô xác nhận trống → không khớp (so sánh sau NFC). Lỗi đầu tiên: ô liên quan có viền đỏ +
   `aria-invalid="true"`, focus vào ô đó, câu thông báo ở vùng trạng thái. Gõ lại thì bỏ viền đỏ.
 - Blocklist, contextual, `SAME_AS_CURRENT` chỉ server kiểm tra (client không có danh sách và không có hash).
+
+**Ký hiệu khối hướng dẫn** (ba trạng thái khác nhau cả hình dạng lẫn màu, không chỉ màu):
+
+| Dòng | Ký hiệu | Ý nghĩa |
+|---|---|---|
+| `FC.HINT_LENGTH` — chưa nhập / đang nhập dưới 15 | vòng tròn rỗng `#4b5563`, chữ `#4b5563` | chưa đánh giá (không báo đỏ khi người dùng mới gõ) |
+| `FC.HINT_LENGTH` — 15–128 code point | dấu kiểm `#076b38`, chữ `#076b38` | đạt; screen reader đọc thêm `FC.HINT_STATE_OK` |
+| `FC.HINT_LENGTH` — > 128, hoặc < 15 sau khi đã bấm cập nhật | chấm tròn đặc `#ad3939`, chữ `#ad3939` | chưa đạt; screen reader đọc thêm `FC.HINT_STATE_FAIL` |
+| 3 dòng còn lại | gạch ngang `#4b5563` | thông tin / do server kiểm tra khi cập nhật — không có trạng thái đạt/chưa đạt phía client |
 
 ### 3.2 Gửi và kết quả
 
@@ -141,6 +154,19 @@ trong file, không phải dữ liệu thật). Nút `QUAY LẠI ĐĂNG NHẬP` m
 | 5 | Cột form được cuộn trên màn hình thấp; focus, bàn phím và thông báo luôn được đưa vào tầm nhìn | §2, §3.6 |
 | 6 | Audit `TRANSIENT_DB_ERROR`: INSERT một lần sau rollback, không retry; thất bại → vẫn 503 + một structured log tối thiểu (`requestId`, action, reason, SQLSTATE); không secrets, SQL text, driver error | `AUTH-API-v1.md` §11, §13.1 |
 
+### 5.1 Visual Finalization (sau Visual UI Review)
+
+| ID | Nội dung đã áp dụng |
+|---|---|
+| M-1 | Chữ hướng dẫn `#4b5563`; nền trắng 96 % cho khối hướng dẫn trên mobile; “đạt” `#076b38`, “chưa đạt” `#ad3939`; đo lại bằng pixel: mọi chữ riêng của màn này ≥ 4,5:1 |
+| m-1 / m-2 | Vùng thông báo giữ sẵn một dòng; vị trí không đổi (dưới nút, như Login) |
+| m-4 | Ký hiệu ba trạng thái cho dòng độ dài, gạch ngang cho các dòng còn lại (§3.1) |
+| m-5 | `FC.HINT_LENGTH` rút gọn: “15–128 ký tự, được dùng khoảng trắng.” (đồng bộ P-11) |
+| m-6 | Hộp thời gian bỏ viền ở trạng thái thường |
+| Khác | Mã tham chiếu `#929aa5` → `#4b5563`; thông báo thành công `#0b8e4a` → `#076b38` (đều để đạt 4,5:1) |
+
+Không đổi: bố cục, font, cỡ chữ, cấu trúc form, logo, assets, vị trí thông báo.
+
 ## 6. Kiểm chứng và giới hạn
 
 - Đã chạy (Chromium headless của Playwright 1.63): ma trận 19 trạng thái × 6 viewport; luồng tương tác bằng bàn phím;
@@ -148,4 +174,17 @@ trong file, không phải dữ liệu thật). Nút `QUAY LẠI ĐĂNG NHẬP` m
   đối chiếu câu chữ với B1.3 và `AUTH-API-v1.yaml`.
 - **Chưa thực hiện:** Safari/WebKit (cũ và mới), Firefox, Edge, trình duyệt di động thật (iOS Safari, Chrome Android);
   screen reader (NVDA, JAWS, VoiceOver, TalkBack); zoom 200 % / reflow 320 px CSS; Windows High Contrast / forced
-  colors; đo tương phản màu bằng công cụ; kiểm thử với người dùng.
+  colors; kiểm thử với người dùng. Tương phản được đo bằng script pixel trên Chromium (không phải công cụ kiểm định
+  độc lập như axe / Colour Contrast Analyser).
+
+## 7. Quyết định cho React migration (ghi nhận, chưa triển khai)
+
+| # | Quyết định |
+|---|---|
+| RM-1 | First Change dùng **stylesheet riêng**, mọi selector scope dưới `.auth-first-change-page` (cùng cách Login dùng `.auth-login-page`). |
+| RM-2 | **Không** sửa `frontend/src/styles/auth-login.css`, `LoginPage.tsx` hay stylesheet Login trong task này. Chấp nhận trùng lặp có kiểm soát các rule layout; việc tách layout chung (hoặc áp hệ màu M-2) cần quyết định riêng vì Login đã đóng băng. |
+| RM-3 | Dùng lại **assets gốc** qua import của Vite (`talopack-logo.png`, `warehouse-illustration.png`), không sao chép, không chỉnh sửa. |
+| RM-4 | **Không** mang sang React: thao tác DOM trực tiếp (`replaceChildren`, `textContent`, `hidden` thủ công), bảng chọn trạng thái demo, `simulatedServer`, dữ liệu `DEMO`, inline style của link quay lại. |
+| RM-5 | React quản lý bằng state/lifecycle: trạng thái form và thông báo là state; focus và `scrollIntoView` qua ref trong effect sau render; bộ đếm thời gian (monotonic) trong effect có cleanup, chịu được StrictMode chạy effect hai lần; huỷ request/timer khi unmount; xoá giá trị mật khẩu khi kết thúc luồng. |
+| RM-6 | Căn giữa bằng auto-margin dựa vào phần tử con đầu/cuối của cột form: footer phải luôn là phần tử cuối dù các khối khác render có điều kiện. |
+| RM-7 | Câu chữ lấy từ một module duy nhất theo mã P-11 (AUTH-B1.3); giữ kiểm tra tự động “chuỗi UI ↔ bảng P-11”. |

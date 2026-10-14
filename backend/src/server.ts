@@ -1,10 +1,13 @@
+import type { Router } from 'express';
 import { createApp } from './app.js';
 import { describeDatabaseUrl } from './config/database.js';
 import { ConfigError, loadConfig } from './config/env.js';
 import { createLogger } from './core/logging/logger.js';
-import { disconnectPrismaClient } from './infrastructure/prisma/client.js';
+import { disconnectPrismaClient, getPrismaClient } from './infrastructure/prisma/client.js';
+import { createAuthModule } from './modules/auth/index.js';
+import { healthRouter } from './modules/health/health.routes.js';
 
-function main(): void {
+async function main(): Promise<void> {
   let config;
   try {
     config = loadConfig();
@@ -17,7 +20,16 @@ function main(): void {
   }
 
   const logger = createLogger({ level: config.logLevel });
-  const app = createApp({ config, logger });
+  const apiRouters: Router[] = [healthRouter()];
+  if (config.databaseUrl) {
+    // Prepares the dummy Argon2id hash before the first request (P-5).
+    const auth = await createAuthModule({ prisma: getPrismaClient(config.databaseUrl), logger, production: config.nodeEnv === 'production' });
+    apiRouters.push(auth.router);
+  } else {
+    logger.warn('DATABASE_URL not configured: /api/auth/* is not mounted');
+  }
+
+  const app = createApp({ config, logger, apiRouters });
   const database = config.databaseUrl ? describeDatabaseUrl(config.databaseUrl) : undefined;
 
   const server = app.listen(config.port, config.host, () => {
@@ -44,4 +56,7 @@ function main(): void {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-main();
+main().catch((error: unknown) => {
+  process.stderr.write(`Startup failed: ${error instanceof Error ? error.name : 'unknown error'}\n`);
+  process.exit(1);
+});
