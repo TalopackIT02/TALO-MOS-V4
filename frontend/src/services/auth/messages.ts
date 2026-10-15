@@ -18,7 +18,7 @@ export const MESSAGES = {
   'FC.SHOW': 'Hiện mật khẩu',
   'FC.HIDE': 'Ẩn mật khẩu',
   'FC.HINT_TITLE': 'Yêu cầu mật khẩu:',
-  'FC.HINT_LENGTH': '15–128 ký tự, được dùng khoảng trắng.',
+  'FC.HINT_LENGTH': '8–128 ký tự, được dùng khoảng trắng.',
   'FC.HINT_STATE_OK': '(đạt)',
   'FC.HINT_STATE_FAIL': '(chưa đạt)',
   'FC.HINT_FREE': 'Không bắt buộc chữ hoa, chữ số hay ký tự đặc biệt.',
@@ -37,7 +37,7 @@ export const MESSAGES = {
   'FC.SERVICE_BUSY': 'Hệ thống đang bận, mật khẩu chưa được thay đổi. Vui lòng thử lại sau ít phút.',
   'FC.INTERNAL_ERROR': 'Hệ thống gặp lỗi khi cập nhật mật khẩu. Vui lòng thử lại; nếu vẫn lỗi, hãy đăng nhập lại hoặc liên hệ quản trị viên.',
 
-  'POLICY.TOO_SHORT': 'Mật khẩu mới phải có ít nhất 15 ký tự.',
+  'POLICY.TOO_SHORT': 'Mật khẩu mới phải có ít nhất 8 ký tự.',
   'POLICY.TOO_LONG': 'Mật khẩu mới không được vượt quá 128 ký tự.',
   'POLICY.TOO_LONG_BYTES': 'Mật khẩu mới quá dài khi lưu trữ. Vui lòng rút ngắn hoặc bớt biểu tượng, ký tự đặc biệt.',
   'POLICY.CONTROL_CHARACTERS': 'Mật khẩu mới chứa ký tự điều khiển không hợp lệ. Vui lòng nhập lại.',

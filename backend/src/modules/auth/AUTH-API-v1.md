@@ -289,7 +289,7 @@ before INV-10 may be reported as passing):
 | Rule | Status | `details.reason` |
 |---|---|---|
 | NFC normalisation before every check and before hashing; no trimming | DECIDED | — |
-| ≥ 15 Unicode code points | DECIDED | `TOO_SHORT` |
+| ≥ 8 Unicode code points | DECIDED | `TOO_SHORT` |
 | ≤ 128 code points | DECIDED | `TOO_LONG` |
 | ≤ 512 UTF-8 bytes | DECIDED | `TOO_LONG_BYTES` |
 | No composition rules | DECIDED | — |
@@ -305,7 +305,7 @@ one verify plus one hash. The check compares only with the current hash (no pass
 The response states the reason (NIST 800-63B-4) but never reveals the matched blocklist entry:
 
 ```json
-{ "error": { "code": "PASSWORD_POLICY", "message": "…", "requestId": "…", "details": { "reason": "TOO_SHORT", "minLength": 15 } } }
+{ "error": { "code": "PASSWORD_POLICY", "message": "…", "requestId": "…", "details": { "reason": "TOO_SHORT", "minLength": 8 } } }
 ```
 
 ## 6. `GET /api/auth/session`

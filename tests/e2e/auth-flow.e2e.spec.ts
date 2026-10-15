@@ -99,9 +99,10 @@ test('provisioned account: first change, relogin, authenticated, logout', async 
   await expect(page.locator('#message')).toContainText('Tên đăng nhập hoặc mật khẩu không đúng.');
   await login(page, provisioned.username, NEW_PASSWORD, true);
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.locator('h1')).toHaveText('ĐĂNG NHẬP THÀNH CÔNG');
-  await expect(page.locator('#welcome-greeting')).toContainText(provisioned.fullName);
-  await page.screenshot({ path: `${SHOTS}/06-welcome.png` });
+  await expect(page.locator('#title')).toHaveText('TRANG CHỦ'); // AppShell (TASK F1)
+  await expect(page.locator('#account-name')).toHaveText(provisioned.fullName);
+  await expect(page.locator('#account-username')).toHaveText(provisioned.username);
+  await page.screenshot({ path: `${SHOTS}/06-appshell.png` });
 
   // Client storage: only the remembered username, never a token / session id / password.
   const storage = await storageSnapshot(page);
@@ -113,8 +114,9 @@ test('provisioned account: first change, relogin, authenticated, logout', async 
 
   // Reload keeps the session (GET /api/auth/session); logout ends it.
   await page.reload();
-  await expect(page.locator('h1')).toHaveText('ĐĂNG NHẬP THÀNH CÔNG');
-  await page.locator('#welcome-logout').click();
+  await expect(page.locator('#title')).toHaveText('TRANG CHỦ');
+  await page.locator('#account-button').click();
+  await page.locator('#account-logout').click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.locator('#message')).toHaveText('Bạn đã đăng xuất.');
   await expect(page.locator('#username')).toHaveValue(provisioned.username); // remembered username only
@@ -128,11 +130,26 @@ test('active account, "Ghi nhớ" unchecked → username removed; /first-change 
   const { active } = fixtures();
   await page.goto('/login');
   await login(page, active.username, active.password, false);
-  await expect(page.locator('h1')).toHaveText('ĐĂNG NHẬP THÀNH CÔNG');
+  await expect(page.locator('#title')).toHaveText('TRANG CHỦ');
   expect(JSON.parse(await storageSnapshot(page))).toEqual({ local: {}, session: {} });
   await page.goto('/first-change');
-  await expect(page).toHaveURL(/\/$/); // Authenticated Session → welcome, never the first-change screen
-  await page.locator('#welcome-logout').click();
+  await expect(page).toHaveURL(/\/$/); // Authenticated Session → AppShell, never the first-change screen
+
+  // AppShell routes: menu → route, reload keeps the screen, back/forward.
+  await page.getByRole('button', { name: 'IAM · Tài khoản và quyền' }).click();
+  await page.locator('.sub button', { hasText: 'Quản lý tài khoản' }).click();
+  await expect(page).toHaveURL(/\/iam\/accounts$/);
+  await expect(page.locator('#title')).toHaveText('QUẢN LÝ TÀI KHOẢN');
+  await page.reload();
+  await expect(page.locator('#title')).toHaveText('QUẢN LÝ TÀI KHOẢN');
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator('#title')).toHaveText('TRANG CHỦ');
+  await page.goForward();
+  await expect(page.locator('#title')).toHaveText('QUẢN LÝ TÀI KHOẢN');
+
+  await page.locator('#account-button').click();
+  await page.locator('#account-logout').click();
   await expect(page).toHaveURL(/\/login$/);
 });
 

@@ -30,7 +30,7 @@ export const ASSURANCE_ACTIVATION = 0;
 export const ASSURANCE_AUTHENTICATED = 1;
 
 // Password limits (AD-6 PW3 / P-4).
-export const PASSWORD_MIN_CODE_POINTS = 15;
+export const PASSWORD_MIN_CODE_POINTS = 8;
 export const PASSWORD_MAX_CODE_POINTS = 128;
 export const PASSWORD_MAX_BYTES = 512;
 export const USERNAME_MAX_LENGTH = 80;

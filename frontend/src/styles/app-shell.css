@@ -1,0 +1,165 @@
+/*
+  TASK F1 — AppShell. React port of the approved frontend/TALO-MOS-V4-Appshell.html: same rules, values and order.
+  Every selector is scoped under .app-shell so Login / First Change are not affected. Mapping from the HTML:
+  :root → .app-shell; body.sidebar-compact / body.mobile-open / body.mobile-account-open → .app-shell.<same class>;
+  .user div:last-child → .user .user-text (the user block is a button, which cannot contain a div).
+*/
+.app-shell{font-family:Inter,'Segoe UI',Arial,sans-serif;color:#1c2937;background:#f5f8fa;--green:#087f45;--line:#e3e9ef;--muted:#66778a;--side:244px;min-height:100%}
+.app-shell,.app-shell *{box-sizing:border-box}
+.app-shell button,.app-shell input{font:inherit}
+.app-shell button{cursor:pointer}
+.app-shell button:focus-visible,.app-shell input:focus-visible{outline:2px solid #087f45;outline-offset:2px}
+.app-shell .top{height:70px;display:flex;align-items:center;gap:23px;padding:0 24px;background:white;border-bottom:1px solid var(--line)}
+.app-shell .brand img{width:156px;height:51px;object-fit:contain;object-position:left center}
+.app-shell .company{font-size:13px;font-weight:600;padding-left:20px;border-left:1px solid var(--line)}
+.app-shell .grow{flex:1}
+.app-shell .search{height:39px;width:290px;border:1px solid #d1dbe5;border-radius:7px;padding:0 13px;font-size:12px}
+.app-shell .user{display:flex;gap:10px;align-items:center;font-size:12px}
+.app-shell .avatar{width:34px;height:34px;border-radius:50%;background:#e8eef3;display:grid;place-items:center;color:#607286;font-weight:700}
+.app-shell .user small{display:block;color:var(--muted);margin-top:3px}
+.app-shell .layout{height:calc(100vh - 70px);display:grid;grid-template-columns:var(--side) minmax(0,1fr)}
+.app-shell .layout.compact{--side:62px}
+.app-shell .sidebar{background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.app-shell .nav{padding:13px 8px;overflow-y:auto;flex:1}
+.app-shell .nav-btn{width:100%;display:flex;align-items:center;gap:11px;border:0;border-radius:7px;padding:12px;color:#4e6074;background:none;text-align:left;font-size:13px;min-height:46px}
+.app-shell .nav-btn:hover,.app-shell .nav-btn.active,.app-shell .nav-btn.parent-active{background:#e4f5eb;color:var(--green)}
+.app-shell .nav-btn.active{font-weight:700}
+.app-shell .icon{display:grid;place-items:center;width:21px;flex:none;font-size:17px}
+.app-shell .nav-label{flex:1;white-space:nowrap}
+.app-shell .chevron{font-size:16px;transition:transform .16s;line-height:1}
+.app-shell .expanded>.nav-btn .chevron{transform:rotate(90deg)}
+.app-shell .sub{display:none;padding:3px 0 8px 33px}
+.app-shell .expanded>.sub{display:block}
+.app-shell .sub button{display:block;text-align:left;background:transparent;border:0;width:100%;padding:11px 10px;border-radius:6px;color:#5e6f82;font-size:12px}
+.app-shell .sub button:hover,.app-shell .sub button.active{background:#ebf8f0;color:var(--green)}
+.app-shell .sub button.active{font-weight:700}
+.app-shell .foot{border-top:1px solid var(--line);padding:9px}
+.app-shell .foot button{border:0;background:white;color:#56697c;padding:12px;width:100%;text-align:left;border-radius:6px;font-size:12px}
+.app-shell .foot button:hover{background:#ecf8f1}
+.app-shell .compact .nav-label,.app-shell .compact .chevron,.app-shell .compact .foot-label{display:none}
+.app-shell .compact .nav-btn{justify-content:center;padding:11px 0}
+.app-shell .compact .sub{display:none}
+.app-shell .compact .foot button{text-align:center}
+.app-shell .compact .nav{overflow:visible}
+.app-shell .menu-entry{position:relative}
+.app-shell .flyout{display:none;position:absolute;left:calc(100% + 7px);top:0;min-width:210px;background:#fff;border:1px solid var(--line);box-shadow:0 12px 30px #20304022;border-radius:9px;padding:7px;z-index:20}
+.app-shell .compact .menu-entry.flyout-open>.flyout{display:block}
+.app-shell .flyout strong{display:block;padding:10px;color:var(--green);font-size:12px;border-bottom:1px solid var(--line)}
+.app-shell .flyout button{width:100%;background:#fff;border:0;text-align:left;padding:11px;border-radius:6px;color:#516175;font-size:12px}
+.app-shell .flyout button:hover{background:#e4f5eb}
+.app-shell .workspace{min-width:0;overflow:auto;padding:22px 25px 34px}
+.app-shell .crumb{font-size:12px;color:#718195;margin-bottom:18px}
+.app-shell .page-heading{margin-bottom:19px}
+.app-shell .page-heading .tabs{padding:15px 0 0;border:0;background:transparent}
+.app-shell .page-heading .tab{border-radius:8px;border:1px solid #dce6e1;padding:9px 14px;background:#fff;color:#526274;box-shadow:none;transition:background .15s,border-color .15s,color .15s}
+.app-shell .page-heading .tab:hover{background:#f2f8f4;border-color:#bddecb}
+.app-shell .page-heading .tab.active{background:#087f45;color:#fff;border-color:#087f45;font-weight:600}
+.app-shell .page-heading h1{font-size:24px;color:var(--green);margin:0 0 5px;letter-spacing:-.2px}
+.app-shell .page-heading p{font-size:13px;color:var(--muted);margin:0}
+.app-shell .panel{background:#fff;border:1px solid var(--line);border-radius:9px;margin-bottom:16px;box-shadow:0 2px 8px #24374707}
+.app-shell .panel-heading{padding:18px 20px;border-bottom:1px solid #eef2f4;display:flex;justify-content:space-between;align-items:center}
+.app-shell .panel-heading h2{font-size:15px;margin:0}
+.app-shell .muted{font-size:12px;color:var(--muted)}
+.app-shell .tabs{display:flex;gap:8px;flex-wrap:wrap;padding:15px 20px}
+.app-shell .tab{background:white;border:1px solid #d6e1e7;border-radius:7px;color:#4c5d70;font-size:12px;padding:9px 13px}
+.app-shell .tab.active{background:#e3f5eb;color:var(--green);border-color:#bddfc9;font-weight:700}
+.app-shell .panel-body{padding:19px 20px 22px}
+.app-shell .info{color:#506176;font-size:13px;line-height:1.7;margin:0 0 17px}
+.app-shell .tablewrap{overflow:auto;border:1px solid var(--line);border-radius:7px}
+.app-shell table{border-collapse:collapse;width:100%;min-width:540px;font-size:12px}
+.app-shell th{text-align:left;padding:13px;background:#f8fafb;color:#637489;border-bottom:1px solid var(--line)}
+.app-shell td{padding:15px 13px;border-bottom:1px solid #edf1f4}
+.app-shell tr:last-child td{border:0}
+.app-shell .tag{display:inline-block;padding:5px 9px;border-radius:20px;background:#f0f4f6;color:#67788a;font-size:11px}
+.app-shell .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.app-shell .card{border:1px solid var(--line);border-radius:8px;padding:17px}
+.app-shell .card b{font-size:14px}
+.app-shell .card p{font-size:12px;color:var(--muted);line-height:1.7;margin:9px 0 0}
+.app-shell .note{border-left:3px solid #b8d7c6;background:#f7faf8;padding:12px 14px;font-size:12px;color:#637488;margin-top:16px;line-height:1.6}
+.app-shell .footer{color:#90a0ae;font-size:11px;margin-top:20px}
+@media(max-width:800px){.app-shell .company{display:none}.app-shell .workspace{padding:18px}.app-shell .cards{grid-template-columns:1fr}.app-shell .search{width:190px}}
+@media(max-width:540px){.app-shell .top{padding:0 10px;gap:8px}.app-shell .brand img{width:100px}.app-shell .search{display:none}.app-shell .user .user-text{display:none}.app-shell .layout:not(.compact){--side:190px}.app-shell .workspace{padding:12px}.app-shell .page-heading h1{font-size:20px}}
+
+/* Brand: symbol → wordmark → company name */
+.app-shell .brand{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.app-shell .brand img.brand-symbol{width:47px;height:47px;object-fit:contain}
+.app-shell .brand img.brand-name{width:155px;height:49px;object-fit:contain;object-position:left center}
+.app-shell .company{font-size:19px;font-weight:800;letter-spacing:-.35px;color:#07533b;padding-left:22px;border-left:1px solid var(--line);white-space:nowrap}
+@media(max-width:1150px){.app-shell .company{font-size:16px}.app-shell .brand img.brand-name{width:125px}}
+@media(max-width:850px){.app-shell .company{font-size:14px;padding-left:12px}.app-shell .brand img.brand-name{width:100px}.app-shell .brand img.brand-symbol{width:38px;height:38px}}
+@media(max-width:650px){.app-shell .company{font-size:13px;white-space:normal;line-height:1.25;max-width:165px}.app-shell .brand img.brand-name{width:90px}.app-shell .top{gap:9px}}
+
+/* Structural alignment: logo column and sidebar share the exact same width */
+.app-shell{--side:244px}
+.app-shell .top{padding:0;gap:0;display:grid;grid-template-columns:var(--side) minmax(0,1fr)}
+.app-shell .brand-zone{height:70px;width:100%;min-width:0;border-right:1px solid var(--line);display:flex;align-items:center;padding:0 20px;background:#fff;overflow:hidden}
+.app-shell .brand{gap:7px;min-width:0;flex-wrap:nowrap}
+.app-shell .brand img.brand-symbol{width:47px;height:47px;flex:none}
+.app-shell .brand img.brand-name{width:145px;height:47px;min-width:0;object-fit:contain}
+.app-shell .top-main{display:flex;align-items:center;gap:20px;min-width:0;padding:0 24px;height:70px}
+.app-shell .company{border-left:0;padding-left:0;color:#07533b;font-weight:800;font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.app-shell .layout{grid-template-columns:var(--side) minmax(0,1fr)}
+.app-shell.sidebar-compact{--side:62px}
+.app-shell.sidebar-compact .brand-zone{padding:0 7px}
+.app-shell.sidebar-compact .brand img.brand-symbol{width:46px;height:46px}
+.app-shell.sidebar-compact .brand img.brand-name{display:none}
+.app-shell .mobile-overlay{display:none}
+@media(max-width:1100px){.app-shell .top-main{gap:12px;padding:0 16px}.app-shell .company{font-size:16px}.app-shell .search{width:200px}}
+@media(max-width:760px){
+ .app-shell{--side:0px}
+ .app-shell.sidebar-compact{--side:0px}
+ .app-shell .top{grid-template-columns:1fr;grid-template-rows:52px;height:52px}
+ .app-shell .brand-zone{height:52px;padding:0 14px;border-right:0;border-bottom:1px solid var(--line)}
+ .app-shell.sidebar-compact .brand-zone{padding:0 14px}
+ .app-shell .brand img.brand-symbol,.app-shell.sidebar-compact .brand img.brand-symbol{width:36px;height:36px}
+ .app-shell .brand img.brand-name,.app-shell.sidebar-compact .brand img.brand-name{display:block;width:119px;height:36px}
+ .app-shell .top-main{display:none}
+ .app-shell .company{font-size:clamp(13px,3.5vw,17px);flex:1;white-space:nowrap}
+ .app-shell .top-main .search,.app-shell .top-main .user{display:none}
+ .app-shell .layout,.app-shell .layout.compact{display:block;height:calc(100dvh - 52px);min-height:0}
+ .app-shell .sidebar{position:fixed;z-index:80;left:0;top:52px;bottom:calc(64px + env(safe-area-inset-bottom, 0px));width:min(280px,84vw);transform:translateX(-102%);transition:transform .2s ease;box-shadow:12px 0 30px #10223818}
+ .app-shell.mobile-open .sidebar{transform:translateX(0)}
+ .app-shell.mobile-open .mobile-overlay{display:block;position:fixed;z-index:70;inset:52px 0 calc(64px + env(safe-area-inset-bottom, 0px));background:#162a3280}
+ .app-shell .workspace{height:calc(100dvh - 52px);padding:17px 14px calc(92px + env(safe-area-inset-bottom, 0px))}
+ .app-shell .compact .nav-label,.app-shell .compact .chevron,.app-shell .compact .foot-label{display:inline}
+ .app-shell .compact .nav-btn{justify-content:flex-start;padding:12px}
+ .app-shell .compact .sub{display:none}
+ .app-shell .compact .expanded>.sub{display:block}
+ .app-shell .compact .nav{overflow-y:auto}
+ .app-shell .compact .flyout{display:none!important}
+ .app-shell .cards{grid-template-columns:1fr}
+ .app-shell .panel-heading{padding:15px}
+ .app-shell .panel-body{padding:15px}
+ .app-shell .page-heading h1{font-size:21px}
+ .app-shell .company{border:none}
+}
+
+/* Mobile-only icon navigation: desktop layout remains unchanged. */
+.app-shell .mobile-bottom-nav{display:none}
+.app-shell .mobile-account-panel{display:none}
+@media(max-width:760px){
+ .app-shell .mobile-bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:110;display:grid;grid-template-columns:repeat(3,1fr);align-items:center;height:calc(64px + env(safe-area-inset-bottom, 0px));padding:6px 12px calc(6px + env(safe-area-inset-bottom, 0px));border-top:1px solid var(--line);background:#fff;box-shadow:0 -4px 16px #2233440c}
+ .app-shell .mobile-bottom-nav button{min-height:49px;display:grid;place-items:center;border:0;border-radius:11px;background:transparent;color:#607184}
+ .app-shell .mobile-bottom-nav button.active{background:#e6f5ec;color:var(--green)}
+ .app-shell .mobile-bottom-nav svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+ .app-shell .mobile-account-panel{position:fixed;z-index:95;bottom:calc(74px + env(safe-area-inset-bottom, 0px));left:12px;right:12px;padding:20px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 35px #14273926}
+ .app-shell .mobile-account-panel.open{display:block}
+ .app-shell .mobile-account-panel strong{display:block;font-size:15px;color:#18352a}
+ .app-shell .mobile-account-panel p{font-size:13px;color:var(--muted);line-height:1.6;margin:8px 0 0}
+ .app-shell.mobile-account-open .mobile-overlay{display:block;position:fixed;z-index:70;inset:52px 0 calc(64px + env(safe-area-inset-bottom, 0px));background:#162a3280}
+}
+
+/*
+  Additions for the real session (not in the HTML, which had no account menu and no logout). They reuse the HTML's
+  values: the desktop account menu copies .flyout; the logout buttons copy .flyout button / .page-heading .tab.
+*/
+.app-shell .user-menu{position:relative}
+.app-shell button.user{border:0;background:none;padding:0;color:inherit;text-align:left;border-radius:7px}
+.app-shell .account-menu{position:absolute;right:0;top:calc(100% + 10px);min-width:210px;background:#fff;border:1px solid var(--line);box-shadow:0 12px 30px #20304022;border-radius:9px;padding:7px;z-index:30}
+.app-shell .account-menu strong{display:block;padding:10px 10px 2px;color:var(--green);font-size:12px}
+.app-shell .account-menu small{display:block;padding:0 10px 10px;color:var(--muted);font-size:12px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.app-shell .account-menu button{width:100%;background:#fff;border:0;text-align:left;padding:11px;border-radius:6px;color:#516175;font-size:12px}
+.app-shell .account-menu button:hover{background:#e4f5eb}
+.app-shell .account-logout{margin-top:14px;border-radius:8px;border:1px solid #dce6e1;padding:9px 14px;background:#fff;color:#526274;font-size:12px}
+.app-shell .account-logout:hover{background:#f2f8f4;border-color:#bddecb}
+.app-shell button:disabled{cursor:default;opacity:.7}

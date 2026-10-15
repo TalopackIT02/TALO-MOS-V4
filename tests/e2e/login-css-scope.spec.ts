@@ -25,6 +25,13 @@ test('every auth-login.css selector is scoped under .auth-login-page', () => {
   expect(unscoped).toEqual([]);
 });
 
+test('every app-shell.css selector is scoped under .app-shell (TASK F1)', () => {
+  const selectors = selectorsOf(readFileSync(resolve(STYLES_DIR, 'app-shell.css'), 'utf8'));
+  expect(selectors.length).toBeGreaterThan(0);
+  const unscoped = selectors.filter((selector) => !/^\.app-shell(?=[ .:]|$)/.test(selector));
+  expect(unscoped).toEqual([]);
+});
+
 test('base.css only contains the html/body/#root sizing rule', () => {
   const selectors = selectorsOf(readFileSync(resolve(STYLES_DIR, 'base.css'), 'utf8'));
   expect(selectors).toEqual(['html', 'body', '#root']);

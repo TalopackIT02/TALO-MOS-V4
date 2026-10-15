@@ -25,8 +25,8 @@ describe('password policy (AD-6 / P-4)', () => {
     expect(checkPasswordShape('a quite long phrase\twith tab')?.reason).toBe('CONTROL_CHARACTERS');
   });
 
-  it('enforces 15–128 code points and 512 bytes with details', () => {
-    expect(checkPasswordShape('short phrase')).toEqual({ reason: 'TOO_SHORT', minLength: 15 });
+  it('enforces 8–128 code points and 512 bytes with details', () => {
+    expect(checkPasswordShape('short')).toEqual({ reason: 'TOO_SHORT', minLength: 8 });
     expect(checkPasswordShape('x'.repeat(129))).toEqual({ reason: 'TOO_LONG', maxLength: 128 });
     // 128 code points × at most 4 UTF-8 bytes = 512: the byte limit is reached exactly at the code-point limit.
     expect(checkPasswordShape('😀'.repeat(128))).toBeNull();

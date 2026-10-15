@@ -438,7 +438,7 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     const acc = await create({ accountStatus: 'PROVISIONED' });
     const cookie = cookieOf(await login(app, acc.username, acc.password));
     const cases: [string, string, Record<string, unknown>][] = [
-      ['short', 'TOO_SHORT', { reason: 'TOO_SHORT', minLength: 15 }],
+      ['short', 'TOO_SHORT', { reason: 'TOO_SHORT', minLength: 8 }],
       ['x'.repeat(129), 'TOO_LONG', { reason: 'TOO_LONG', maxLength: 128 }],
       ['a long phrase with\u007Fdel inside', 'CONTROL_CHARACTERS', { reason: 'CONTROL_CHARACTERS' }],
       ['MATKHAUMOI123456', 'BLOCKLISTED', { reason: 'BLOCKLISTED' }],

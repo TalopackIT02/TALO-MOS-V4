@@ -5,7 +5,7 @@ info:
   description: >
     Contract v1 (AUTH-B1.1, finalized). Design only — no endpoint is implemented yet; this describes the required behaviour.
     Narrative rules (lifecycle, processing order, H-b lockout with D = 30 s, writer protocol, audit, contract tests)
-    are in AUTH-API-v1.md and take precedence. All security times come from PostgreSQL. Passwords: NFC, 15-128 code
+    are in AUTH-API-v1.md and take precedence. All security times come from PostgreSQL. Passwords: NFC, 8-128 code
     points, at most 512 UTF-8 bytes, not trimmed, Argon2id via @node-rs/argon2 (local baseline m=19 MiB, t=2, p=1).
     Values listed as PENDING in AUTH-API-v1.md section 13.2 are intentionally not specified here. INV-10 is NOT
     VERIFIED until the implementation passes the contract tests (blockers IB-1..IB-3, AUTH-API-v1.md section 4.5).
@@ -282,7 +282,7 @@ components:
         reason:
           type: string
           enum: [TOO_SHORT, TOO_LONG, TOO_LONG_BYTES, BLOCKLISTED, CONTEXT_MATCH, SAME_AS_CURRENT, CONTROL_CHARACTERS]
-        minLength: { type: integer, const: 15 }
+        minLength: { type: integer, const: 8 }
         maxLength: { type: integer, const: 128 }
         maxBytes: { type: integer, const: 512 }
     LoginRequest:
@@ -342,7 +342,7 @@ components:
         newPassword:
           type: string
           description: >
-            Not trimmed. The server NFC-normalises, then enforces 15-128 code points, at most 512 UTF-8 bytes, no C0/DEL/C1
+            Not trimmed. The server NFC-normalises, then enforces 8-128 code points, at most 512 UTF-8 bytes, no C0/DEL/C1
             control character, case-insensitive whole-password contextual checks, the offline breached-password check
             (Have I Been Pwned, whole password, at most 5 case variants — not full case-insensitivity), and difference
             from the current password (Argon2id verify against the current hash); violations return 400 PASSWORD_POLICY

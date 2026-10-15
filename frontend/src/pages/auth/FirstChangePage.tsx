@@ -27,7 +27,7 @@ type HintState = 'idle' | 'ok' | 'fail';
 function clientCheck(pw: string, confirm: string): { id: MessageId; field: Field } | null {
   if (!pw) return { id: 'FC.EMPTY_NEW', field: 'new' };
   if (CONTROL.test(pw)) return { id: 'POLICY.CONTROL_CHARACTERS', field: 'new' };
-  if (codePoints(pw) < 15) return { id: 'POLICY.TOO_SHORT', field: 'new' };
+  if (codePoints(pw) < 8) return { id: 'POLICY.TOO_SHORT', field: 'new' };
   if (codePoints(pw) > 128) return { id: 'POLICY.TOO_LONG', field: 'new' };
   if (utf8Bytes(pw) > 512) return { id: 'POLICY.TOO_LONG_BYTES', field: 'new' };
   if (!confirm) return { id: 'FC.EMPTY_CONFIRM', field: 'confirm' };
@@ -37,7 +37,7 @@ function clientCheck(pw: string, confirm: string): { id: MessageId; field: Field
 
 function lengthState(pw: string, submitted: boolean): HintState {
   const n = codePoints(pw);
-  if (n >= 15 && n <= 128) return 'ok';
+  if (n >= 8 && n <= 128) return 'ok';
   return n > 128 || (submitted && n > 0) ? 'fail' : 'idle';
 }
 
