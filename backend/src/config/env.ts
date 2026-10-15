@@ -30,7 +30,8 @@ export class ConfigError extends Error {
   }
 }
 
-const DEV_DEFAULT_ORIGIN = 'http://127.0.0.1:5173';
+// The local Vite server (127.0.0.1:5173) as browsers reach it: by IP and by the "localhost" name (distinct origins).
+const DEV_DEFAULT_ORIGINS = ['http://127.0.0.1:5173', 'http://localhost:5173'];
 
 // Treat empty strings (e.g. "PORT=" in .env) as "not set".
 const optionalString = z.preprocess((value) => (value === '' ? undefined : value), z.string().optional());
@@ -63,7 +64,7 @@ function parseOrigins(value: string | undefined, nodeEnv: AppConfig['nodeEnv'], 
       issues.push('APP_ORIGIN is required in production');
       return [];
     }
-    return [DEV_DEFAULT_ORIGIN];
+    return [...DEV_DEFAULT_ORIGINS];
   }
   const origins: string[] = [];
   for (const entry of value.split(',').map((item) => item.trim()).filter((item) => item !== '')) {

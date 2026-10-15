@@ -22,7 +22,7 @@ describe('loadConfig', () => {
       nodeEnv: 'development',
       host: '127.0.0.1',
       port: 3000,
-      appOrigins: ['http://127.0.0.1:5173'],
+      appOrigins: ['http://127.0.0.1:5173', 'http://localhost:5173'],
       trustProxy: false,
       databaseUrl: undefined,
       logLevel: 'info',
