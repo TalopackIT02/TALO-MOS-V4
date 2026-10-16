@@ -21,11 +21,12 @@ export interface SmokeReport {
   readonly reason?: string;
 }
 
-const APPROVED_READ_TABLES = ['iam_memberships', 'iam_user_accounts', 'iam_credentials', 'iam_sessions'] as const;
-const DENIED_READ_TABLES = [
-  'iam_audit_logs', 'iam_roles', 'iam_permissions', 'iam_role_permissions',
-  'iam_user_roles', 'iam_user_permissions', 'iam_account_verifications',
-];
+// FBE-01B B-3a: the five IAM authorisation tables are readable (SELECT only) for the Foundation effective-permission check.
+const APPROVED_READ_TABLES = [
+  'iam_memberships', 'iam_user_accounts', 'iam_credentials', 'iam_sessions',
+  'iam_permissions', 'iam_roles', 'iam_role_permissions', 'iam_user_roles', 'iam_user_permissions',
+] as const;
+const DENIED_READ_TABLES = ['iam_audit_logs', 'iam_account_verifications'];
 const ALL_IAM_TABLES = [...APPROVED_READ_TABLES, ...DENIED_READ_TABLES];
 
 // Connection-level failures that mean "environment not prepared yet" rather than "privileges wrong".
@@ -142,6 +143,11 @@ export async function runDbSmoke(databaseUrl: string | undefined): Promise<Smoke
       iam_user_accounts: await tx.iam_user_accounts.count(),
       iam_credentials: await tx.iam_credentials.count(),
       iam_sessions: await tx.iam_sessions.count(),
+      iam_permissions: await tx.iam_permissions.count(),
+      iam_roles: await tx.iam_roles.count(),
+      iam_role_permissions: await tx.iam_role_permissions.count(),
+      iam_user_roles: await tx.iam_user_roles.count(),
+      iam_user_permissions: await tx.iam_user_permissions.count(),
     }));
     for (const table of APPROVED_READ_TABLES) record(Number.isInteger(counts[table]), `Prisma read allowed: ${table}`, `${counts[table]} rows`);
 
