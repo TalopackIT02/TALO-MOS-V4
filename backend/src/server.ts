@@ -5,6 +5,7 @@ import { ConfigError, loadConfig } from './config/env.js';
 import { createLogger } from './core/logging/logger.js';
 import { disconnectPrismaClient, getPrismaClient } from './infrastructure/prisma/client.js';
 import { createAuthModule } from './modules/auth/index.js';
+import { createFoundationModule } from './modules/foundation/index.js';
 import { healthRouter } from './modules/health/health.routes.js';
 
 async function main(): Promise<void> {
@@ -29,6 +30,11 @@ async function main(): Promise<void> {
       pwnedPasswordsFormat: config.pwnedPasswordsFormat,
     });
     apiRouters.push(auth.router);
+    // Foundation Module Registry (FBE-01A): sessions are validated by the auth service only.
+    const foundation = createFoundationModule({
+      prisma: getPrismaClient(config.databaseUrl), authService: auth.service, logger, secureCookie: config.nodeEnv === 'production',
+    });
+    apiRouters.push(foundation.router);
   } else {
     logger.warn('DATABASE_URL not configured: /api/auth/* is not mounted');
   }
