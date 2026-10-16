@@ -1,4 +1,6 @@
-# F2-DB-GATE2 — FINAL GATE 2 REVIEW REPORT (REVISION-01)
+# F2-DB-GATE2 — FINAL GATE 2 REVIEW REPORT (REVISION-01, updated by REVISION-02)
+
+> **REVISION-02 (owner CHECK approval) is recorded in §12 at the end of this report.** Sections 1–11 are the REVISION-01 report and are kept as history. Where they say "23 pending CHECKs" or "CHECK active 11", §12 gives the current state: 32 active, 2 pending.
 
 | Item | Value |
 |---|---|
@@ -171,3 +173,111 @@ No other file of the repository was created, modified or deleted.
 - IAM v0.3, baseline documents, backend and frontend unchanged.
 - DDL DRAFT ≠ DB ACTUAL: schema `foundation` does not exist in any database.
 - **STOP AT GATE 2: awaiting owner approval.**
+
+---
+
+## 12. REVISION 02 — OWNER CHECK APPROVAL
+
+| Item | Value |
+|---|---|
+| Task | F2-DB-GATE2-REVISION-02: final CHECK approval and DDL draft update |
+| Git HEAD before this revision | `31d3fc2` (owner commit of the REVISION-01 package; its 4 files were identical to the delivered versions) |
+| Write scope | One-time owner exception: update only the 4 Gate 2 files in `documents/development/` |
+| Database | **Not accessed** (no connection, no SQL) |
+
+### 12.1 CHECKs approved verbatim (19), now active constraints in the DDL draft
+D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, N-01, N-02, N-03, N-04, N-05, N-06, N-08, N-09, N-10, N-12, N-13.
+- Status in the catalog: **OWNER APPROVED**.
+- Expressions and constraint names are unchanged from REVISION-01 (verified by script, §12.6).
+
+### 12.2 CHECKs approved after revision (2): **OWNER APPROVED — REVISED**
+| ID | Constraint | Approved expression (replaces the REVISION-01 one) |
+|---|---|---|
+| D-09 | `ck_fnd_data_access_rules_workflow_when_required` | `approval_mode <> 'REQUIRED' OR (workflow_key IS NOT NULL AND btrim(workflow_key) <> '')` |
+| N-11 | `ck_fnd_data_contracts_direct_db_target` | `interface_kind <> 'DIRECT_DB' OR (NULLIF(btrim(schema_name), '') IS NOT NULL AND NULLIF(btrim(table_name), '') IS NOT NULL)` |
+
+**Recorded limit, not changed:** `btrim(x)` without a second argument removes only the space character. A value made only of tabs or line breaks therefore passes both CHECKs. Changing this would need a new owner decision.
+
+### 12.3 Still PENDING OWNER REVIEW (2), not active
+- **N-07** `database_fingerprint`:
+  - The fingerprint algorithm and metadata input are not decided, so SHA-256 is not assumed.
+  - The column `CHAR(64)` is unchanged.
+- **N-14** `references_target`:
+  - The K10 rule is kept, but the regex, quoted identifiers and letter case are not decided.
+  - The column `VARCHAR(250)` is unchanged.
+- Both remain only as comments in the DDL draft.
+
+### 12.4 Totals (static analysis of the draft)
+| Item | Count |
+|---|---:|
+| Tables / columns | **14 / 125**, unchanged; 125/125 identical to the baseline |
+| PRIMARY KEY | 14 |
+| FOREIGN KEY | 29 (23 single + 6 composite Q02; 29/29 `ON DELETE RESTRICT`) |
+| UNIQUE constraints | 12 |
+| Explicit index | 1 (Q01 partial UNIQUE index) |
+| **CHECK active** | **32** = 11 [A] + 19 OWNER APPROVED + 2 OWNER APPROVED — REVISED, which equals the expected 32 |
+| CHECK pending | 2 (N-07, N-14) |
+| CHECK superseded | 1 (A-12) |
+| Trigger / function / procedure / policy / role / GRANT | 0 |
+
+### 12.5 GAP status after REVISION-02
+Only G-R01 changed, because it is the only gap that the REVISION-02 decisions address. No other gap is marked resolved without an owner decision.
+
+| ID | Status |
+|---|---|
+| G-R01 | **PARTLY RESOLVED**: 21/23 approved (19 verbatim + 2 revised); N-07 and N-14 still PENDING |
+| G-R02 | OPEN: scope of the identifier rule beyond `module_key`/`function_key`/`action_key` |
+| G-R03 | OPEN: fingerprint algorithm and metadata input (owner: not decided; linked to N-07) |
+| G-R04 | OPEN: `references_target` grammar (owner: not decided; linked to N-14) |
+| G-R05 | OPEN: IAM permission for Module approval and the effective-grants API |
+| G-R06 | OPEN / BLOCKED: `action_code` list (K07) |
+| G-R07 | OPEN: audit atomicity (transaction or outbox), fail-closed policy, retention, read access |
+| G-R08 | OPEN: Gate 3 plan (target DB, schema owner, roles, grants, REVOKE PUBLIC on dev, tests, rollback) |
+| G-R09 | OPEN: indexes on FK columns |
+| G-R10 | OPEN: baseline change record for Q01–Q08 and REVISION-02 |
+| G-R11 | RESOLVED (REVISION-01) |
+| G-R12 | OPEN: `module_version` / `contract_version` format |
+| G-R13 | OPEN: evidence of rollback approval |
+
+### 12.6 Static checks (scripts, no database; **not** a PostgreSQL test)
+| Check | Result |
+|---|---|
+| 14 tables; 125/125 columns equal to the baseline (name, order, type, NOT NULL, DEFAULT) | PASS |
+| Constraint and index names unique (88 names) | PASS |
+| The 19 approved CHECKs in the DDL have exactly the catalog expression and name | PASS |
+| D-09 and N-11 in the DDL **and** in the catalog equal the owner text | PASS |
+| N-07 and N-14 absent from executable SQL, present only as comments | PASS |
+| 11 [A] CHECK expressions identical to REVISION-01; A-12 not active | PASS |
+| PK/FK/UNIQUE/Q01-index/table definitions identical to REVISION-01 (70/70); Q01–Q08 unchanged | PASS |
+| Every column used by an active CHECK exists in its table | PASS |
+| Coverage matrix totals equal the DDL counts | PASS |
+| No GRANT/REVOKE/ALTER/DROP/TRUNCATE/INSERT/UPDATE/DELETE/function/trigger/policy/role/`iam.`/COMMIT; warning header, `BEGIN` + `RAISE EXCEPTION` guard, ends with `ROLLBACK` | PASS |
+| Negative test (a mutated copy with N-13 `>`, the old D-09, an active N-07 and a duplicate name) | all 4 faults detected |
+
+**NOT_TESTED:** PostgreSQL syntax, execution, and the behaviour of every constraint and of the Q01 index. No `POSTGRESQL TEST PASS` is claimed.
+
+### 12.7 Still dependent on the backend
+- State transitions (Q04) and the retire-before-activate transaction.
+- RFC 8785 + SHA-256 content equality of every hash.
+- MIC completeness.
+- K04 lock from IN_REVIEW and REJECTED immutability.
+- Same-Module / same-Function / same-Version rules of B05, B06 and B12.
+- Cycles of length ≥ 2 (B03, B09).
+- Workflow existence and validity (D-09).
+- Separate approval of DIRECT_DB (N-11).
+- K11 re-check before RESOLVED.
+- Audit guarantee before reporting success.
+- Visibility by ACTIVE version and IAM grants.
+- IAM matching on normalised codes.
+
+### 12.8 To complete before any deployment (Gate 3 / Gate 4)
+1. Owner decision on N-07 and N-14 (G-R03, G-R04).
+2. Gate 3 approval of the final SQL, target database, schema owner, roles and column-level grants, tests and rollback (G-R08), plus the related decisions G-R05, G-R07, G-R09.
+3. Remaining owner decisions G-R02, G-R06, G-R10, G-R12, G-R13.
+
+### 12.9 Attestation (REVISION-02)
+- **Files:** only the 4 Gate 2 files in `documents/development/` were updated. `CLAUDE.md`, baseline v1.0, IAM v0.3, backend, frontend and configuration are unchanged.
+- **Database:** no SQL, migration, Prisma command or seed; no connection.
+- **Structure:** 14 tables / 125 columns unchanged.
+- **Git:** no commit, push or merge.
+- **STOP AT GATE 2 — REVISION 02: awaiting owner approval.**
