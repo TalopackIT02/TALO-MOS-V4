@@ -77,11 +77,6 @@ test('provisioned account: first change, relogin, authenticated, logout', async 
   await page.locator('#confirm-password').fill(provisioned.password);
   await page.locator('#submit-button').click();
   await expect(page.locator('#message')).toHaveText('Mật khẩu mới phải khác mật khẩu tạm hiện tại.');
-  // Breached password (offline Pwned Passwords fixture), typed in another case than stored.
-  await page.locator('#new-password').fill('MATKHAUMOI123456');
-  await page.locator('#confirm-password').fill('MATKHAUMOI123456');
-  await page.locator('#submit-button').click();
-  await expect(page.locator('#message')).toHaveText('Mật khẩu này quá phổ biến hoặc dễ đoán. Vui lòng chọn mật khẩu khác.');
 
   // Valid change → relogin required.
   await page.locator('#new-password').fill(NEW_PASSWORD);

@@ -67,7 +67,7 @@ describe('not found and errors', () => {
   });
 
   it('logs only name/code (no message or stack) in production', async () => {
-    const { app, logs } = buildTestApp({ NODE_ENV: 'production', PWNED_PASSWORDS_DIR: '/srv/pwned', APP_ORIGIN: 'https://erp.example.internal' });
+    const { app, logs } = buildTestApp({ NODE_ENV: 'production', APP_ORIGIN: 'https://erp.example.internal' });
     await request(app).get('/api/__test/boom');
     const errorLog = logs.map((line) => JSON.parse(line)).find((entry) => entry.msg === 'unhandled error');
     expect(errorLog).toMatchObject({ errorName: 'Error' });
@@ -161,7 +161,7 @@ describe('origin allowlist (CSRF X1) and CORS', () => {
   });
 
   it('honours a configured VPN origin list', async () => {
-    const { app } = buildTestApp({ NODE_ENV: 'production', PWNED_PASSWORDS_DIR: '/srv/pwned', APP_ORIGIN: 'https://erp.talo.internal,https://erp2.talo.internal' });
+    const { app } = buildTestApp({ NODE_ENV: 'production', APP_ORIGIN: 'https://erp.talo.internal,https://erp2.talo.internal' });
     const ok = await request(app).post('/api/__test/echo').set('Origin', 'https://erp2.talo.internal').set('Content-Type', 'application/json').send('{}');
     const blocked = await request(app).post('/api/__test/echo').set('Origin', TEST_ORIGIN).set('Content-Type', 'application/json').send('{}');
     expect(ok.status).toBe(200);

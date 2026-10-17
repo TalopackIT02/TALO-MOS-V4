@@ -8,7 +8,6 @@ import { authRouter } from '../../../src/modules/auth/auth.routes.js';
 import { AuthService } from '../../../src/modules/auth/auth.service.js';
 import { DEFAULT_AUTH_SETTINGS } from '../../../src/modules/auth/auth.settings.js';
 import { PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
-import { UnavailableBlocklist } from '../../../src/modules/auth/pwnedPasswords.js';
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
 
@@ -46,7 +45,7 @@ async function build(limit = 60) {
   const repository = new ForbiddenRepository();
   const hasher = new CountingHasher();
   await hasher.init();
-  const service = new AuthService({ repository, hasher, settings: DEFAULT_AUTH_SETTINGS, logger: silentLogger, breachedPasswords: new UnavailableBlocklist('not used') });
+  const service = new AuthService({ repository, hasher, settings: DEFAULT_AUTH_SETTINGS, logger: silentLogger });
   const config = loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN });
   const app = createApp({
     config, logger: silentLogger,

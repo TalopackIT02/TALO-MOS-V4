@@ -1,5 +1,7 @@
 # AUTH-B1.3 — Bảng câu chữ tiếng Việt (P-11) và mapping mã lỗi API → thông báo UI
 
+> **Superseded (AUTH-FIX):** TALO-MOS-V4 no longer uses HIBP / Pwned Passwords. Every HIBP / blocklist item below is historical; the current contract is `backend/src/modules/auth/AUTH-API-v1.md` §5.3.
+
 **Trạng thái:** đã chấp thuận có điều kiện tại UI Design Acceptance (quyết định 2–4: màu cảnh báo cho 429/503, “Mã
 tham chiếu” chỉ cho 500/503, câu 401 chung có cảnh báo giới hạn); chờ Visual UI Review. Nguồn hợp đồng: `backend/src/modules/auth/AUTH-API-v1.md`
 và `AUTH-API-v1.yaml` (AUTH-B1.1 đã nghiệm thu). Bảng này là nguồn câu chữ duy nhất cho Login, Đổi mật khẩu lần đầu,

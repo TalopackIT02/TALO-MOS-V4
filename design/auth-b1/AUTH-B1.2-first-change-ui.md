@@ -1,5 +1,7 @@
 # AUTH-B1.2 — Thiết kế UI màn “Đổi mật khẩu lần đầu”
 
+> **Superseded (AUTH-FIX):** TALO-MOS-V4 no longer uses HIBP / Pwned Passwords. Every HIBP / blocklist item below is historical; the current contract is `backend/src/modules/auth/AUTH-API-v1.md` §5.3.
+
 **Trạng thái:** Visual UI Review — chấp thuận có điều kiện; **AUTH-B1 Visual Finalization** đã áp dụng M-1 và các MINOR
 (§5.1). M-2 (hệ màu chung với Login) chờ quyết định: `AUTH-B1-color-accessibility.md`. Chưa có React component, chưa gọi API thật.
 Demo: `first-change-demo.html` (cùng thư mục). Câu chữ: `AUTH-B1.3-messages-vi.md` (P-11).

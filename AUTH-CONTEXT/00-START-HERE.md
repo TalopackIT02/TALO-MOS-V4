@@ -1,5 +1,7 @@
 # TALO-MOS-V4 — AUTH FAST CONTEXT
 
+> **Superseded (AUTH-FIX):** TALO-MOS-V4 no longer uses HIBP / Pwned Passwords. Every HIBP / blocklist item below is historical; the current contract is `backend/src/modules/auth/AUTH-API-v1.md` §5.3.
+
 **Mục đích:** tiết kiệm context/usage cho Claude Code bằng cách chỉ mở đúng file đang cần. Đây KHÔNG phải một phase, kế hoạch xây mới hay nguồn sự thật cao hơn source code.
 
 ## Trạng thái nguồn (snapshot 2026-10-14)

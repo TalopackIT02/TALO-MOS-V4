@@ -7,7 +7,6 @@ export type PolicyReason =
   | 'TOO_LONG'
   | 'TOO_LONG_BYTES'
   | 'CONTROL_CHARACTERS'
-  | 'BLOCKLISTED'
   | 'CONTEXT_MATCH'
   | 'SAME_AS_CURRENT';
 
@@ -82,8 +81,8 @@ export function contextualCandidates(context: PasswordContext): ReadonlySet<stri
   return candidates;
 }
 
-// Order of the checks (§5.3): shape (control characters, length, bytes) → BLOCKLISTED (offline Pwned Passwords, async,
-// done by the caller between the two functions) → CONTEXT_MATCH → SAME_AS_CURRENT (Argon2id verify, caller).
+// Order of the checks (§5.3): shape (control characters, length, bytes) → CONTEXT_MATCH → SAME_AS_CURRENT (Argon2id
+// verify, caller). Owner decision AUTH-FIX: TALO-MOS-V4 does not use HIBP / Pwned Passwords (no breached-password list).
 export function checkPasswordShape(normalized: string): PolicyDetails | null {
   if (hasControlCharacters(normalized)) return { reason: 'CONTROL_CHARACTERS' };
   const length = codePointLength(normalized);

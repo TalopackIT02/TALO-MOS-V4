@@ -41,7 +41,6 @@ export const MESSAGES = {
   'POLICY.TOO_LONG': 'Mật khẩu mới không được vượt quá 128 ký tự.',
   'POLICY.TOO_LONG_BYTES': 'Mật khẩu mới quá dài khi lưu trữ. Vui lòng rút ngắn hoặc bớt biểu tượng, ký tự đặc biệt.',
   'POLICY.CONTROL_CHARACTERS': 'Mật khẩu mới chứa ký tự điều khiển không hợp lệ. Vui lòng nhập lại.',
-  'POLICY.BLOCKLISTED': 'Mật khẩu này quá phổ biến hoặc dễ đoán. Vui lòng chọn mật khẩu khác.',
   'POLICY.CONTEXT_MATCH': 'Mật khẩu không được trùng với tên đăng nhập, mã nhân viên, họ tên hoặc tên công ty.',
   'POLICY.SAME_AS_CURRENT': 'Mật khẩu mới phải khác mật khẩu tạm hiện tại.',
   'POLICY.UNKNOWN': 'Mật khẩu mới chưa đáp ứng yêu cầu. Vui lòng chọn mật khẩu khác.',

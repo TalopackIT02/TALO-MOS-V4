@@ -12,12 +12,10 @@ import { ProvisioningError, provisionAccount } from '../../../src/modules/auth/p
 import type { SqlExecutor } from '../../../src/modules/auth/provisioning/provisionAccount.js';
 import { REISSUE_FUNCTION_SIGNATURE, reissueTemporaryPassword } from '../../../src/modules/auth/provisioning/reissueTemporaryPassword.js';
 import { TEMPORARY_PASSWORD_ALPHABET, TEMPORARY_PASSWORD_LENGTH, generateTemporaryPassword } from '../../../src/modules/auth/provisioning/temporaryPassword.js';
-import { PwnedPasswordsStore } from '../../../src/modules/auth/pwnedPasswords.js';
 import { sqlstateOf } from '../../../src/modules/auth/sqlstate.js';
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
 import { checkSmokeUrl } from '../../smoke/dbSmoke.js';
 import { AuthFixtures } from '../../support/authFixtures.js';
-import { createPwnedFixture, removePwnedFixture } from '../../support/pwnedFixture.js';
 import { PsqlSession, lit } from '../sc5/harness.js';
 
 // P-4e provisioning, executed AS talo_provisioner (container-local psql, same role and grants as the production CLI,
@@ -67,7 +65,6 @@ describe.skipIf(!enabled)('P-4e provisioning as talo_provisioner (talo_mos_v4_te
   let p: PsqlSession;
   let fx: AuthFixtures;
   let hasher: PasswordHasher;
-  let pwnedDir: string;
 
   beforeAll(async () => {
     process.loadEnvFile(resolve(import.meta.dirname, '../../../../.env'));
@@ -82,7 +79,6 @@ describe.skipIf(!enabled)('P-4e provisioning as talo_provisioner (talo_mos_v4_te
     if (who?.[0] !== 'talo_provisioner' || who[1] !== 'talo_mos_v4_test') throw new Error('guard: provisioner session');
     fx = new AuthFixtures(h, hasher);
     await fx.assertNoLeftovers();
-    pwnedDir = await createPwnedFixture();
   });
   afterEach(async () => {
     await fx.cleanup();
@@ -92,7 +88,6 @@ describe.skipIf(!enabled)('P-4e provisioning as talo_provisioner (talo_mos_v4_te
     await p?.close();
     await h?.close();
     await prisma?.$disconnect();
-    if (pwnedDir) await removePwnedFixture(pwnedDir);
     expect(remaining).toBe(0);
   });
 
@@ -124,8 +119,7 @@ describe.skipIf(!enabled)('P-4e provisioning as talo_provisioner (talo_mos_v4_te
     expect(audit[0]?.[0]).toBe('ACCOUNT_PROVISIONED');
     expect(audit[0]?.[2]).not.toContain(result.temporaryPassword);
 
-    const auth = await createAuthModule({ prisma, logger: silentLogger, production: false, hasher,
-      breachedPasswords: await PwnedPasswordsStore.open(pwnedDir, { production: false }) });
+    const auth = await createAuthModule({ prisma, logger: silentLogger, production: false, hasher });
     const app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger: silentLogger, apiRouters: [auth.router] });
     const post = (path: string, body: unknown, cookie?: string) => {
       const req = request(app).post(path).set('Origin', TEST_ORIGIN).set('Content-Type', 'application/json').set('User-Agent', fx.userAgent);
@@ -191,8 +185,7 @@ describe.skipIf(!enabled)('P-4e provisioning as talo_provisioner (talo_mos_v4_te
       employeeCode: `${fx.runId}-R1`, fullName: 'Nhân viên cấp lại', username: `${fx.runId}-r1`.toLowerCase(), joinedAt: '2026-10-01',
     });
     fx.adopt(created.membershipId, created.userAccountId, created.username);
-    const auth = await createAuthModule({ prisma, logger: silentLogger, production: false, hasher,
-      breachedPasswords: await PwnedPasswordsStore.open(pwnedDir, { production: false }) });
+    const auth = await createAuthModule({ prisma, logger: silentLogger, production: false, hasher });
     const app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger: silentLogger, apiRouters: [auth.router] });
     const post = (path: string, body: unknown, cookie?: string) => {
       const req = request(app).post(path).set('Origin', TEST_ORIGIN).set('Content-Type', 'application/json').set('User-Agent', fx.userAgent);

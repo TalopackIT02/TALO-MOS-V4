@@ -27,8 +27,6 @@ async function main(): Promise<void> {
     // Prepares the dummy Argon2id hash before the first request (P-5).
     const auth = await createAuthModule({
       prisma: getPrismaClient(config.databaseUrl), logger, production: config.nodeEnv === 'production',
-      pwnedPasswordsDir: config.pwnedPasswordsDir,
-      pwnedPasswordsFormat: config.pwnedPasswordsFormat,
     });
     apiRouters.push(auth.router);
     // Foundation Module Registry (FBE-01A): sessions are validated by the auth service only.

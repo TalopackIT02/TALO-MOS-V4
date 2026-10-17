@@ -13,7 +13,6 @@ import type { PrismaClient } from '../../../src/infrastructure/prisma/generated/
 import type { AuthService } from '../../../src/modules/auth/auth.service.js';
 import { createAuthModule } from '../../../src/modules/auth/index.js';
 import { PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
-import { UnavailableBlocklist } from '../../../src/modules/auth/pwnedPasswords.js';
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
 import { createFoundationModule } from '../../../src/modules/foundation/index.js';
 import { AccessGuard } from '../../../src/modules/foundation/foundation.access.js';
@@ -274,7 +273,7 @@ describe.skipIf(!enabled)('FBE-07 Foundation end-to-end acceptance — PostgreSQ
     evidence['runtime'] = identity;
     const hasher = new PasswordHasher();
     const auth = await createAuthModule({
-      prisma, logger, production: false, hasher, breachedPasswords: new UnavailableBlocklist('not used by FBE-07'),
+      prisma, logger, production: false, hasher,
       loginLimiter: new SlidingWindowRateLimiter({ limit: 10_000, windowMs: 15 * 60_000 }),
     });
     const foundation = createFoundationModule({ prisma, authService: auth.service, logger, secureCookie: false, environment: 'TEST' });

@@ -18,7 +18,7 @@ No grant beyond AUTH-DB-F2 is needed (proved by `test/integration/auth/auth.priv
 | `auth.service.ts` | flows §4–§7, retry once on 40P01/40001 then 503, audit entries |
 | `auth.routes.ts` | Express handlers, cookie, rate limit, error envelope |
 | `passwordHasher.ts` | Argon2id (`@node-rs/argon2`, local m=19 MiB t=2 p=1), dummy hash, ONE global queue (IB-3) |
-| `passwordPolicy.ts`, `blocklist.ts` | AD-6 / P-4 rules; blocklist is an INTERIM seed (P-4a/b PENDING) |
+| `passwordPolicy.ts` | AD-6 / P-4 rules (shape, contextual, same-as-current); no breached-password list (AUTH-FIX) |
 | `sessionCookie.ts`, `rateLimiter.ts`, `audit.ts`, `sqlstate.ts`, `auth.settings.ts`, `auth.messages.ts` | helpers and contract constants |
 
 Contract constants live in `auth.settings.ts` and cannot be changed by configuration or endpoint. Tests may pass shorter
@@ -34,50 +34,12 @@ cd backend  && npm run dev        # API on http://127.0.0.1:3000 (auth mounted w
 cd frontend && npm run dev        # UI on  http://127.0.0.1:5173, /api proxied to :3000 (TALO_API_TARGET to change)
 ```
 
-## Password blocklist — HIBP Pwned Passwords offline (P-4a/b)
+## Breached-password list — not used (AUTH-FIX)
 
-`PWNED_PASSWORDS_DIR` points to a directory **outside Git and outside the database** holding the SHA-1 range files of
-Have I Been Pwned "Pwned Passwords" (hashes only, no plaintext). Terms: the Pwned Passwords API documentation states
-there are no licensing or attribution requirements; the official downloader is BSD-3-Clause. The data is used
-internally and never redistributed. SHA-1 is only the lookup key of this dataset; storage stays Argon2id.
-
-- Production: the variable is required; the server refuses to start if the dataset is missing, partial or invalid.
-- Development / test: if missing, first-change fails closed (`503 SERVICE_BUSY`) and an error is logged.
-- Size (2026-10, measured on one range ≈ 1,900 lines / 75 kB): ≈ 1,048,576 files, ≈ 75–80 GB, ≈ 2 billion hashes.
-- **P-4d limit:** a hash dataset cannot be matched case-insensitively. The lookup checks the NFC value as typed,
-  lower case, UPPER CASE, Capitalised and Title Case. Other spellings of a breached password are not detected.
-
-Formats (`PWNED_PASSWORDS_FORMAT`, no fallback between them — a missing/invalid dataset of the chosen format fails closed):
-
-- `text` (default during testing): the range directory itself, with `manifest.json`.
-- `compact` (target format): one file `TALOPWN1` (header + 8 MiB index + 8 bytes per hash + SHA-256 trailer), ≈ 8 B/hash
-  vs ≈ 39 B/hash as text (≈ 17 GB vs ≈ 82 GB for the full set). Keys keep the first 64 bits of the 140-bit suffix: a
-  false positive (non-breached password refused) has probability ≈ 1e-16 per lookup; a breached hash is never missed.
-  `PWNED_PASSWORDS_DIR` then points to a directory with the `.bin` versions and `current.json`, which binds the active
-  file to its SHA-256 and entry count. Activation is an atomic rename; it takes effect at the next process start.
-
-Install the official downloader (.NET SDK required; BSD-3-Clause, github.com/HaveIBeenPwned/PwnedPasswordsDownloader;
-the NuGet package is not prefix-"verified", so check the package owner `troyhunt` before installing). Pin the version:
-
-```text
-dotnet tool install --global haveibeenpwned-downloader --version 0.5.2608.1930
-```
-
-Install / update (new version = new directory / new file, then switch):
-
-```text
-haveibeenpwned-downloader <dir>/hibp-YYYYMMDD -p 8       # SHA-1, directory mode (default: one file per prefix); no --single, no --ntlm
-cd backend
-npm run pwned:manifest -- <dir>/hibp-YYYYMMDD --downloader "haveibeenpwned-downloader <version>"   # version + treeSha256
-npm run pwned:verify   -- <dir>/hibp-YYYYMMDD           # recompute checksum before switching
-# text:    set PWNED_PASSWORDS_DIR=<dir>/hibp-YYYYMMDD, PWNED_PASSWORDS_FORMAT=text, restart
-# compact: (needs ≈ 17 GB more while the text directory exists)
-npm run pwned:compact -- convert  <dir>/hibp-YYYYMMDD <compactDir>/hibp-YYYYMMDD.bin   # prints sha256 + source tree
-npm run pwned:compact -- verify   <compactDir>/hibp-YYYYMMDD.bin
-npm run pwned:compact -- activate <compactDir> hibp-YYYYMMDD.bin <source tree sha256>
-#          set PWNED_PASSWORDS_DIR=<compactDir>, PWNED_PASSWORDS_FORMAT=compact, restart
-# keep the previous directory / .bin until the new version is verified in service
-```
+Owner decision: TALO-MOS-V4 does **not** use HIBP / Pwned Passwords. There is no dataset, no download tooling and no
+`PWNED_PASSWORDS_DIR` / `PWNED_PASSWORDS_FORMAT` configuration (former values in a local `.env` are ignored). The
+password policy keeps NFC normalisation, the length / UTF-8 byte limits, the control-character rule, the case-insensitive
+contextual checks and `SAME_AS_CURRENT` (AUTH-API-v1 §5.3); passwords are stored as Argon2id hashes only.
 
 ## Provisioning by IT — temporary password (P-4e)
 

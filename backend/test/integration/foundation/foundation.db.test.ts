@@ -11,7 +11,6 @@ import { createPrismaClient } from '../../../src/infrastructure/prisma/client.js
 import type { PrismaClient } from '../../../src/infrastructure/prisma/generated/client.js';
 import { createAuthModule } from '../../../src/modules/auth/index.js';
 import { PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
-import { UnavailableBlocklist } from '../../../src/modules/auth/pwnedPasswords.js';
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
 import { sqlstateOf } from '../../../src/modules/auth/sqlstate.js';
 import { createFoundationModule } from '../../../src/modules/foundation/index.js';
@@ -249,7 +248,7 @@ describe.skipIf(!enabled)('Foundation Module Registry — PostgreSQL (talo_mos_v
     if (identity?.db !== 'talo_mos_v4_test' || identity.usr !== 'talo_app') throw new Error('guard: API must run as talo_app on talo_mos_v4_test');
     const hasher = new PasswordHasher();
     const auth = await createAuthModule({
-      prisma, logger, production: false, hasher, breachedPasswords: new UnavailableBlocklist('not used by FBE-01B-VERIFY'),
+      prisma, logger, production: false, hasher,
       loginLimiter: new SlidingWindowRateLimiter({ limit: 10_000, windowMs: 15 * 60_000 }),
     });
     const repository = new SqlFoundationRepository(faultyDb(prismaFoundationDb(prisma), () => fault));

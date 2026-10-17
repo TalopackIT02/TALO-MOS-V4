@@ -11,7 +11,6 @@ import { createPrismaClient } from '../../../src/infrastructure/prisma/client.js
 import type { PrismaClient } from '../../../src/infrastructure/prisma/generated/client.js';
 import { createAuthModule } from '../../../src/modules/auth/index.js';
 import { PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
-import { UnavailableBlocklist } from '../../../src/modules/auth/pwnedPasswords.js';
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
 import { sqlstateOf } from '../../../src/modules/auth/sqlstate.js';
 import { createFoundationModule } from '../../../src/modules/foundation/index.js';
@@ -253,7 +252,7 @@ describe.skipIf(!enabled)('FBE-02C Module Version + MIC — PostgreSQL (talo_mos
     evidence['runtime'] = identity;
     const hasher = new PasswordHasher();
     const auth = await createAuthModule({
-      prisma, logger, production: false, hasher, breachedPasswords: new UnavailableBlocklist('not used by FBE-02C-VERIFY'),
+      prisma, logger, production: false, hasher,
       loginLimiter: new SlidingWindowRateLimiter({ limit: 10_000, windowMs: 15 * 60_000 }),
     });
     const db = faultyDb(prismaFoundationDb(prisma), () => fault);

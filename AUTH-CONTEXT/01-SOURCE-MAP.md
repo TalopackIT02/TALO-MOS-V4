@@ -1,5 +1,7 @@
 # SOURCE MAP — mở file theo vấn đề, không đọc toàn repo
 
+> **Superseded (AUTH-FIX):** TALO-MOS-V4 no longer uses HIBP / Pwned Passwords. Every HIBP / blocklist item below is historical; the current contract is `backend/src/modules/auth/AUTH-API-v1.md` §5.3.
+
 Kiểm chứng từ GitHub `main` tại thời điểm lập snapshot; file local có thể mới hơn. **Chỉ mở nhóm đang sửa.**
 
 | Cần xử lý | Entry point hiện hữu | Test/hỗ trợ |

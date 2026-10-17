@@ -1,6 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import type { Express } from 'express';
 import request from 'supertest';
 import type { Response } from 'supertest';
@@ -16,10 +14,6 @@ import type { AuthSettings } from '../../../src/modules/auth/auth.settings.js';
 import { createAuthModule } from '../../../src/modules/auth/index.js';
 import { LOCAL_ARGON2_OPTIONS, PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
-import { PwnedPasswordsStore, UnavailableBlocklist } from '../../../src/modules/auth/pwnedPasswords.js';
-import type { BreachedPasswordChecker } from '../../../src/modules/auth/pwnedPasswords.js';
-import { activateCompact, convertToCompact } from '../../../src/modules/auth/tools/pwnedCompact.js';
-import { createPwnedFixture, removePwnedFixture } from '../../support/pwnedFixture.js';
 import { sqlstateOf } from '../../../src/modules/auth/sqlstate.js';
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
 import { checkSmokeUrl } from '../../smoke/dbSmoke.js';
@@ -79,8 +73,6 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
   let w: PsqlSession;
   let fx: AuthFixtures;
   let hasher: CountingHasher;
-  let pwnedDir: string;
-  let pwned: BreachedPasswordChecker;
   const deletedTotals: Record<string, number> = {};
   const logs: string[] = [];
   const logger = createLogger({ level: 'warn', sink: (line) => logs.push(line) });
@@ -91,13 +83,10 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     readonly wrap?: (repository: AuthRepository) => AuthRepository;
     readonly hasher?: PasswordHasher;
     readonly limit?: number;
-    readonly breached?: BreachedPasswordChecker;
-    readonly compactDir?: string; // the module opens this HIBP Compact dataset itself (PWNED_PASSWORDS_FORMAT=compact)
   }
   async function makeApp(options: AppOptions = {}): Promise<Express> {
     const auth = await createAuthModule({
       prisma, logger, production: false, hasher: options.hasher ?? hasher,
-      ...(options.compactDir ? { pwnedPasswordsDir: options.compactDir, pwnedPasswordsFormat: 'compact' as const } : { breachedPasswords: options.breached ?? pwned }),
       loginLimiter: new SlidingWindowRateLimiter({ limit: options.limit ?? 10_000, windowMs: 15 * 60_000 }),
       ...(options.settings ? { settings: options.settings } : {}),
       ...(options.hooks ? { hooks: options.hooks } : {}),
@@ -160,8 +149,6 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     if (identity?.db !== 'talo_mos_v4_test' || identity.usr !== 'talo_app') throw new Error('guard: API must run as talo_app on talo_mos_v4_test');
     hasher = new CountingHasher();
     await hasher.init();
-    pwnedDir = await createPwnedFixture();
-    pwned = await PwnedPasswordsStore.open(pwnedDir, { production: false });
     h = await AuthFixtures.connect();
     w = new PsqlSession();
     fx = new AuthFixtures(h, hasher);
@@ -179,7 +166,6 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
     await w?.close();
     await h?.close();
     await prisma?.$disconnect();
-    if (pwnedDir) await removePwnedFixture(pwnedDir);
     expect(remaining).toBe(0);
   });
 
@@ -441,7 +427,6 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
       ['short', 'TOO_SHORT', { reason: 'TOO_SHORT', minLength: 8 }],
       ['x'.repeat(129), 'TOO_LONG', { reason: 'TOO_LONG', maxLength: 128 }],
       ['a long phrase with\u007Fdel inside', 'CONTROL_CHARACTERS', { reason: 'CONTROL_CHARACTERS' }],
-      ['MATKHAUMOI123456', 'BLOCKLISTED', { reason: 'BLOCKLISTED' }],
       [`${acc.username.toUpperCase()}123`, 'CONTEXT_MATCH', { reason: 'CONTEXT_MATCH' }],
       [acc.password, 'SAME_AS_CURRENT', { reason: 'SAME_AS_CURRENT' }],
     ];
@@ -458,67 +443,22 @@ describe.skipIf(!enabled)('AUTH API runtime — PostgreSQL (talo_mos_v4_test)', 
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
     }
     const policies = (await audits(acc.accountId)).filter((x) => x.reason === 'POLICY_VIOLATION').map((x) => JSON.parse(x.metadata).policy);
-    expect(policies).toEqual(['TOO_SHORT', 'TOO_LONG', 'CONTROL_CHARACTERS', 'BLOCKLISTED', 'CONTEXT_MATCH', 'SAME_AS_CURRENT']);
+    expect(policies).toEqual(['TOO_SHORT', 'TOO_LONG', 'CONTROL_CHARACTERS', 'CONTEXT_MATCH', 'SAME_AS_CURRENT']);
     expect(await credential(acc.accountId)).toMatchObject({ mustChange: true });
     expect((await getSession(app, cookie)).status).toBe(200); // session still valid after policy errors
   });
 
-  it('blocklist (HIBP offline): breached spellings refused with BLOCKLISTED; missing dataset fails closed with 503 and changes nothing', async () => {
+  it('no breached-password list (owner decision AUTH-FIX): a common password that passes the remaining rules is accepted; no dataset needed', async () => {
     const app = await makeApp();
     const acc = await create({ accountStatus: 'PROVISIONED' });
     const cookie = cookieOf(await login(app, acc.username, acc.password));
-    for (const breached of ['matkhaumoi123456', 'MATKHAUMOI123456', 'passwordpassword1', 'Correct Horse Battery']) {
-      const res = await firstChange(app, cookie, breached);
-      expect(res.status, breached).toBe(400);
-      expect(res.body.error.details).toEqual({ reason: 'BLOCKLISTED' });
-    }
-    const valid = await firstChange(app, cookie, 'mua thu ha noi co nang vang');
-    expect(valid.status).toBe(200);
-
-    const noBlocklist = await makeApp({ breached: new UnavailableBlocklist('not configured') });
-    const other = await create({ accountStatus: 'PROVISIONED' });
-    const otherCookie = cookieOf(await login(noBlocklist, other.username, other.password));
-    const before = await credential(other.accountId);
-    const refused = await firstChange(noBlocklist, otherCookie, 'mua thu ha noi co nang vang');
-    expect(refused.status).toBe(503);
-    expect(refused.body.error.code).toBe('SERVICE_BUSY');
-    expect(await credential(other.accountId)).toEqual(before);
-    expect((await getSession(noBlocklist, otherCookie)).status).toBe(200);
-    expect(logs.some((line) => line.includes('password blocklist unavailable'))).toBe(true);
-  });
-
-  it('blocklist (HIBP Compact via createAuthModule): breached refused, valid accepted; damaged dataset → 503, no fallback to text', async () => {
-    const compactDir = await mkdtemp(join(tmpdir(), 'talo-pwned-compact-db-'));
-    try {
-      const converted = await convertToCompact(pwnedDir, join(compactDir, 'v1.bin'));
-      await activateCompact(compactDir, 'v1.bin', converted.sourceTreeSha256);
-      const app = await makeApp({ compactDir });
-      const acc = await create({ accountStatus: 'PROVISIONED' });
-      const cookie = cookieOf(await login(app, acc.username, acc.password));
-      for (const breached of ['matkhaumoi123456', 'MATKHAUMOI123456', 'Correct Horse Battery']) {
-        const res = await firstChange(app, cookie, breached);
-        expect(res.status, breached).toBe(400);
-        expect(res.body.error.details).toEqual({ reason: 'BLOCKLISTED' });
-      }
-      expect((await firstChange(app, cookie, 'mua thu ha noi co nang vang')).status).toBe(200);
-
-      // Damage the active file: the pointer checksum no longer matches. The text dataset is still valid, yet unused.
-      const data = await readFile(join(compactDir, 'v1.bin'));
-      data[data.length - 1] = (data[data.length - 1] ?? 0) ^ 1;
-      await writeFile(join(compactDir, 'v1.bin'), data);
-      logs.length = 0;
-      const broken = await makeApp({ compactDir });
-      const other = await create({ accountStatus: 'PROVISIONED' });
-      const otherCookie = cookieOf(await login(broken, other.username, other.password));
-      const before = await credential(other.accountId);
-      const refused = await firstChange(broken, otherCookie, 'mua thu ha noi co nang vang');
-      expect(refused.status).toBe(503);
-      expect(refused.body.error.code).toBe('SERVICE_BUSY');
-      expect(await credential(other.accountId)).toEqual(before);
-      expect(logs.some((line) => line.includes('checksum'))).toBe(true);
-    } finally {
-      await rm(compactDir, { recursive: true, force: true });
-    }
+    const res = await firstChange(app, cookie, 'passwordpassword1');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: 'PASSWORD_CHANGED_RELOGIN' });
+    expect(await credential(acc.accountId)).toMatchObject({ mustChange: false });
+    expect((await getSession(app, cookie)).status).toBe(401); // activation session revoked
+    expect((await login(app, acc.username, 'passwordpassword1')).status).toBe(200);
+    expect(logs.some((line) => line.toLowerCase().includes('blocklist'))).toBe(false);
   });
 
   it('CT-F3: two first-change requests in parallel → exactly one 200, the other 401; one new hash', async () => {

@@ -1,5 +1,7 @@
 # HANDOFF — TALO-MOS-V4 (phiên kết thúc 2026-10-15, khoảng 12:30)
 
+> **Superseded (AUTH-FIX):** TALO-MOS-V4 no longer uses HIBP / Pwned Passwords. Every HIBP / blocklist item below is historical; the current contract is `backend/src/modules/auth/AUTH-API-v1.md` §5.3.
+
 Tài liệu bàn giao cho phiên Claude Code tiếp theo. Mục đích: biết **đã làm gì, đang treo gì, việc nào chờ User quyết định**. Đây không phải kế hoạch hay phase mới. Nếu tài liệu này mâu thuẫn với source code hoặc `git`, tin source code và `git`.
 
 ## 1. Trạng thái nguồn

@@ -275,13 +275,13 @@ components:
             details: { $ref: '#/components/schemas/PasswordPolicyDetails' }
     PasswordPolicyDetails:
       type: object
-      description: Present only with PASSWORD_POLICY. Never reveals the matched blocklist entry.
+      description: Present only with PASSWORD_POLICY. Never reveals the matched contextual entry.
       required: [reason]
       additionalProperties: false
       properties:
         reason:
           type: string
-          enum: [TOO_SHORT, TOO_LONG, TOO_LONG_BYTES, BLOCKLISTED, CONTEXT_MATCH, SAME_AS_CURRENT, CONTROL_CHARACTERS]
+          enum: [TOO_SHORT, TOO_LONG, TOO_LONG_BYTES, CONTEXT_MATCH, SAME_AS_CURRENT, CONTROL_CHARACTERS]
         minLength: { type: integer, const: 8 }
         maxLength: { type: integer, const: 128 }
         maxBytes: { type: integer, const: 512 }
@@ -343,10 +343,8 @@ components:
           type: string
           description: >
             Not trimmed. The server NFC-normalises, then enforces 8-128 code points, at most 512 UTF-8 bytes, no C0/DEL/C1
-            control character, case-insensitive whole-password contextual checks, the offline breached-password check
-            (Have I Been Pwned, whole password, at most 5 case variants — not full case-insensitivity), and difference
-            from the current password (Argon2id verify against the current hash); violations return 400 PASSWORD_POLICY
-            with details.reason (not VALIDATION_ERROR). The UI's confirmation field is compared client-side and is not
+            control character, case-insensitive whole-password contextual checks and difference from the current password (Argon2id verify against the current hash); violations return 400 PASSWORD_POLICY
+            with details.reason (not VALIDATION_ERROR). No breached-password list is used (AUTH-FIX). The UI's confirmation field is compared client-side and is not
             sent.
     FirstChangeSuccess:
       type: object
