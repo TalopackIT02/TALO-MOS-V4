@@ -97,6 +97,11 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
     setAccountPanelOpen(false);
   }
 
+  // An API answer 401 inside a screen: the session is gone — back to the login screen (App re-reads the session).
+  const onSessionLost = useCallback(() => {
+    onLoggedOut({ text: t('SESSION.INVALID'), tone: 'warning' });
+  }, [onLoggedOut]);
+
   async function logout() {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -162,7 +167,12 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
           onToggleGroup={toggleGroup}
           onToggleCompact={toggleCompact}
         />
-        <ShellWorkspace screen={screen} activeTab={activeTab} onTab={(index) => setTab({ screen: screen.id, index })} />
+        <ShellWorkspace
+          screen={screen}
+          activeTab={activeTab}
+          onTab={(index) => setTab({ screen: screen.id, index })}
+          onSessionLost={onSessionLost}
+        />
       </div>
     </div>
   );

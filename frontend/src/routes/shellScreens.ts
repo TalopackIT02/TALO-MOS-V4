@@ -1,8 +1,9 @@
-// TASK F1 navigation, declared in the frontend only and copied from the approved TALO-MOS-V4-Appshell.html.
-// It is NOT a module registry: it does not mean that a module is registered, enabled or granted to the account
-// (MOD-03 / IAM-04). Menu visibility by effective grants needs an IAM API that does not exist yet (BLOCKED).
+// AppShell administration screens (frontend only). They are NOT the business menu: the business menu comes from
+// GET /api/foundation/navigation, filtered by the backend (enabled module, ACTIVE version, effective IAM grant).
+// FE-01: Foundation screens are connected to the Foundation API; the server decides every permission (403 shown as is).
+// IAM screens stay informational until an IAM administration API exists.
 
-export type ScreenId = 'home' | 'module' | 'capability' | 'accounts' | 'roles';
+export type ScreenId = 'home' | 'module' | 'navigation' | 'accounts' | 'roles';
 export type GroupId = 'foundation' | 'iam';
 
 export interface ShellScreen {
@@ -21,17 +22,17 @@ export interface NavGroup {
 }
 
 export const SCREENS = {
-  home: { id: 'home', path: '/', name: 'Trang chủ', desc: 'Điều hướng đến những màn hình nền tảng đang được ưu tiên triển khai.', tabs: ['Màn hình ưu tiên'] },
-  module: { id: 'module', path: '/foundation/modules', name: 'Quản lý Module', desc: 'Tiếp nhận và quản lý thông tin module được đăng ký với Foundation.', tabs: ['Danh sách Module', 'Thông tin khai báo'] },
-  capability: { id: 'capability', path: '/foundation/capabilities', name: 'Quản lý chức năng', desc: 'Quản lý danh mục chức năng và hành động do module công bố.', tabs: ['Cây chức năng', 'Danh sách Action'] },
-  accounts: { id: 'accounts', path: '/iam/accounts', name: 'Quản lý tài khoản', desc: 'Giao diện quản trị tài khoản thuộc IAM, chưa kết nối dữ liệu thực.', tabs: ['Danh sách tài khoản', 'Chi tiết tài khoản'] },
-  roles: { id: 'roles', path: '/iam/roles', name: 'Vai trò và quyền', desc: 'Giao diện quản trị vai trò và quyền truy cập ứng dụng.', tabs: ['Danh sách vai trò', 'Phân quyền'] },
+  home: { id: 'home', path: '/', name: 'Trang chủ', desc: 'Chức năng nghiệp vụ được cấp cho tài khoản và các màn hình quản trị nền tảng.', tabs: ['Chức năng của tôi'] },
+  module: { id: 'module', path: '/foundation/modules', name: 'Quản lý Module', desc: 'Đăng ký module, quản lý phiên bản, hồ sơ MIC và vòng đời phê duyệt – kích hoạt.', tabs: ['Module & Phiên bản', 'Đăng ký Module'] },
+  navigation: { id: 'navigation', path: '/foundation/navigation', name: 'Điều hướng', desc: 'Cây menu ứng dụng do Foundation quản lý, lọc theo quyền IAM của từng tài khoản.', tabs: ['Menu của tôi', 'Quản trị menu'] },
+  accounts: { id: 'accounts', path: '/iam/accounts', name: 'Quản lý tài khoản', desc: 'Chưa triển khai: chưa có API quản trị tài khoản IAM.', tabs: ['Danh sách tài khoản'] },
+  roles: { id: 'roles', path: '/iam/roles', name: 'Vai trò và quyền', desc: 'Chưa triển khai: chưa có API quản trị vai trò và quyền IAM.', tabs: ['Danh sách vai trò'] },
 } as const satisfies Record<ScreenId, ShellScreen>;
 
 export type ShellPath = (typeof SCREENS)[ScreenId]['path'];
 
 export const NAV_GROUPS: readonly NavGroup[] = [
-  { id: 'foundation', name: 'Foundation', icon: '⚙', children: ['module', 'capability'] },
+  { id: 'foundation', name: 'Foundation', icon: '⚙', children: ['module', 'navigation'] },
   { id: 'iam', name: 'IAM · Tài khoản và quyền', icon: '♙', children: ['accounts', 'roles'] },
 ];
 

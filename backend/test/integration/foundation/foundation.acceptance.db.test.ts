@@ -294,7 +294,9 @@ describe.skipIf(!enabled)('FBE-07 Foundation end-to-end acceptance — PostgreSQ
       (SELECT count(*) FROM iam.iam_role_permissions) + (SELECT count(*) FROM iam.iam_user_roles) + (SELECT count(*) FROM iam.iam_user_permissions),
       (SELECT count(*) FROM iam.iam_audit_logs), (SELECT relacl::text FROM pg_class WHERE oid = 'iam.iam_permissions'::regclass)`);
     iamBaseline = (base ?? []).map((x) => x ?? '');
-    expect(iamBaseline.slice(0, 3)).toEqual(['13', '13', '0']);
+    // FE-01: the TEST administrator (role TALO_SYSTEM_ADMIN) is a legitimate assignment; fixture leftovers are checked above
+    // and AC-10 compares the whole baseline (incl. assignments) after cleanup.
+    expect(iamBaseline.slice(0, 2)).toEqual(['13', '13']);
     evidence['iamBaseline'] = iamBaseline;
   });
 

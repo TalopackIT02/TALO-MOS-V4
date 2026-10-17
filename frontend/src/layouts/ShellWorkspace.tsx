@@ -9,9 +9,10 @@ export interface ShellWorkspaceProps {
   readonly screen: ShellScreen;
   readonly activeTab: number;
   readonly onTab: (index: number) => void;
+  readonly onSessionLost: () => void;
 }
 
-export function ShellWorkspace({ screen, activeTab, onTab }: ShellWorkspaceProps) {
+export function ShellWorkspace({ screen, activeTab, onTab, onSessionLost }: ShellWorkspaceProps) {
   const parent = groupOf(screen.id);
   return (
     <main className="workspace">
@@ -29,9 +30,9 @@ export function ShellWorkspace({ screen, activeTab, onTab }: ShellWorkspaceProps
       </div>
       <section className="panel">
         <div className="panel-heading"><h2 id="bodyTitle">{screen.tabs[activeTab]}</h2></div>
-        <div className="panel-body" id="body"><ScreenBody screen={screen.id} tab={activeTab} /></div>
+        <div className="panel-body" id="body"><ScreenBody screen={screen.id} tab={activeTab} onSessionLost={onSessionLost} /></div>
       </section>
-      <div className="footer">Các màn hình Foundation và IAM chưa kết nối API quản trị · Các thao tác thay đổi dữ liệu chưa được kích hoạt.</div>
+      <div className="footer">Dữ liệu Foundation lấy trực tiếp từ máy chủ · Quyền thao tác do máy chủ quyết định · Quản trị IAM chưa triển khai.</div>
     </main>
   );
 }

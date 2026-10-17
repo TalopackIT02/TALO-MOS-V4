@@ -1,0 +1,30 @@
+/* FE-01 — Foundation screens. Small additions scoped under .app-shell, reusing the AppShell values (green, line, muted). */
+.app-shell .fx-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.app-shell .fx-btn{border-radius:7px;border:1px solid #d6e1e7;padding:8px 13px;background:#fff;color:#4c5d70;font-size:12px}
+.app-shell .fx-btn:hover:not(:disabled){background:#f2f8f4;border-color:#bddecb}
+.app-shell .fx-btn.primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+.app-shell .fx-btn.primary:hover:not(:disabled){background:#06703c}
+.app-shell .fx-btn.danger{color:#a3352b;border-color:#e8c9c5}
+.app-shell .fx-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
+.app-shell .fx-form label{display:grid;gap:5px;font-size:12px;color:#506176}
+.app-shell .fx-form input,.app-shell .fx-form select,.app-shell .fx-mic{border:1px solid #d1dbe5;border-radius:7px;padding:8px 10px;font-size:12px;background:#fff;color:#1c2937;font-family:inherit}
+.app-shell .fx-mic{width:100%;min-height:320px;font-family:Consolas,'Courier New',monospace;line-height:1.5;resize:vertical}
+.app-shell .fx-mic[readonly]{background:#f8fafb}
+.app-shell .fx-msg{border-radius:7px;padding:10px 12px;font-size:12px;margin-bottom:12px;line-height:1.6}
+.app-shell .fx-msg.error{background:#fdf0ee;color:#9b2c22;border:1px solid #f1cfca}
+.app-shell .fx-msg.success{background:#ebf8f0;color:#0b6b3c;border:1px solid #bfe3cd}
+.app-shell .fx-msg.info{background:#f2f6f9;color:#506176;border:1px solid var(--line)}
+.app-shell .fx-section{border-top:1px solid #eef2f4;margin-top:18px;padding-top:16px}
+.app-shell .fx-section h3{font-size:14px;margin:0 0 12px;color:#1c2937}
+.app-shell .fx-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 16px;font-size:12px;color:#506176;margin-bottom:12px;word-break:break-all}
+.app-shell .fx-meta b{color:#1c2937;font-weight:600}
+.app-shell tr.fx-selected td{background:#f2faf5}
+.app-shell .fx-tree{list-style:none;margin:0;padding-left:0;font-size:13px}
+.app-shell .fx-tree .fx-tree{padding-left:20px;border-left:1px dashed #d6e1e7;margin-left:8px}
+.app-shell .fx-tree li{padding:6px 0}
+.app-shell .fx-tree small{color:var(--muted);margin-left:6px}
+.app-shell .fx-status-active{background:#e3f5eb;color:var(--green)}
+.app-shell .fx-status-approved{background:#e8f1fb;color:#2b5f93}
+.app-shell .fx-status-in_review{background:#fff5e0;color:#8a5a00}
+.app-shell .fx-status-rejected,.app-shell .fx-status-retired{background:#f3eeee;color:#7a5552}
+@media(max-width:760px){.app-shell .fx-form{grid-template-columns:1fr}.app-shell .fx-mic{min-height:240px}}
