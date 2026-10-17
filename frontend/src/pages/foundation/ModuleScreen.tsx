@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { foundationApi } from '../../services/foundation/foundationApi';
 import type { ModuleRecord } from '../../services/foundation/foundationApi';
@@ -17,6 +17,7 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState(false);
   const [showTestModules, setShowTestModules] = useState(false);
+  const versionsRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     const data = settle(await foundationApi.listModules(), onSessionLost, setFeedback);
@@ -38,6 +39,12 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
     setBusy(false);
   }
 
+  // The version area sits above the list: choosing a module brings it into view.
+  function choose(moduleId: string) {
+    setSelectedId(moduleId);
+    versionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   if (tab === 1) {
     return <RegisterForm onSessionLost={onSessionLost} onRegistered={(m) => { setSelectedId(m.moduleId); void load(); }} />;
   }
@@ -55,10 +62,15 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
         <span className="muted">Dữ liệu lấy trực tiếp từ Foundation Backend.</span>
       </div>
       <FeedbackLine feedback={feedback} />
+      <div ref={versionsRef} className="fx-version-area">
+        {selected
+          ? <VersionPanel key={selected.moduleId} module={selected} onSessionLost={onSessionLost} onChanged={() => void load()} />
+          : <p className="fx-placeholder">Chọn một Module trong danh sách bên dưới để quản lý phiên bản.</p>}
+      </div>
       {visible === null ? <p className="info">Đang tải…</p> : visible.length === 0 ? (
         <p className="info">{hiddenCount > 0 ? 'Chưa có module nào ngoài các module kiểm thử đang được ẩn.' : 'Chưa có module nào hoặc bạn không có quyền xem.'}</p>
       ) : (
-        <div className="tablewrap">
+        <div className="fx-module-list">
           <table>
             <thead><tr><th>Mã module</th><th>Tên</th><th>Loại</th><th>Trạng thái</th><th>Cập nhật</th><th /></tr></thead>
             <tbody>
@@ -71,7 +83,7 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
                   <td>{formatTime(m.updatedAt)}</td>
                   <td>
                     <div className="fx-toolbar" style={{ marginBottom: 0 }}>
-                      <button type="button" className="fx-btn" onClick={() => setSelectedId(m.moduleId)}>Phiên bản</button>
+                      <button type="button" className="fx-btn" onClick={() => choose(m.moduleId)}>Phiên bản</button>
                       <button type="button" className="fx-btn" disabled={busy} onClick={() => void toggle(m)}>{m.isEnabled ? 'Tắt' : 'Bật'}</button>
                     </div>
                   </td>
@@ -81,7 +93,6 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
           </table>
         </div>
       )}
-      {selected && <VersionPanel key={selected.moduleId} module={selected} onSessionLost={onSessionLost} onChanged={() => void load()} />}
     </>
   );
 }

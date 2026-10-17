@@ -28,3 +28,12 @@
 .app-shell .fx-status-in_review{background:#fff5e0;color:#8a5a00}
 .app-shell .fx-status-rejected,.app-shell .fx-status-retired{background:#f3eeee;color:#7a5552}
 @media(max-width:760px){.app-shell .fx-form{grid-template-columns:1fr}.app-shell .fx-mic{min-height:240px}}
+/* FE-UI FIX — Module screen: version area above a compact, scrollable module list (own class; .tablewrap untouched). */
+.app-shell .fx-version-area .fx-section:first-child{border-top:0;margin-top:0;padding-top:0}
+.app-shell .fx-version-area{margin-bottom:16px}
+.app-shell .fx-placeholder{border:1px dashed #d6e1e7;border-radius:7px;padding:12px 14px;font-size:12px;color:var(--muted);margin:0}
+.app-shell .fx-module-list{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:7px;max-width:100%}
+.app-shell .fx-module-list thead th{position:sticky;top:0;z-index:1;padding:9px 12px}
+.app-shell .fx-module-list td{padding:7px 12px}
+.app-shell .fx-module-list .fx-btn{padding:5px 10px}
+@media(max-width:760px){.app-shell .fx-module-list{max-height:240px}}
