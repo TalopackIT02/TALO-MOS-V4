@@ -10,6 +10,7 @@ import type { SessionBody } from '../../../src/modules/auth/auth.service.js';
 import { MANIFEST_SQL, SqlManifestRepository } from '../../../src/modules/foundation/foundation.manifest.repository.js';
 import { moduleManifestRouter } from '../../../src/modules/foundation/foundation.manifest.routes.js';
 import { ModuleManifestService } from '../../../src/modules/foundation/foundation.manifest.service.js';
+import { REGISTRY_SQL } from '../../../src/modules/foundation/foundation.registry.repository.js';
 import { FOUNDATION_SQL, SqlFoundationRepository } from '../../../src/modules/foundation/foundation.repository.js';
 import type { FoundationDb, SqlExecutor } from '../../../src/modules/foundation/foundation.repository.js';
 import { foundationRouter } from '../../../src/modules/foundation/foundation.routes.js';
@@ -81,6 +82,21 @@ export interface VersionRow {
   reviewed_at: string | null; activated_at: string | null;
 }
 
+export interface FunctionRow {
+  function_id: string; module_id: string; function_key: string; created_at: string; retired_at: string | null; replaces_function_id: string | null;
+}
+export interface ActionRow {
+  action_id: string; function_id: string; action_key: string; created_at: string; retired_at: string | null;
+}
+export interface VersionFunctionRow {
+  version_function_id: string; version_id: string; function_id: string; display_name: string; route_key: string | null;
+  definition_hash: string | null; is_deprecated: boolean;
+}
+export interface VersionActionRow {
+  version_action_id: string; version_function_id: string; action_id: string; description: string | null; action_spec: unknown;
+  definition_hash: string | null; is_deprecated: boolean;
+}
+
 export interface Statement {
   readonly sql: string;
   readonly params: readonly unknown[];
@@ -93,6 +109,10 @@ export interface State {
   audits: (readonly unknown[])[];
   versions: VersionRow[];
   versionAudits: (readonly unknown[])[];
+  functions: FunctionRow[];
+  actions: ActionRow[];
+  versionFunctions: VersionFunctionRow[];
+  versionActions: VersionActionRow[];
 }
 
 export function pgError(code: string): Error {
@@ -104,7 +124,7 @@ const nullableText = (value: unknown): string | null => (value === null || value
 
 export class FakeDb implements FoundationDb {
   readonly iam: IamFixture;
-  state: State = { modules: [], events: [], audits: [], versions: [], versionAudits: [] };
+  state: State = { modules: [], events: [], audits: [], versions: [], versionAudits: [], functions: [], actions: [], versionFunctions: [], versionActions: [] };
   readonly statements: Statement[] = [];
   readonly txLog: ('BEGIN' | 'COMMIT' | 'ROLLBACK')[] = [];
   readonly failOn = new Map<string, Error>();
@@ -129,6 +149,8 @@ export class FakeDb implements FoundationDb {
     const staged: State = {
       modules: [...this.state.modules], events: [...this.state.events], audits: [...this.state.audits],
       versions: [...this.state.versions], versionAudits: [...this.state.versionAudits],
+      functions: [...this.state.functions], actions: [...this.state.actions],
+      versionFunctions: [...this.state.versionFunctions], versionActions: [...this.state.versionActions],
     };
     const tx: SqlExecutor = {
       query: (sql, params) => this.run(sql, params, staged, true),
@@ -239,6 +261,58 @@ export class FakeDb implements FoundationDb {
         if (!state.versions.some((v) => v.version_id === params[1] && v.module_id === params[0])) throw pgError('23503');
         state.events.push(['SUBMIT', ...params]);
         return [];
+      case REGISTRY_SQL.insertFunction: {
+        // FK module_id → B01, D-02 key format; ON CONFLICT (module_id, function_key) DO NOTHING → 0 rows.
+        if (!state.modules.some((m) => m.module_id === params[0])) throw pgError('23503');
+        if (!/^[A-Z][A-Z0-9_]*$/.test(text(params[1])) || text(params[1]).length > 100) throw pgError('23514');
+        // As PostgreSQL: a conflict is skipped only by ON CONFLICT … DO NOTHING; otherwise unique_violation.
+        if (state.functions.some((x) => x.module_id === params[0] && x.function_key === params[1])) {
+          if (sql.includes('ON CONFLICT (module_id, function_key) DO NOTHING')) return [];
+          throw pgError('23505');
+        }
+        state.functions.push({
+          function_id: randomUUID(), module_id: text(params[0]), function_key: text(params[1]), created_at: '2026-10-17T09:00:00.000000Z', retired_at: null, replaces_function_id: null,
+        });
+        return [{}];
+      }
+      case REGISTRY_SQL.selectFunction:
+        return state.functions.filter((x) => x.module_id === params[0] && x.function_key === params[1]).map((x) => ({ function_id: x.function_id }));
+      case REGISTRY_SQL.insertAction: {
+        if (!state.functions.some((x) => x.function_id === params[0])) throw pgError('23503');
+        if (!/^[A-Z][A-Z0-9_]*$/.test(text(params[1])) || text(params[1]).length > 30) throw pgError('23514');
+        if (state.actions.some((x) => x.function_id === params[0] && x.action_key === params[1])) {
+          if (sql.includes('ON CONFLICT (function_id, action_key) DO NOTHING')) return [];
+          throw pgError('23505');
+        }
+        state.actions.push({ action_id: randomUUID(), function_id: text(params[0]), action_key: text(params[1]), created_at: '2026-10-17T09:00:00.000000Z', retired_at: null });
+        return [{}];
+      }
+      case REGISTRY_SQL.selectAction:
+        return state.actions.filter((x) => x.function_id === params[0] && x.action_key === params[1]).map((x) => ({ action_id: x.action_id }));
+      case REGISTRY_SQL.insertVersionFunction: {
+        // FKs → B02 / B03, UNIQUE (version_id, function_id), N-04, display_name VARCHAR(150).
+        if (!state.versions.some((v) => v.version_id === params[0]) || !state.functions.some((x) => x.function_id === params[1])) throw pgError('23503');
+        if (state.versionFunctions.some((x) => x.version_id === params[0] && x.function_id === params[1])) throw pgError('23505');
+        if (!/^[0-9a-f]{64}$/.test(text(params[3]))) throw pgError('23514');
+        if (text(params[2]).length > 150) throw pgError('22001');
+        const row: VersionFunctionRow = {
+          version_function_id: randomUUID(), version_id: text(params[0]), function_id: text(params[1]), display_name: text(params[2]), route_key: null,
+          definition_hash: text(params[3]), is_deprecated: false,
+        };
+        state.versionFunctions.push(row);
+        return [{ version_function_id: row.version_function_id }];
+      }
+      case REGISTRY_SQL.insertVersionAction: {
+        // FKs → B05 / B04, UNIQUE (version_function_id, action_id), N-05; action_spec stored as JSONB (round trip).
+        if (!state.versionFunctions.some((x) => x.version_function_id === params[0]) || !state.actions.some((x) => x.action_id === params[1])) throw pgError('23503');
+        if (state.versionActions.some((x) => x.version_function_id === params[0] && x.action_id === params[1])) throw pgError('23505');
+        if (!/^[0-9a-f]{64}$/.test(text(params[4]))) throw pgError('23514');
+        state.versionActions.push({
+          version_action_id: randomUUID(), version_function_id: text(params[0]), action_id: text(params[1]), description: nullableText(params[2]),
+          action_spec: params[3] === null ? null : JSON.parse(text(params[3])), definition_hash: text(params[4]), is_deprecated: false,
+        });
+        return [];
+      }
       default:
         throw new Error('FakeDb: unexpected SQL');
     }

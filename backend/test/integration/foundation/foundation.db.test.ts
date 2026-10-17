@@ -324,7 +324,7 @@ describe.skipIf(!enabled)('Foundation Module Registry — PostgreSQL (talo_mos_v
       'SELECT B08': `SELECT 1 FROM foundation.fnd_audit_logs`,
       'UPDATE B08': `UPDATE foundation.fnd_audit_logs SET outcome = outcome`,
       'DELETE B08': `DELETE FROM foundation.fnd_audit_logs`,
-      'SELECT B03': `SELECT 1 FROM foundation.fnd_functions`,
+      'DELETE B03': `DELETE FROM foundation.fnd_functions`,
       'SELECT B09': `SELECT 1 FROM foundation.fnd_navigation_items`,
       'INSERT iam_permissions': `INSERT INTO iam.iam_permissions (permission_code, module_code, resource_code, operation) VALUES ('x', 'X', 'X', 'READ')`,
       'UPDATE iam_roles': `UPDATE iam.iam_roles SET is_active = false`,

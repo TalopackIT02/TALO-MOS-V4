@@ -7,6 +7,7 @@ import { canonicalDigest, hasNoDuplicateKeys, isPlainObject, jsonViolation } fro
 import { VersionNotDraftError, VersionNotFoundError } from './foundation.manifest.repository.js';
 import type { ManifestAuditRecord, ManifestRepository } from './foundation.manifest.repository.js';
 import { validateMic } from './foundation.mic.js';
+import { registryPlan } from './foundation.registry.js';
 import type { MicErrorCode } from './foundation.mic.js';
 import { MODULE_VERSION_SUBMIT, MODULE_VERSION_UPDATE } from './foundation.permissions.js';
 import type { FoundationRepository } from './foundation.repository.js';
@@ -100,7 +101,8 @@ export class ModuleManifestService {
           const { sha256 } = canonicalDigest(locked.manifestJson);
           if (expected !== undefined && expected !== sha256) throw new ManifestHashMismatchError();
           submittedHash = sha256;
-          return { manifestHash: sha256 };
+          // FBE-03: Function / Action registry rows materialised in the same SUBMIT transaction.
+          return { manifestHash: sha256, registry: registryPlan(result.mic) };
         },
         audit: (version) => this.audit(actor, ACTION_CODE.SUBMIT, 'SUCCESS', version, 'SUBMITTED', { manifestHash: submittedHash }),
       });

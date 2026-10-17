@@ -3,6 +3,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { canonicalDigest } from '../../../src/modules/foundation/foundation.json.js';
 import { MANIFEST_SQL } from '../../../src/modules/foundation/foundation.manifest.repository.js';
+import { REGISTRY_SQL } from '../../../src/modules/foundation/foundation.registry.repository.js';
 import { FOUNDATION_SQL } from '../../../src/modules/foundation/foundation.repository.js';
 import { VERSION_SQL } from '../../../src/modules/foundation/foundation.versions.repository.js';
 import {
@@ -175,8 +176,16 @@ describe('FBE-02B SUBMIT (DRAFT → IN_REVIEW)', () => {
     const hash = canonicalDigest(mic).sha256;
     expect(res.body.version).toMatchObject({ status: 'IN_REVIEW', manifestHash: hash, submittedByAccountId: ACCOUNT_A, manifestJson: mic });
     expect(row(h, v.version_id)).toMatchObject({ status: 'IN_REVIEW', manifest_hash: hash, submitted_by_account_id: ACCOUNT_A });
-    expect(h.db.statements.slice(statementsBefore).filter((s) => s.inTransaction).map((s) => s.sql))
-      .toEqual([MANIFEST_SQL.lockVersion, MANIFEST_SQL.otherVersions, MANIFEST_SQL.submitVersion, MANIFEST_SQL.insertSubmitEvent, VERSION_SQL.insertVersionAudit]);
+    // FBE-03: B03/B04 identities (function_key then action_key order: ORDER, REPORT / CREATE, READ), then B05/B06 in MIC
+    // order, all before the status change; B07 / B08 unchanged.
+    const R = REGISTRY_SQL;
+    expect(h.db.statements.slice(statementsBefore).filter((s) => s.inTransaction).map((s) => s.sql)).toEqual([
+      MANIFEST_SQL.lockVersion, MANIFEST_SQL.otherVersions,
+      R.insertFunction, R.selectFunction, R.insertFunction, R.selectFunction,
+      R.insertAction, R.selectAction, R.insertAction, R.selectAction, R.insertAction, R.selectAction,
+      R.insertVersionFunction, R.insertVersionAction, R.insertVersionAction, R.insertVersionFunction, R.insertVersionAction,
+      MANIFEST_SQL.submitVersion, MANIFEST_SQL.insertSubmitEvent, VERSION_SQL.insertVersionAudit,
+    ]);
     expect(h.db.txLog).toEqual(['BEGIN', 'COMMIT', 'BEGIN', 'COMMIT']);
     const [event] = h.db.state.events;
     expect(event?.slice(0, 4)).toEqual(['SUBMIT', m.module_id, v.version_id, ACCOUNT_A]);
@@ -329,11 +338,19 @@ describe('FBE-02B SUBMIT (DRAFT → IN_REVIEW)', () => {
 });
 
 describe('FBE-02B scope', () => {
-  it('fixed SQL only; MANIFEST_SQL updates only B02 DRAFT rows, inserts only B07 SUBMIT; no DELETE / IAM / B03–B14', async () => {
+  it('fixed SQL only; MANIFEST_SQL updates only B02 DRAFT rows, inserts only B07 SUBMIT; REGISTRY_SQL inserts only B03–B06; no DELETE / IAM / B09–B14', async () => {
     const { h, m, v } = setup();
     await put(h, m.module_id, v.version_id, { manifest: validMic() });
     await submit(h, m.module_id, v.version_id);
-    const known = new Set<string>([...Object.values(FOUNDATION_SQL), ...Object.values(VERSION_SQL), ...Object.values(MANIFEST_SQL)]);
+    const known = new Set<string>([...Object.values(FOUNDATION_SQL), ...Object.values(VERSION_SQL), ...Object.values(MANIFEST_SQL), ...Object.values(REGISTRY_SQL)]);
+    // FBE-03: the registry statements touch exactly B03–B06, INSERT / SELECT only.
+    for (const sql of Object.values(REGISTRY_SQL)) {
+      expect(sql).not.toMatch(/\b(UPDATE|DELETE|TRUNCATE|GRANT|ALTER|DROP|CREATE)\b/i);
+      expect(sql).not.toMatch(/\biam\./i);
+      expect(sql).not.toMatch(/fnd_(modules|module_versions|module_events|audit_logs|navigation_items|data_|compatibility_)/);
+    }
+    expect(Object.values(REGISTRY_SQL).map((sql) => /^\s*INSERT INTO (\S+)/.exec(sql)?.[1]).filter((t) => t !== undefined))
+      .toEqual(['foundation.fnd_functions', 'foundation.fnd_actions', 'foundation.fnd_version_functions', 'foundation.fnd_version_actions']);
     for (const s of h.db.statements) expect(known.has(s.sql)).toBe(true);
     for (const sql of Object.values(MANIFEST_SQL)) {
       expect(sql).not.toMatch(/\b(DELETE|TRUNCATE|GRANT|ALTER|DROP|CREATE)\b/i);

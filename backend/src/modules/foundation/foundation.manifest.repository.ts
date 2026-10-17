@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { PlannedFunction } from './foundation.registry.js';
+import { materializeRegistry } from './foundation.registry.repository.js';
 import type { AuditRecord, FoundationDb, SqlExecutor } from './foundation.repository.js';
 import { VERSION_COLUMNS, VERSION_SQL, toVersion } from './foundation.versions.repository.js';
 import type { VersionRecord } from './foundation.versions.repository.js';
@@ -69,7 +71,8 @@ export interface SubmitCommand {
   readonly actorAccountId: string;
   readonly correlationId: string;
   // Validates the locked manifest against its context and returns its SHA-256; throws to reject (rolls back).
-  readonly prepare: (locked: LockedVersion, others: readonly OtherVersion[]) => { readonly manifestHash: string };
+  // FBE-03: also returns the Function / Action registry plan materialised before the status change.
+  readonly prepare: (locked: LockedVersion, others: readonly OtherVersion[]) => { readonly manifestHash: string; readonly registry: readonly PlannedFunction[] };
   readonly audit: (version: VersionRecord) => ManifestAuditRecord;
 }
 
@@ -148,7 +151,9 @@ export class SqlManifestRepository implements ManifestRepository {
         const o = otherRow.parse(r);
         return { moduleVersion: o.module_version, status: o.status };
       });
-      const { manifestHash } = command.prepare(locked, others);
+      const { manifestHash, registry } = command.prepare(locked, others);
+      // FBE-03 (phase A): B03 / B04 identities and B05 / B06 declarations, same transaction, before IN_REVIEW.
+      await materializeRegistry(tx, moduleId, versionId, registry);
       const version = updatedRow(await tx.query(MANIFEST_SQL.submitVersion, [versionId, moduleId, manifestHash, command.actorAccountId]));
       await tx.execute(MANIFEST_SQL.insertSubmitEvent, [
         moduleId, versionId, command.actorAccountId, JSON.stringify({ status: 'DRAFT' }),

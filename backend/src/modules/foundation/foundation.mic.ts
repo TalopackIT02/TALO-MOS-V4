@@ -40,7 +40,7 @@ export const micSchema = z.strictObject({
   }),
   mic02Functions: z.array(z.strictObject({
     functionKey: key(100),
-    name: text(),
+    name: text().max(150), // FBE-03 (owner-approved P-16 amendment): = B05.display_name VARCHAR(150)
     description: text().optional(),
   })),
   mic03Actions: z.array(z.strictObject({
