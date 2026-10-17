@@ -387,7 +387,8 @@ describe.skipIf(!enabled)('FBE-04 Data Contracts and compatibility — PostgreSQ
       'DELETE B14': `DELETE FROM foundation.fnd_compatibility_changes`,
       'INSERT B14.resolution_status': `INSERT INTO foundation.fnd_compatibility_changes (check_id, change_area, object_key, change_type, severity, resolution_status) VALUES ('${NIL}', 'DATA', 'x', 'ADDED', 'INFO', 'RESOLVED')`,
       'INSERT B14.details': `INSERT INTO foundation.fnd_compatibility_changes (check_id, change_area, object_key, change_type, severity, details) VALUES ('${NIL}', 'DATA', 'x', 'ADDED', 'INFO', 'x')`,
-      'SELECT B09': `SELECT 1 FROM foundation.fnd_navigation_items`,
+      // FBE-06: SELECT on B09 is granted (navigation); deleting menu items stays forbidden.
+      'DELETE B09': `DELETE FROM foundation.fnd_navigation_items`,
     };
     const refused: Record<string, string> = {};
     for (const [name, sql] of Object.entries(forbidden)) refused[name] = await plan(sql, []);

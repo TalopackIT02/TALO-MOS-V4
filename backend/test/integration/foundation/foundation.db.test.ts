@@ -326,7 +326,8 @@ describe.skipIf(!enabled)('Foundation Module Registry — PostgreSQL (talo_mos_v
       'UPDATE B08': `UPDATE foundation.fnd_audit_logs SET outcome = outcome`,
       'DELETE B08': `DELETE FROM foundation.fnd_audit_logs`,
       'DELETE B03': `DELETE FROM foundation.fnd_functions`,
-      'SELECT B09': `SELECT 1 FROM foundation.fnd_navigation_items`,
+      // FBE-06: SELECT on B09 is granted (navigation); deleting menu items stays forbidden.
+      'DELETE B09': `DELETE FROM foundation.fnd_navigation_items`,
       'INSERT iam_permissions': `INSERT INTO iam.iam_permissions (permission_code, module_code, resource_code, operation) VALUES ('x', 'X', 'X', 'READ')`,
       'UPDATE iam_roles': `UPDATE iam.iam_roles SET is_active = false`,
       'DELETE iam_user_roles': `DELETE FROM iam.iam_user_roles`,

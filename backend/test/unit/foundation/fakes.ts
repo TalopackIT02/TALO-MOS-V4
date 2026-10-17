@@ -14,6 +14,9 @@ import { moduleManifestRouter } from '../../../src/modules/foundation/foundation
 import { ModuleManifestService } from '../../../src/modules/foundation/foundation.manifest.service.js';
 import { LIFECYCLE_SQL, SqlLifecycleRepository } from '../../../src/modules/foundation/foundation.lifecycle.repository.js';
 import { moduleLifecycleRouter } from '../../../src/modules/foundation/foundation.lifecycle.routes.js';
+import { NAVIGATION_SQL, SqlNavigationRepository } from '../../../src/modules/foundation/foundation.navigation.repository.js';
+import { navigationRouter } from '../../../src/modules/foundation/foundation.navigation.routes.js';
+import { NavigationService } from '../../../src/modules/foundation/foundation.navigation.service.js';
 import { ModuleLifecycleService } from '../../../src/modules/foundation/foundation.lifecycle.service.js';
 import { REGISTRY_SQL } from '../../../src/modules/foundation/foundation.registry.repository.js';
 import { FOUNDATION_SQL, SqlFoundationRepository } from '../../../src/modules/foundation/foundation.repository.js';
@@ -45,6 +48,8 @@ export const PERM_ACTIVATE_ID = '10000000-0000-4000-8000-000000000009';
 export const PERM_RETIRE_ID = '10000000-0000-4000-8000-00000000000a';
 export const PERM_ENABLE_ID = '10000000-0000-4000-8000-00000000000b';
 export const PERM_DISABLE_ID = '10000000-0000-4000-8000-00000000000c';
+// FBE-06 navigation management permission (N4).
+export const PERM_NAV_ID = '10000000-0000-4000-8000-00000000000d';
 export const ACCOUNT_A = '20000000-0000-4000-8000-00000000000a';
 
 export function token(seed: string): string {
@@ -84,6 +89,7 @@ export function defaultIam(): IamFixture {
       { permission_id: PERM_RETIRE_ID, permission_code: 'foundation.module_version.retire', module_code: 'FOUNDATION', resource_code: 'MODULE_VERSION', operation: 'RETIRE', minimum_assurance_level: 1 },
       { permission_id: PERM_ENABLE_ID, permission_code: 'foundation.module_registry.enable', module_code: 'FOUNDATION', resource_code: 'MODULE_REGISTRY', operation: 'ENABLE', minimum_assurance_level: 1 },
       { permission_id: PERM_DISABLE_ID, permission_code: 'foundation.module_registry.disable', module_code: 'FOUNDATION', resource_code: 'MODULE_REGISTRY', operation: 'DISABLE', minimum_assurance_level: 1 },
+      { permission_id: PERM_NAV_ID, permission_code: 'foundation.navigation.manage', module_code: 'FOUNDATION', resource_code: 'NAVIGATION', operation: 'MANAGE', minimum_assurance_level: 1 },
     ],
     accounts: new Map([[ACCOUNT_A, { account_status: 'ACTIVE', not_disabled: true }]]),
     grants: [],
@@ -137,6 +143,11 @@ export interface CompatChangeRow {
   proposed_value: unknown; resolution_status: string; details: string | null;
 }
 
+export interface NavigationRow {
+  navigation_id: string; parent_id: string | null; module_id: string | null; function_id: string | null; menu_title: string; sort_order: number;
+  is_visible: boolean; created_at: string;
+}
+
 export interface Statement {
   readonly sql: string;
   readonly params: readonly unknown[];
@@ -158,11 +169,12 @@ export interface State {
   accessRules: AccessRuleRow[];
   compatChecks: CompatCheckRow[];
   compatChanges: CompatChangeRow[];
+  navigation: NavigationRow[];
 }
 
 const emptyState = (): State => ({
   modules: [], events: [], audits: [], versions: [], versionAudits: [], functions: [], actions: [], versionFunctions: [], versionActions: [],
-  dataContracts: [], dataFields: [], accessRules: [], compatChecks: [], compatChanges: [],
+  dataContracts: [], dataFields: [], accessRules: [], compatChecks: [], compatChanges: [], navigation: [],
 });
 
 export function pgError(code: string): Error {
@@ -216,7 +228,7 @@ export class FakeDb implements FoundationDb {
       functions: [...this.state.functions], actions: [...this.state.actions],
       versionFunctions: [...this.state.versionFunctions], versionActions: [...this.state.versionActions],
       dataContracts: [...this.state.dataContracts], dataFields: [...this.state.dataFields], accessRules: [...this.state.accessRules],
-      compatChecks: [...this.state.compatChecks], compatChanges: [...this.state.compatChanges],
+      compatChecks: [...this.state.compatChecks], compatChanges: [...this.state.compatChanges], navigation: [...this.state.navigation],
     };
     const tx: SqlExecutor = {
       query: (sql, params) => this.run(sql, params, staged, true),
@@ -519,6 +531,57 @@ export class FakeDb implements FoundationDb {
         state.events.push(['EVENT', ...params]);
         return [];
       }
+      case NAVIGATION_SQL.functionOfModule:
+        return state.functions.filter((f) => f.function_id === params[0] && f.module_id === params[1]).map((f) => ({ function_id: f.function_id }));
+      case NAVIGATION_SQL.getItem:
+        return state.navigation.filter((n) => n.navigation_id === params[0]).map((n) => ({ ...n }));
+      case NAVIGATION_SQL.listItems:
+        return state.navigation.map((n) => ({ ...n }));
+      case NAVIGATION_SQL.insertItem: {
+        // FKs parent / module / function, composite (function_id, module_id) → B03, N-02, VARCHAR(150).
+        const [parentId, moduleId, functionId] = [nullableText(params[0]), nullableText(params[1]), nullableText(params[2])];
+        if (parentId !== null && !state.navigation.some((n) => n.navigation_id === parentId)) throw pgError('23503');
+        if (moduleId !== null && !state.modules.some((m) => m.module_id === moduleId)) throw pgError('23503');
+        if (functionId !== null && moduleId === null) throw pgError('23514');
+        if (functionId !== null && !state.functions.some((f) => f.function_id === functionId && f.module_id === moduleId)) throw pgError('23503');
+        if (text(params[3]).length > 150) throw pgError('22001');
+        const row: NavigationRow = {
+          navigation_id: randomUUID(), parent_id: parentId, module_id: moduleId, function_id: functionId, menu_title: text(params[3]),
+          sort_order: params[4] === null ? 0 : Number(params[4]), is_visible: params[5] === null ? true : bool(params[5]), created_at: this.now(),
+        };
+        state.navigation.push(row);
+        return [{ ...row }];
+      }
+      case NAVIGATION_SQL.updateItem: {
+        const i = state.navigation.findIndex((n) => n.navigation_id === params[0]);
+        const current = state.navigation[i];
+        if (!current) return [];
+        if (params[1] !== null && text(params[1]).length > 150) throw pgError('22001');
+        const next: NavigationRow = {
+          ...current, menu_title: params[1] === null ? current.menu_title : text(params[1]), sort_order: params[2] === null ? current.sort_order : Number(params[2]),
+          is_visible: params[3] === null ? current.is_visible : bool(params[3]),
+        };
+        state.navigation[i] = next;
+        return [{ ...next }];
+      }
+      case NAVIGATION_SQL.activeVersions:
+        return state.versions.filter((v) => v.status === 'ACTIVE' && state.modules.some((m) => m.module_id === v.module_id && m.is_enabled)).map((v) => ({
+          module_id: v.module_id, module_key: state.modules.find((m) => m.module_id === v.module_id)?.module_key ?? '', version_id: v.version_id,
+          manifest_json: v.manifest_json, manifest_hash: v.manifest_hash,
+        }));
+      case NAVIGATION_SQL.activeFunctions:
+        return state.versions.filter((v) => v.status === 'ACTIVE' && state.modules.some((m) => m.module_id === v.module_id && m.is_enabled)).flatMap((v) =>
+          state.versionFunctions.filter((vf) => vf.version_id === v.version_id).flatMap((vf) => {
+            const f = state.functions.find((x) => x.function_id === vf.function_id && x.module_id === v.module_id);
+            if (!f) return [];
+            const actions = state.versionActions.filter((va) => va.version_function_id === vf.version_function_id)
+              .map((va) => state.actions.find((a) => a.action_id === va.action_id && a.function_id === f.function_id)?.action_key ?? null);
+            const keys = actions.length === 0 ? [null] : actions;
+            return keys.map((k) => ({ version_id: v.version_id, function_id: f.function_id, function_key: f.function_key, action_key: k }));
+          }));
+      case NAVIGATION_SQL.permissionsByTriple:
+        return this.iam.permissions.filter((p) => p.module_code === params[0] && p.resource_code === params[1] && p.operation === params[2])
+          .map((p) => ({ permission_id: p.permission_id, minimum_assurance_level: p.minimum_assurance_level }));
       default:
         throw new Error('FakeDb: unexpected SQL');
     }
@@ -570,7 +633,9 @@ export function buildHarness(options: { iam?: IamFixture; extraRouters?: express
   const manifests = moduleManifestRouter({ authService: auth, service: manifestService, secureCookie: false });
   const lifecycleService = new ModuleLifecycleService({ access: new SqlFoundationRepository(db), lifecycle: new SqlLifecycleRepository(db), logger });
   const lifecycle = moduleLifecycleRouter({ authService: auth, service: lifecycleService, secureCookie: false });
-  const app = createApp({ config, logger, apiRouters: [healthRouter(), router, versions, manifests, lifecycle, ...(options.extraRouters ?? [])] });
+  const navigationService = new NavigationService({ access: new SqlFoundationRepository(db), navigation: new SqlNavigationRepository(db), logger });
+  const navigation = navigationRouter({ authService: auth, service: navigationService, secureCookie: false });
+  const app = createApp({ config, logger, apiRouters: [healthRouter(), router, versions, manifests, lifecycle, navigation, ...(options.extraRouters ?? [])] });
   return { app, db, auth, logs };
 }
 

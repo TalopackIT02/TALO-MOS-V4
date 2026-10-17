@@ -62,6 +62,11 @@ export const MODULE_REGISTRY_DISABLE: PermissionRef = {
   permissionCode: 'foundation.module_registry.disable', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_REGISTRY', operation: 'DISABLE',
 };
 
+// FBE-06 — Navigation management (owner decision N4): FOUNDATION / NAVIGATION / MANAGE, minimum assurance 1.
+export const NAVIGATION_MANAGE: PermissionRef = {
+  permissionCode: 'foundation.navigation.manage', moduleCode: 'FOUNDATION', resourceCode: 'NAVIGATION', operation: 'MANAGE',
+};
+
 export interface PermissionDefinition {
   readonly permissionId: string;
   readonly minimumAssuranceLevel: number;

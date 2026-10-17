@@ -385,7 +385,8 @@ describe.skipIf(!enabled)('FBE-05 Module & Version lifecycle — PostgreSQL (tal
       'SELECT B08': `SELECT 1 FROM foundation.fnd_audit_logs`,
       'UPDATE B08': `UPDATE foundation.fnd_audit_logs SET outcome = outcome`,
       'DELETE B08': `DELETE FROM foundation.fnd_audit_logs`,
-      'SELECT B09': `SELECT 1 FROM foundation.fnd_navigation_items`,
+      // FBE-06: SELECT on B09 is granted (navigation); deleting menu items stays forbidden.
+      'DELETE B09': `DELETE FROM foundation.fnd_navigation_items`,
       'INSERT iam_permissions': `INSERT INTO iam.iam_permissions (permission_code, module_code, resource_code, operation) VALUES ('x', 'X', 'X', 'READ')`,
       'INSERT iam_role_permissions': `INSERT INTO iam.iam_role_permissions (role_id, permission_id) VALUES ('${NIL}', '${NIL}')`,
       'INSERT iam_user_permissions': `INSERT INTO iam.iam_user_permissions (user_account_id, permission_id, effect) VALUES ('${NIL}', '${NIL}', 'ALLOW')`,

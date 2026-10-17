@@ -368,7 +368,8 @@ describe.skipIf(!enabled)('FBE-03 Function / Action registry — PostgreSQL (tal
       'UPDATE B05': `UPDATE foundation.fnd_version_functions SET display_name = display_name`,
       'DELETE B06': `DELETE FROM foundation.fnd_version_actions`,
       'UPDATE B06': `UPDATE foundation.fnd_version_actions SET action_spec = action_spec`,
-      'SELECT B09': `SELECT 1 FROM foundation.fnd_navigation_items`,
+      // FBE-06: SELECT on B09 is granted (navigation); deleting menu items stays forbidden.
+      'DELETE B09': `DELETE FROM foundation.fnd_navigation_items`,
     };
     const refused: Record<string, string> = {};
     for (const [name, sql] of Object.entries(forbidden)) refused[name] = await plan(sql, []);

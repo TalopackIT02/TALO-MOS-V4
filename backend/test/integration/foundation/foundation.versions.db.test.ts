@@ -344,7 +344,8 @@ describe.skipIf(!enabled)('FBE-02C Module Version + MIC — PostgreSQL (talo_mos
       'INSERT manifest_hash': `INSERT INTO ${B02} (module_id, module_version, contract_version, manifest_hash) VALUES ('${NIL}', '0.0.1', 'MIC-1.0', NULL)`,
       'UPDATE B07': `UPDATE foundation.fnd_module_events SET event_type = event_type`,
       'DELETE B08': `DELETE FROM foundation.fnd_audit_logs`,
-      'SELECT B09': `SELECT 1 FROM foundation.fnd_navigation_items`,
+      // FBE-06: SELECT on B09 is granted (navigation); deleting menu items stays forbidden.
+      'DELETE B09': `DELETE FROM foundation.fnd_navigation_items`,
     };
     const refused: Record<string, string> = {};
     for (const [name, sql] of Object.entries(forbidden)) refused[name] = await plan(sql, []);

@@ -8,6 +8,10 @@ import { SqlLifecycleRepository } from './foundation.lifecycle.repository.js';
 import type { LifecycleRepository } from './foundation.lifecycle.repository.js';
 import { moduleLifecycleRouter } from './foundation.lifecycle.routes.js';
 import { ModuleLifecycleService } from './foundation.lifecycle.service.js';
+import { SqlNavigationRepository } from './foundation.navigation.repository.js';
+import type { NavigationRepository } from './foundation.navigation.repository.js';
+import { navigationRouter } from './foundation.navigation.routes.js';
+import { NavigationService } from './foundation.navigation.service.js';
 import { SqlManifestRepository } from './foundation.manifest.repository.js';
 import type { ManifestRepository } from './foundation.manifest.repository.js';
 import { moduleManifestRouter } from './foundation.manifest.routes.js';
@@ -33,6 +37,7 @@ export interface FoundationModuleOptions {
   readonly versionRepository?: ModuleVersionRepository;
   readonly manifestRepository?: ManifestRepository;
   readonly lifecycleRepository?: LifecycleRepository;
+  readonly navigationRepository?: NavigationRepository;
 }
 
 export interface FoundationModule {
@@ -41,6 +46,7 @@ export interface FoundationModule {
   readonly versionService: ModuleVersionService;
   readonly manifestService: ModuleManifestService;
   readonly lifecycleService: ModuleLifecycleService;
+  readonly navigationService: NavigationService;
 }
 
 export function createFoundationModule(options: FoundationModuleOptions): FoundationModule {
@@ -55,10 +61,15 @@ export function createFoundationModule(options: FoundationModuleOptions): Founda
   const manifestService = new ModuleManifestService({ access: repository, manifests: manifestRepository, logger: options.logger });
   // FBE-05: lifecycle (APPROVE / REJECT / ACTIVATE / RETIRE, ENABLE / DISABLE).
   const lifecycleService = new ModuleLifecycleService({ access: repository, lifecycle: lifecycleRepository, logger: options.logger });
+  // FBE-06: navigation (B09 management, permission-filtered menu).
+  const navigationService = new NavigationService({
+    access: repository, navigation: options.navigationRepository ?? new SqlNavigationRepository(db), logger: options.logger,
+  });
   const router = express.Router();
   router.use(foundationRouter({ authService: options.authService, service, secureCookie: options.secureCookie }));
   router.use(moduleVersionRouter({ authService: options.authService, service: versionService, secureCookie: options.secureCookie }));
   router.use(moduleManifestRouter({ authService: options.authService, service: manifestService, secureCookie: options.secureCookie }));
   router.use(moduleLifecycleRouter({ authService: options.authService, service: lifecycleService, secureCookie: options.secureCookie }));
-  return { router, service, versionService, manifestService, lifecycleService };
+  router.use(navigationRouter({ authService: options.authService, service: navigationService, secureCookie: options.secureCookie }));
+  return { router, service, versionService, manifestService, lifecycleService, navigationService };
 }
