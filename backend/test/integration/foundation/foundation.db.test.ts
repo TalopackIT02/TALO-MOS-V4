@@ -315,7 +315,8 @@ describe.skipIf(!enabled)('Foundation Module Registry — PostgreSQL (talo_mos_v
     for (const [name, sql, values] of statements) allowed[name] = await plan(sql, values);
     expect(allowed).toEqual(Object.fromEntries(Object.keys(FOUNDATION_SQL).map((k) => [k, 'OK'])));
     const forbidden: Record<string, string> = {
-      'UPDATE B01': `UPDATE foundation.fnd_modules SET is_enabled = true`,
+      // FBE-05: talo_app may UPDATE (is_enabled, updated_at) only; every other B01 column stays forbidden.
+      'UPDATE B01.module_name': `UPDATE foundation.fnd_modules SET module_name = module_name`,
       'DELETE B01': `DELETE FROM foundation.fnd_modules`,
       'INSERT B01.module_id': `INSERT INTO foundation.fnd_modules (module_id, module_key, module_name, module_type) VALUES ('${NIL}', 'X', 'x', 'INTERNAL')`,
       'SELECT B07': `SELECT 1 FROM foundation.fnd_module_events`,

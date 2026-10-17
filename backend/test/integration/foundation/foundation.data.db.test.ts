@@ -381,7 +381,8 @@ describe.skipIf(!enabled)('FBE-04 Data Contracts and compatibility — PostgreSQ
       'DELETE B13': `DELETE FROM foundation.fnd_compatibility_checks`,
       'INSERT B13.database_fingerprint': `INSERT INTO foundation.fnd_compatibility_checks (module_id, to_version_id, environment, database_fingerprint) VALUES ('${NIL}', '${NIL}', 'TEST', '${'a'.repeat(64)}')`,
       'INSERT B13.started_at': `INSERT INTO foundation.fnd_compatibility_checks (module_id, to_version_id, environment, started_at) VALUES ('${NIL}', '${NIL}', 'TEST', now())`,
-      'SELECT B14': `SELECT 1 FROM foundation.fnd_compatibility_changes`,
+      // FBE-05: SELECT on B14 is granted (BLOCKING check); the identity column stays not insertable.
+      'INSERT B14.change_id': `INSERT INTO foundation.fnd_compatibility_changes (change_id, check_id, change_area, object_key, change_type, severity) VALUES ('${NIL}', '${NIL}', 'DATA', 'x', 'ADDED', 'INFO')`,
       'UPDATE B14.resolution_status': `UPDATE foundation.fnd_compatibility_changes SET resolution_status = 'RESOLVED'`,
       'DELETE B14': `DELETE FROM foundation.fnd_compatibility_changes`,
       'INSERT B14.resolution_status': `INSERT INTO foundation.fnd_compatibility_changes (check_id, change_area, object_key, change_type, severity, resolution_status) VALUES ('${NIL}', 'DATA', 'x', 'ADDED', 'INFO', 'RESOLVED')`,
@@ -398,7 +399,7 @@ describe.skipIf(!enabled)('FBE-04 Data Contracts and compatibility — PostgreSQ
                 AND has_column_privilege(('foundation.' || t)::regclass, attname, 'INSERT')) AS ins
         FROM unnest(ARRAY[${DATA_TABLES.map((t) => `'${t}'`).join(', ')}]) AS t ORDER BY t`);
     expect(matrix).toEqual([
-      { t: 'fnd_compatibility_changes', sel: false, del: false, trunc: false, upd: false, ins: 'check_id,change_area,object_key,change_type,severity,previous_value,proposed_value' },
+      { t: 'fnd_compatibility_changes', sel: true, del: false, trunc: false, upd: false, ins: 'check_id,change_area,object_key,change_type,severity,previous_value,proposed_value' },
       { t: 'fnd_compatibility_checks', sel: true, del: false, trunc: false, upd: false, ins: 'module_id,from_version_id,to_version_id,environment,check_result,completed_at' },
       { t: 'fnd_data_access_rules', sel: false, del: false, trunc: false, upd: false, ins: 'data_contract_id,version_action_id,data_operation,approval_mode,workflow_key' },
       { t: 'fnd_data_contracts', sel: true, del: false, trunc: false, upd: false, ins: 'version_id,resource_key,data_owner_key,interface_kind,schema_name,table_name,schema_version,contract_spec,contract_hash' },
@@ -660,7 +661,7 @@ describe.skipIf(!enabled)('FBE-04 Data Contracts and compatibility — PostgreSQ
         (SELECT count(*) FROM foundation.fnd_compatibility_checks WHERE NOT (to_version_id = ANY(${ids})))`);
     expect([Number(foreign?.[0]), Number(foreign?.[1])]).toEqual([dataBefore['fnd_data_contracts'], dataBefore['fnd_compatibility_checks']]); // 0 before FBE-04
     const [partial] = await h.ok(`SELECT
-        (SELECT count(*) FROM foundation.fnd_data_contracts c JOIN foundation.fnd_module_versions v ON v.version_id = c.version_id WHERE v.status <> 'IN_REVIEW')
+        (SELECT count(*) FROM foundation.fnd_data_contracts c JOIN foundation.fnd_module_versions v ON v.version_id = c.version_id WHERE v.status = 'DRAFT') -- FBE-05: submitted versions move on to APPROVED / ACTIVE / …; only a DRAFT may never have rows
       + (SELECT count(*) FROM foundation.fnd_module_versions v WHERE v.version_id = ANY(${ids}) AND v.status = 'IN_REVIEW'
            AND NOT EXISTS (SELECT 1 FROM foundation.fnd_compatibility_checks k WHERE k.to_version_id = v.version_id))
       + (SELECT count(*) FROM foundation.fnd_module_versions v WHERE v.version_id = ANY(${ids}) AND v.status = 'IN_REVIEW'

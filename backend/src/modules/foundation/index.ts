@@ -4,6 +4,10 @@ import type { Logger } from '../../core/logging/logger.js';
 import type { PrismaClient } from '../../infrastructure/prisma/generated/client.js';
 import type { AuthService } from '../auth/auth.service.js';
 import type { CompatibilityEnvironment } from './foundation.compatibility.js';
+import { SqlLifecycleRepository } from './foundation.lifecycle.repository.js';
+import type { LifecycleRepository } from './foundation.lifecycle.repository.js';
+import { moduleLifecycleRouter } from './foundation.lifecycle.routes.js';
+import { ModuleLifecycleService } from './foundation.lifecycle.service.js';
 import { SqlManifestRepository } from './foundation.manifest.repository.js';
 import type { ManifestRepository } from './foundation.manifest.repository.js';
 import { moduleManifestRouter } from './foundation.manifest.routes.js';
@@ -28,6 +32,7 @@ export interface FoundationModuleOptions {
   readonly repository?: FoundationRepository;
   readonly versionRepository?: ModuleVersionRepository;
   readonly manifestRepository?: ManifestRepository;
+  readonly lifecycleRepository?: LifecycleRepository;
 }
 
 export interface FoundationModule {
@@ -35,6 +40,7 @@ export interface FoundationModule {
   readonly service: FoundationService;
   readonly versionService: ModuleVersionService;
   readonly manifestService: ModuleManifestService;
+  readonly lifecycleService: ModuleLifecycleService;
 }
 
 export function createFoundationModule(options: FoundationModuleOptions): FoundationModule {
@@ -43,12 +49,16 @@ export function createFoundationModule(options: FoundationModuleOptions): Founda
   const repository = options.repository ?? new SqlFoundationRepository(db);
   const versionRepository = options.versionRepository ?? new SqlModuleVersionRepository(db);
   const manifestRepository = options.manifestRepository ?? new SqlManifestRepository(db, options.environment);
+  const lifecycleRepository = options.lifecycleRepository ?? new SqlLifecycleRepository(db);
   const service = new FoundationService({ repository, logger: options.logger });
   const versionService = new ModuleVersionService({ access: repository, versions: versionRepository, logger: options.logger });
   const manifestService = new ModuleManifestService({ access: repository, manifests: manifestRepository, logger: options.logger });
+  // FBE-05: lifecycle (APPROVE / REJECT / ACTIVATE / RETIRE, ENABLE / DISABLE).
+  const lifecycleService = new ModuleLifecycleService({ access: repository, lifecycle: lifecycleRepository, logger: options.logger });
   const router = express.Router();
   router.use(foundationRouter({ authService: options.authService, service, secureCookie: options.secureCookie }));
   router.use(moduleVersionRouter({ authService: options.authService, service: versionService, secureCookie: options.secureCookie }));
   router.use(moduleManifestRouter({ authService: options.authService, service: manifestService, secureCookie: options.secureCookie }));
-  return { router, service, versionService, manifestService };
+  router.use(moduleLifecycleRouter({ authService: options.authService, service: lifecycleService, secureCookie: options.secureCookie }));
+  return { router, service, versionService, manifestService, lifecycleService };
 }

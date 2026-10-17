@@ -618,7 +618,7 @@ describe.skipIf(!enabled)('FBE-03 Function / Action registry — PostgreSQL (tal
     const [foreign] = await h.ok(`SELECT count(*) FROM foundation.fnd_version_functions WHERE NOT (version_id = ANY(${ids}))`);
     expect(Number(foreign?.[0])).toBe(registryBefore['fnd_version_functions']); // 0 before FBE-03: nothing backfilled
     const [partial] = await h.ok(`SELECT
-        (SELECT count(*) FROM foundation.fnd_version_functions vf JOIN foundation.fnd_module_versions v ON v.version_id = vf.version_id WHERE v.status <> 'IN_REVIEW')
+        (SELECT count(*) FROM foundation.fnd_version_functions vf JOIN foundation.fnd_module_versions v ON v.version_id = vf.version_id WHERE v.status = 'DRAFT') -- FBE-05: submitted versions move on to APPROVED / ACTIVE / …; only a DRAFT may never have rows
       + (SELECT count(*) FROM foundation.fnd_version_functions vf JOIN foundation.fnd_functions f ON f.function_id = vf.function_id
            JOIN foundation.fnd_module_versions v ON v.version_id = vf.version_id WHERE f.module_id <> v.module_id)
       + (SELECT count(*) FROM foundation.fnd_version_actions va JOIN foundation.fnd_version_functions vf ON vf.version_function_id = va.version_function_id

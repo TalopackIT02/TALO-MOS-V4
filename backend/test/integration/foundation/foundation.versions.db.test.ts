@@ -333,9 +333,10 @@ describe.skipIf(!enabled)('FBE-02C Module Version + MIC — PostgreSQL (talo_mos
     expect(allowed).toEqual(Object.fromEntries(statements.map((s) => [s[0], 'OK'])));
     const forbidden: Record<string, string> = {
       'DELETE B02': `DELETE FROM ${B02}`,
-      'UPDATE reviewed_by_account_id': `UPDATE ${B02} SET reviewed_by_account_id = NULL`,
-      'UPDATE reviewed_at': `UPDATE ${B02} SET reviewed_at = NULL`,
-      'UPDATE activated_at': `UPDATE ${B02} SET activated_at = NULL`,
+      // FBE-05: reviewed_by_account_id / reviewed_at / activated_at are now granted (lifecycle); these columns stay forbidden.
+      'UPDATE contract_version': `UPDATE ${B02} SET contract_version = contract_version`,
+      'UPDATE created_at': `UPDATE ${B02} SET created_at = created_at`,
+      'UPDATE version_id': `UPDATE ${B02} SET version_id = version_id`,
       'UPDATE module_version': `UPDATE ${B02} SET module_version = module_version`,
       'UPDATE module_id': `UPDATE ${B02} SET module_id = module_id`,
       'INSERT version_id': `INSERT INTO ${B02} (version_id, module_id, module_version, contract_version) VALUES ('${NIL}', '${NIL}', '0.0.1', 'MIC-1.0')`,
@@ -353,7 +354,7 @@ describe.skipIf(!enabled)('FBE-02C Module Version + MIC — PostgreSQL (talo_mos
              has_table_privilege('${B02}', 'TRUNCATE') AS trunc, has_table_privilege('${B02}', 'REFERENCES') AS ref, has_table_privilege('${B02}', 'TRIGGER') AS trig,
              (SELECT string_agg(attname, ',' ORDER BY attnum) FROM pg_attribute WHERE attrelid = '${B02}'::regclass AND attnum > 0 AND has_column_privilege('${B02}', attname, 'INSERT')) AS ins,
              (SELECT string_agg(attname, ',' ORDER BY attnum) FROM pg_attribute WHERE attrelid = '${B02}'::regclass AND attnum > 0 AND has_column_privilege('${B02}', attname, 'UPDATE')) AS upd`);
-    expect(matrix).toEqual({ sel: true, del: false, trunc: false, ref: false, trig: false, ins: 'module_id,module_version,contract_version', upd: 'status,manifest_json,manifest_hash,submitted_by_account_id' });
+    expect(matrix).toEqual({ sel: true, del: false, trunc: false, ref: false, trig: false, ins: 'module_id,module_version,contract_version', upd: 'status,manifest_json,manifest_hash,submitted_by_account_id,reviewed_by_account_id,reviewed_at,activated_at' });
     evidence['fp2_privileges'] = matrix;
   });
 

@@ -36,6 +36,32 @@ export const MODULE_VERSION_SUBMIT: PermissionRef = {
   permissionCode: 'foundation.module_version.submit', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_VERSION', operation: 'SUBMIT',
 };
 
+// FBE-05 — Lifecycle (owner decision L6): FOUNDATION / MODULE_VERSION / APPROVE|REJECT|ACTIVATE|RETIRE and
+// FOUNDATION / MODULE_REGISTRY / ENABLE|DISABLE, minimum assurance 1.
+export const MODULE_VERSION_APPROVE: PermissionRef = {
+  permissionCode: 'foundation.module_version.approve', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_VERSION', operation: 'APPROVE',
+};
+
+export const MODULE_VERSION_REJECT: PermissionRef = {
+  permissionCode: 'foundation.module_version.reject', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_VERSION', operation: 'REJECT',
+};
+
+export const MODULE_VERSION_ACTIVATE: PermissionRef = {
+  permissionCode: 'foundation.module_version.activate', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_VERSION', operation: 'ACTIVATE',
+};
+
+export const MODULE_VERSION_RETIRE: PermissionRef = {
+  permissionCode: 'foundation.module_version.retire', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_VERSION', operation: 'RETIRE',
+};
+
+export const MODULE_REGISTRY_ENABLE: PermissionRef = {
+  permissionCode: 'foundation.module_registry.enable', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_REGISTRY', operation: 'ENABLE',
+};
+
+export const MODULE_REGISTRY_DISABLE: PermissionRef = {
+  permissionCode: 'foundation.module_registry.disable', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_REGISTRY', operation: 'DISABLE',
+};
+
 export interface PermissionDefinition {
   readonly permissionId: string;
   readonly minimumAssuranceLevel: number;

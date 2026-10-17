@@ -12,6 +12,9 @@ import { DATA_SQL } from '../../../src/modules/foundation/foundation.data.reposi
 import { MANIFEST_SQL, SqlManifestRepository } from '../../../src/modules/foundation/foundation.manifest.repository.js';
 import { moduleManifestRouter } from '../../../src/modules/foundation/foundation.manifest.routes.js';
 import { ModuleManifestService } from '../../../src/modules/foundation/foundation.manifest.service.js';
+import { LIFECYCLE_SQL, SqlLifecycleRepository } from '../../../src/modules/foundation/foundation.lifecycle.repository.js';
+import { moduleLifecycleRouter } from '../../../src/modules/foundation/foundation.lifecycle.routes.js';
+import { ModuleLifecycleService } from '../../../src/modules/foundation/foundation.lifecycle.service.js';
 import { REGISTRY_SQL } from '../../../src/modules/foundation/foundation.registry.repository.js';
 import { FOUNDATION_SQL, SqlFoundationRepository } from '../../../src/modules/foundation/foundation.repository.js';
 import type { FoundationDb, SqlExecutor } from '../../../src/modules/foundation/foundation.repository.js';
@@ -35,6 +38,13 @@ export const PERM_VREAD_ID = '10000000-0000-4000-8000-000000000003';
 export const PERM_VCREATE_ID = '10000000-0000-4000-8000-000000000004';
 export const PERM_VUPDATE_ID = '10000000-0000-4000-8000-000000000005';
 export const PERM_VSUBMIT_ID = '10000000-0000-4000-8000-000000000006';
+// FBE-05 lifecycle permissions (L6).
+export const PERM_APPROVE_ID = '10000000-0000-4000-8000-000000000007';
+export const PERM_REJECT_ID = '10000000-0000-4000-8000-000000000008';
+export const PERM_ACTIVATE_ID = '10000000-0000-4000-8000-000000000009';
+export const PERM_RETIRE_ID = '10000000-0000-4000-8000-00000000000a';
+export const PERM_ENABLE_ID = '10000000-0000-4000-8000-00000000000b';
+export const PERM_DISABLE_ID = '10000000-0000-4000-8000-00000000000c';
 export const ACCOUNT_A = '20000000-0000-4000-8000-00000000000a';
 
 export function token(seed: string): string {
@@ -68,6 +78,12 @@ export function defaultIam(): IamFixture {
       { permission_id: PERM_VCREATE_ID, permission_code: 'foundation.module_version.create', module_code: 'FOUNDATION', resource_code: 'MODULE_VERSION', operation: 'CREATE', minimum_assurance_level: 1 },
       { permission_id: PERM_VUPDATE_ID, permission_code: 'foundation.module_version.update', module_code: 'FOUNDATION', resource_code: 'MODULE_VERSION', operation: 'UPDATE', minimum_assurance_level: 1 },
       { permission_id: PERM_VSUBMIT_ID, permission_code: 'foundation.module_version.submit', module_code: 'FOUNDATION', resource_code: 'MODULE_VERSION', operation: 'SUBMIT', minimum_assurance_level: 1 },
+      { permission_id: PERM_APPROVE_ID, permission_code: 'foundation.module_version.approve', module_code: 'FOUNDATION', resource_code: 'MODULE_VERSION', operation: 'APPROVE', minimum_assurance_level: 1 },
+      { permission_id: PERM_REJECT_ID, permission_code: 'foundation.module_version.reject', module_code: 'FOUNDATION', resource_code: 'MODULE_VERSION', operation: 'REJECT', minimum_assurance_level: 1 },
+      { permission_id: PERM_ACTIVATE_ID, permission_code: 'foundation.module_version.activate', module_code: 'FOUNDATION', resource_code: 'MODULE_VERSION', operation: 'ACTIVATE', minimum_assurance_level: 1 },
+      { permission_id: PERM_RETIRE_ID, permission_code: 'foundation.module_version.retire', module_code: 'FOUNDATION', resource_code: 'MODULE_VERSION', operation: 'RETIRE', minimum_assurance_level: 1 },
+      { permission_id: PERM_ENABLE_ID, permission_code: 'foundation.module_registry.enable', module_code: 'FOUNDATION', resource_code: 'MODULE_REGISTRY', operation: 'ENABLE', minimum_assurance_level: 1 },
+      { permission_id: PERM_DISABLE_ID, permission_code: 'foundation.module_registry.disable', module_code: 'FOUNDATION', resource_code: 'MODULE_REGISTRY', operation: 'DISABLE', minimum_assurance_level: 1 },
     ],
     accounts: new Map([[ACCOUNT_A, { account_status: 'ACTIVE', not_disabled: true }]]),
     grants: [],
@@ -158,6 +174,13 @@ const nullableText = (value: unknown): string | null => (value === null || value
 const jsonb = (value: unknown): unknown => (value === null || value === undefined ? null : JSON.parse(text(value)));
 const tooLong = (value: unknown, max: number) => value !== null && value !== undefined && text(value).length > max;
 const blank = (value: unknown) => value === null || value === undefined || text(value).trim() === '';
+// FBE-05: B02 CHECKs D-04 (MIC + hash after DRAFT), D-05 (review fields), D-06 (activation time).
+function checkB02(v: VersionRow): void {
+  const early = v.status === 'DRAFT' || v.status === 'IN_REVIEW';
+  if (v.status !== 'DRAFT' && (v.manifest_json === null || v.manifest_hash === null)) throw pgError('23514');
+  if (early !== (v.reviewed_at === null) || early !== (v.reviewed_by_account_id === null)) throw pgError('23514');
+  if ((v.status === 'ACTIVE' || v.status === 'RETIRED') !== (v.activated_at !== null)) throw pgError('23514');
+}
 const bool = (value: unknown): boolean => {
   if (typeof value !== 'boolean') throw pgError('22P02');
   return value;
@@ -208,6 +231,28 @@ export class FakeDb implements FoundationDb {
       this.txLog.push('ROLLBACK');
       throw error;
     }
+  }
+
+  now(): string {
+    return new Date(Date.UTC(2026, 9, 17, 12, 0, 0, this.clock++)).toISOString().replace('Z', '000Z');
+  }
+
+  // Conditional UPDATE of B02 rows (rows replaced, never mutated); D-04 / D-05 / D-06 and the Q01 partial UNIQUE index.
+  private transition(state: State, match: (v: VersionRow) => boolean, change: (v: VersionRow) => VersionRow): unknown[] {
+    const out: VersionRow[] = [];
+    state.versions = state.versions.map((v) => {
+      if (!match(v)) return v;
+      const next = change(v);
+      checkB02(next);
+      out.push(next);
+      return next;
+    });
+    const active = new Set<string>();
+    for (const v of state.versions.filter((x) => x.status === 'ACTIVE')) {
+      if (active.has(v.module_id)) throw pgError('23505');
+      active.add(v.module_id);
+    }
+    return out.map((v) => ({ ...v }));
   }
 
   private async run(sql: string, params: readonly unknown[], state: State, inTransaction: boolean): Promise<unknown[]> {
@@ -430,6 +475,50 @@ export class FakeDb implements FoundationDb {
         });
         return [];
       }
+      case LIFECYCLE_SQL.getModule:
+        return state.modules.filter((m) => m.module_id === params[0]).map((m) => ({ ...m }));
+      case LIFECYCLE_SQL.approveVersion:
+      case LIFECYCLE_SQL.rejectVersion:
+        return this.transition(state, (v) => v.version_id === params[0] && v.module_id === params[1] && v.status === 'IN_REVIEW', (v) => ({
+          ...v, status: sql === LIFECYCLE_SQL.approveVersion ? 'APPROVED' : 'REJECTED', reviewed_by_account_id: nullableText(params[2]), reviewed_at: this.now(),
+        }));
+      case LIFECYCLE_SQL.retireCurrentActive:
+        return this.transition(state, (v) => v.module_id === params[0] && v.status === 'ACTIVE' && v.version_id !== params[1], (v) => ({ ...v, status: 'RETIRED' }));
+      case LIFECYCLE_SQL.activateVersion:
+        return this.transition(state, (v) => v.version_id === params[0] && v.module_id === params[1] && v.status === 'APPROVED', (v) => ({
+          ...v, status: 'ACTIVE', activated_at: v.activated_at ?? this.now(),
+        }));
+      case LIFECYCLE_SQL.retireVersion:
+        return this.transition(state, (v) => v.version_id === params[0] && v.module_id === params[1] && v.status === 'ACTIVE', (v) => ({ ...v, status: 'RETIRED' }));
+      case LIFECYCLE_SQL.activeVersions:
+        return state.versions.filter((v) => v.module_id === params[0] && v.status === 'ACTIVE').map((v) => ({ ...v }));
+      case LIFECYCLE_SQL.latestChecks: {
+        const mine = state.compatChecks.filter((k) => k.to_version_id === params[0] && k.module_id === params[1]);
+        const latest = mine.reduce<string | null>((max, k) => (max === null || k.started_at > max ? k.started_at : max), null);
+        return mine.filter((k) => k.started_at === latest).map((k) => ({ check_id: k.check_id, check_result: k.check_result }));
+      }
+      case LIFECYCLE_SQL.blockingChanges:
+        return [{ n: state.compatChanges.filter((c) => c.check_id === params[0] && c.severity === 'BLOCKING').length }];
+      case LIFECYCLE_SQL.directDbContracts:
+        return [{ n: state.dataContracts.filter((d) => d.version_id === params[0] && d.interface_kind === 'DIRECT_DB').length }];
+      case LIFECYCLE_SQL.enableModule:
+      case LIFECYCLE_SQL.disableModule: {
+        const enable = sql === LIFECYCLE_SQL.enableModule;
+        const i = state.modules.findIndex((m) => m.module_id === params[0] && m.is_enabled !== enable);
+        const current = state.modules[i];
+        if (!current) return [];
+        const next: ModuleRow = { ...current, is_enabled: enable, updated_at: this.now() };
+        state.modules[i] = next;
+        return [{ ...next }];
+      }
+      case LIFECYCLE_SQL.insertLifecycleEvent: {
+        // FK module_id → B01, composite FK (version_id, module_id) → B02 when version_id is set; N-08 event types.
+        if (!state.modules.some((m) => m.module_id === params[0])) throw pgError('23503');
+        if (params[1] !== null && !state.versions.some((v) => v.version_id === params[1] && v.module_id === params[0])) throw pgError('23503');
+        if (!['REGISTER', 'SUBMIT', 'APPROVE', 'REJECT', 'ENABLE', 'DISABLE', 'ACTIVATE', 'RETIRE', 'ROLLBACK'].includes(text(params[2]))) throw pgError('23514');
+        state.events.push(['EVENT', ...params]);
+        return [];
+      }
       default:
         throw new Error('FakeDb: unexpected SQL');
     }
@@ -479,7 +568,9 @@ export function buildHarness(options: { iam?: IamFixture; extraRouters?: express
   const versions = moduleVersionRouter({ authService: auth, service: versionService, secureCookie: false });
   const manifestService = new ModuleManifestService({ access: new SqlFoundationRepository(db), manifests: new SqlManifestRepository(db, 'TEST'), logger });
   const manifests = moduleManifestRouter({ authService: auth, service: manifestService, secureCookie: false });
-  const app = createApp({ config, logger, apiRouters: [healthRouter(), router, versions, manifests, ...(options.extraRouters ?? [])] });
+  const lifecycleService = new ModuleLifecycleService({ access: new SqlFoundationRepository(db), lifecycle: new SqlLifecycleRepository(db), logger });
+  const lifecycle = moduleLifecycleRouter({ authService: auth, service: lifecycleService, secureCookie: false });
+  const app = createApp({ config, logger, apiRouters: [healthRouter(), router, versions, manifests, lifecycle, ...(options.extraRouters ?? [])] });
   return { app, db, auth, logs };
 }
 
