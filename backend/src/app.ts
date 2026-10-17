@@ -8,6 +8,7 @@ import { requestLogger } from './core/logging/requestLogger.js';
 import { originCheck, requireJson } from './core/middleware/originCheck.js';
 import { requestId } from './core/middleware/requestId.js';
 import { noStore, securityHeaders } from './core/middleware/securityHeaders.js';
+import { MANIFEST_ROUTE, manifestJsonParser } from './modules/foundation/foundation.json.js';
 import { healthRouter } from './modules/health/health.routes.js';
 
 export interface AppDependencies {
@@ -34,6 +35,9 @@ export function createApp({ config, logger, apiRouters }: AppDependencies): Expr
   const api = express.Router();
   api.use(originCheck(config.appOrigins));
   api.use(requireJson);
+  // FBE-02B P-1: PUT …/manifest only — 256 KiB parser, before the global one. body-parser skips a request whose body
+  // has already been read, so the body is parsed once; every other API keeps the 10 kB limit.
+  api.put(MANIFEST_ROUTE, manifestJsonParser);
   api.use(express.json({ limit: '10kb' }));
   for (const router of apiRouters ?? [healthRouter()]) api.use(router);
 

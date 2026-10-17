@@ -26,8 +26,10 @@
     "@node-rs/argon2": "2.2.1",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
+    "canonicalize": "5.1.0",
     "express": "5.2.1",
     "helmet": "8.3.0",
+    "json-dup-key-validator": "1.0.3",
     "zod": "4.6.5"
   },
   "devDependencies": {

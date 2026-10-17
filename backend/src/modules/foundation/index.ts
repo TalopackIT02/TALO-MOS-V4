@@ -1,29 +1,51 @@
+import express from 'express';
 import type { Router } from 'express';
 import type { Logger } from '../../core/logging/logger.js';
 import type { PrismaClient } from '../../infrastructure/prisma/generated/client.js';
 import type { AuthService } from '../auth/auth.service.js';
+import { SqlManifestRepository } from './foundation.manifest.repository.js';
+import type { ManifestRepository } from './foundation.manifest.repository.js';
+import { moduleManifestRouter } from './foundation.manifest.routes.js';
+import { ModuleManifestService } from './foundation.manifest.service.js';
 import { prismaFoundationDb, SqlFoundationRepository } from './foundation.repository.js';
 import type { FoundationRepository } from './foundation.repository.js';
 import { foundationRouter } from './foundation.routes.js';
 import { FoundationService } from './foundation.service.js';
+import { SqlModuleVersionRepository } from './foundation.versions.repository.js';
+import type { ModuleVersionRepository } from './foundation.versions.repository.js';
+import { moduleVersionRouter } from './foundation.versions.routes.js';
+import { ModuleVersionService } from './foundation.versions.service.js';
 
 export interface FoundationModuleOptions {
   readonly prisma: PrismaClient;
   readonly authService: Pick<AuthService, 'describeSession'>;
   readonly logger: Logger;
   readonly secureCookie: boolean;
-  // Test seam (in-process only): replaces the SQL repository.
+  // Test seams (in-process only): replace the SQL repositories.
   readonly repository?: FoundationRepository;
+  readonly versionRepository?: ModuleVersionRepository;
+  readonly manifestRepository?: ManifestRepository;
 }
 
 export interface FoundationModule {
   readonly router: Router;
   readonly service: FoundationService;
+  readonly versionService: ModuleVersionService;
+  readonly manifestService: ModuleManifestService;
 }
 
 export function createFoundationModule(options: FoundationModuleOptions): FoundationModule {
-  const repository = options.repository ?? new SqlFoundationRepository(prismaFoundationDb(options.prisma));
+  // One executor over the shared Prisma client (no connection is opened here).
+  const db = prismaFoundationDb(options.prisma);
+  const repository = options.repository ?? new SqlFoundationRepository(db);
+  const versionRepository = options.versionRepository ?? new SqlModuleVersionRepository(db);
+  const manifestRepository = options.manifestRepository ?? new SqlManifestRepository(db);
   const service = new FoundationService({ repository, logger: options.logger });
-  const router = foundationRouter({ authService: options.authService, service, secureCookie: options.secureCookie });
-  return { router, service };
+  const versionService = new ModuleVersionService({ access: repository, versions: versionRepository, logger: options.logger });
+  const manifestService = new ModuleManifestService({ access: repository, manifests: manifestRepository, logger: options.logger });
+  const router = express.Router();
+  router.use(foundationRouter({ authService: options.authService, service, secureCookie: options.secureCookie }));
+  router.use(moduleVersionRouter({ authService: options.authService, service: versionService, secureCookie: options.secureCookie }));
+  router.use(moduleManifestRouter({ authService: options.authService, service: manifestService, secureCookie: options.secureCookie }));
+  return { router, service, versionService, manifestService };
 }

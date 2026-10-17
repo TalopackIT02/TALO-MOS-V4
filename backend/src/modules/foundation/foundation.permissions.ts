@@ -18,6 +18,24 @@ export const MODULE_REGISTRY_CREATE: PermissionRef = {
   permissionCode: 'foundation.module_registry.create', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_REGISTRY', operation: 'CREATE',
 };
 
+// FBE-02A — Module Version (owner approved): FOUNDATION / MODULE_VERSION / READ|CREATE, minimum assurance 1.
+export const MODULE_VERSION_READ: PermissionRef = {
+  permissionCode: 'foundation.module_version.read', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_VERSION', operation: 'READ',
+};
+
+export const MODULE_VERSION_CREATE: PermissionRef = {
+  permissionCode: 'foundation.module_version.create', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_VERSION', operation: 'CREATE',
+};
+
+// FBE-02B — MIC manifest / SUBMIT (owner approved P-6): FOUNDATION / MODULE_VERSION / UPDATE|SUBMIT, assurance 1.
+export const MODULE_VERSION_UPDATE: PermissionRef = {
+  permissionCode: 'foundation.module_version.update', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_VERSION', operation: 'UPDATE',
+};
+
+export const MODULE_VERSION_SUBMIT: PermissionRef = {
+  permissionCode: 'foundation.module_version.submit', moduleCode: 'FOUNDATION', resourceCode: 'MODULE_VERSION', operation: 'SUBMIT',
+};
+
 export interface PermissionDefinition {
   readonly permissionId: string;
   readonly minimumAssuranceLevel: number;
