@@ -253,7 +253,7 @@ describe.skipIf(!enabled)('Foundation Module Registry — PostgreSQL (talo_mos_v
       loginLimiter: new SlidingWindowRateLimiter({ limit: 10_000, windowMs: 15 * 60_000 }),
     });
     const repository = new SqlFoundationRepository(faultyDb(prismaFoundationDb(prisma), () => fault));
-    const foundation = createFoundationModule({ prisma, authService: auth.service, logger, secureCookie: false, repository });
+    const foundation = createFoundationModule({ prisma, authService: auth.service, logger, secureCookie: false, environment: 'TEST', repository });
     app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger, apiRouters: [auth.router, foundation.router] });
     h = await AuthFixtures.connect();
     fx = new AuthFixtures(h, hasher);

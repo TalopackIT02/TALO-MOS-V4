@@ -3,6 +3,7 @@ import type { Router } from 'express';
 import type { Logger } from '../../core/logging/logger.js';
 import type { PrismaClient } from '../../infrastructure/prisma/generated/client.js';
 import type { AuthService } from '../auth/auth.service.js';
+import type { CompatibilityEnvironment } from './foundation.compatibility.js';
 import { SqlManifestRepository } from './foundation.manifest.repository.js';
 import type { ManifestRepository } from './foundation.manifest.repository.js';
 import { moduleManifestRouter } from './foundation.manifest.routes.js';
@@ -21,6 +22,8 @@ export interface FoundationModuleOptions {
   readonly authService: Pick<AuthService, 'describeSession'>;
   readonly logger: Logger;
   readonly secureCookie: boolean;
+  // FBE-04 (Q8): B13.environment, mapped from NODE_ENV by the caller.
+  readonly environment: CompatibilityEnvironment;
   // Test seams (in-process only): replace the SQL repositories.
   readonly repository?: FoundationRepository;
   readonly versionRepository?: ModuleVersionRepository;
@@ -39,7 +42,7 @@ export function createFoundationModule(options: FoundationModuleOptions): Founda
   const db = prismaFoundationDb(options.prisma);
   const repository = options.repository ?? new SqlFoundationRepository(db);
   const versionRepository = options.versionRepository ?? new SqlModuleVersionRepository(db);
-  const manifestRepository = options.manifestRepository ?? new SqlManifestRepository(db);
+  const manifestRepository = options.manifestRepository ?? new SqlManifestRepository(db, options.environment);
   const service = new FoundationService({ repository, logger: options.logger });
   const versionService = new ModuleVersionService({ access: repository, versions: versionRepository, logger: options.logger });
   const manifestService = new ModuleManifestService({ access: repository, manifests: manifestRepository, logger: options.logger });

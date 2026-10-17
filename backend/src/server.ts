@@ -5,6 +5,7 @@ import { ConfigError, loadConfig } from './config/env.js';
 import { createLogger } from './core/logging/logger.js';
 import { disconnectPrismaClient, getPrismaClient } from './infrastructure/prisma/client.js';
 import { createAuthModule } from './modules/auth/index.js';
+import { compatibilityEnvironment } from './modules/foundation/foundation.compatibility.js';
 import { createFoundationModule } from './modules/foundation/index.js';
 import { healthRouter } from './modules/health/health.routes.js';
 
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
     // Foundation Module Registry (FBE-01A): sessions are validated by the auth service only.
     const foundation = createFoundationModule({
       prisma: getPrismaClient(config.databaseUrl), authService: auth.service, logger, secureCookie: config.nodeEnv === 'production',
+      environment: compatibilityEnvironment(config.nodeEnv),
     });
     apiRouters.push(foundation.router);
   } else {

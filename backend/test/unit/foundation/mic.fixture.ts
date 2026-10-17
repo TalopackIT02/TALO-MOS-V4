@@ -1,4 +1,5 @@
 // FBE-02B — a complete, valid MIC-1.0 manifest (P-16) for tests. Every call returns a fresh object.
+// FBE-04 — MIC-06 in the extended form (Q3): resourceKey, ownerKey, typed columns, access rules.
 export function validMic(moduleKey = 'SALES', moduleVersion = '1.0.0') {
   return {
     mic01Identity: { moduleKey, moduleName: 'Bán hàng', moduleVersion, micStandard: 'MIC-1.0' },
@@ -20,8 +21,19 @@ export function validMic(moduleKey = 'SALES', moduleVersion = '1.0.0') {
       { method: 'POST', path: '/api/sales/orders', functionKey: 'ORDER', actionKey: 'CREATE', errors: ['VALIDATION_ERROR'] },
     ],
     mic06DataResources: [
-      { interfaceKind: 'API', columns: [], relations: [] },
-      { interfaceKind: 'DIRECT_DB', schema: 'sales', table: 'orders', columns: ['order_id', 'customer_id'], relations: ['customer_id -> crm.customers.customer_id'] },
+      { resourceKey: 'ORDER_FEED', interfaceKind: 'API', columns: [], relations: [], access: [{ functionKey: 'REPORT', actionKey: 'READ', operation: 'SELECT' }] },
+      {
+        resourceKey: 'ORDERS', ownerKey: 'SALES_DATA', interfaceKind: 'DIRECT_DB', schema: 'sales', table: 'orders',
+        columns: [
+          { name: 'order_id', type: 'uuid', required: true, primaryKey: true },
+          { name: 'customer_id', type: 'uuid', references: 'crm.customers.customer_id', description: 'Khách hàng' },
+        ],
+        relations: ['customer_id -> crm.customers.customer_id'],
+        access: [
+          { functionKey: 'ORDER', actionKey: 'READ', operation: 'SELECT', approvalMode: 'NOT_REQUIRED' },
+          { functionKey: 'ORDER', actionKey: 'CREATE', operation: 'INSERT', approvalMode: 'REQUIRED', workflowKey: 'SALES_ORDER_APPROVAL' },
+        ],
+      },
     ],
     mic07IamMapping: [
       { functionKey: 'ORDER', actionKey: 'READ', moduleCode: moduleKey, resourceCode: 'ORDER', operation: 'READ', minimumAssuranceLevel: 1 },

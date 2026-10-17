@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import type { Logger } from '../../core/logging/logger.js';
 import { AccessGuard } from './foundation.access.js';
+import { proposedDefinitions } from './foundation.compatibility.js';
+import type { CompatibilityPlan } from './foundation.compatibility.js';
+import { dataPlan } from './foundation.data.js';
 import type { Actor } from './foundation.access.js';
 import { FoundationError, serviceBusy } from './foundation.errors.js';
 import { canonicalDigest, hasNoDuplicateKeys, isPlainObject, jsonViolation } from './foundation.json.js';
@@ -8,7 +11,7 @@ import { VersionNotDraftError, VersionNotFoundError } from './foundation.manifes
 import type { ManifestAuditRecord, ManifestRepository } from './foundation.manifest.repository.js';
 import { validateMic } from './foundation.mic.js';
 import { registryPlan } from './foundation.registry.js';
-import type { MicErrorCode } from './foundation.mic.js';
+import type { Mic, MicErrorCode } from './foundation.mic.js';
 import { MODULE_VERSION_SUBMIT, MODULE_VERSION_UPDATE } from './foundation.permissions.js';
 import type { FoundationRepository } from './foundation.repository.js';
 import type { VersionRecord } from './foundation.versions.repository.js';
@@ -49,6 +52,15 @@ export interface ModuleManifestServiceDeps {
   readonly manifests: ManifestRepository;
   readonly logger: Logger;
   readonly newEventId?: () => string;
+}
+
+// MIC-09 → compatibility plan. validateMic guarantees fromVersion for CHANGE; its absence is refused, never guessed.
+function compatibilityPlan(mic: Mic): CompatibilityPlan {
+  const proposed = proposedDefinitions(mic);
+  const compat = mic.mic09Compatibility;
+  if (compat.kind === 'INITIAL_REGISTRATION') return { kind: compat.kind, proposed };
+  if (compat.fromVersion === undefined) throw new MicInvalidError(['COMPATIBILITY_FROM_VERSION_INVALID']);
+  return { kind: compat.kind, fromVersion: compat.fromVersion, proposed };
 }
 
 const invalid = (field: string) => new FoundationError(400, 'VALIDATION_ERROR', { details: { fields: [field] } });
@@ -102,7 +114,8 @@ export class ModuleManifestService {
           if (expected !== undefined && expected !== sha256) throw new ManifestHashMismatchError();
           submittedHash = sha256;
           // FBE-03: Function / Action registry rows materialised in the same SUBMIT transaction.
-          return { manifestHash: sha256, registry: registryPlan(result.mic) };
+          // FBE-04: Data Contracts (B10–B12) and the compatibility check (B13 / B14), same transaction.
+          return { manifestHash: sha256, registry: registryPlan(result.mic), data: dataPlan(result.mic), compatibility: compatibilityPlan(result.mic) };
         },
         audit: (version) => this.audit(actor, ACTION_CODE.SUBMIT, 'SUCCESS', version, 'SUBMITTED', { manifestHash: submittedHash }),
       });

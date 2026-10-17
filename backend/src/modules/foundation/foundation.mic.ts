@@ -2,8 +2,10 @@ import { z } from 'zod';
 import { SEMVER_PATTERN } from './foundation.versions.validation.js';
 
 // FBE-02B — MIC-1.0 (owner-approved P-16 field specification, P-17 cross-validation, MIC-09 two-way rule and the 15
-// validation error codes). Acceptance check only: nothing is written to B03–B14, no IAM permission is looked up,
-// no Compatibility Engine. Every object is strict; required strings and provided optional strings are non-empty.
+// validation error codes). No IAM permission is looked up. Every object is strict; required strings and provided
+// optional strings are non-empty.
+// FBE-04 (owner decisions Q2–Q6): MIC-06 extended in place (label stays MIC-1.0) with resourceKey, ownerKey, typed
+// columns and access rules, so that B10–B12 can be materialised at SUBMIT; 7 DATA_* cross-validation codes.
 
 export const MIC_STANDARD = 'MIC-1.0';
 const K01 = /^[A-Z][A-Z0-9_]*$/;
@@ -24,12 +26,22 @@ export const MIC_ERROR_CODES = [
   'IAM_MAPPING_K05_MISMATCH',
   'COMPATIBILITY_KIND_INVALID',
   'COMPATIBILITY_FROM_VERSION_INVALID',
+  'DATA_RESOURCE_KEY_DUPLICATE',
+  'DATA_FIELD_DUPLICATE',
+  'DATA_DIRECT_DB_TARGET_MISSING',
+  'DATA_REFERENCE_INVALID',
+  'DATA_ACCESS_ACTION_UNKNOWN',
+  'DATA_ACCESS_DUPLICATE',
+  'DATA_WORKFLOW_REQUIRED',
 ] as const;
 export type MicErrorCode = (typeof MIC_ERROR_CODES)[number];
 
 const text = () => z.string().min(1);
 const key = (max?: number) => (max === undefined ? z.string().min(1).regex(K01) : z.string().min(1).max(max).regex(K01));
 const texts = () => z.array(text());
+// Q5: K10 schema.table.column (backend check only; DB constraint N-14 stays PENDING).
+const REFERENCE_TARGET = /^[a-z_][a-z0-9_]*[.][a-z_][a-z0-9_]*[.][a-z_][a-z0-9_]*$/;
+const blank = (value: string | undefined) => value === undefined || value.trim() === '';
 
 export const micSchema = z.strictObject({
   mic01Identity: z.strictObject({
@@ -63,11 +75,27 @@ export const micSchema = z.strictObject({
     errors: texts(),
   })),
   mic06DataResources: z.array(z.strictObject({
+    resourceKey: key(120), // B10.resource_key
+    ownerKey: key(80).optional(), // B10.data_owner_key; absent = moduleKey (Q4)
     interfaceKind: z.enum(['API', 'VIEW', 'EVENT', 'DIRECT_DB']),
-    schema: text().optional(),
-    table: text().optional(),
-    columns: texts(),
-    relations: texts(),
+    schema: text().max(100).optional(), // B10.schema_name VARCHAR(100)
+    table: text().max(100).optional(), // B10.table_name VARCHAR(100)
+    columns: z.array(z.strictObject({ // one B11 row each
+      name: text().max(100),
+      type: text().max(100),
+      required: z.boolean().optional(),
+      primaryKey: z.boolean().optional(),
+      references: text().max(250).optional(),
+      description: text().optional(),
+    })),
+    relations: texts(), // kept in contract_spec only
+    access: z.array(z.strictObject({ // one B12 row each
+      functionKey: key(),
+      actionKey: key(),
+      operation: z.enum(['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+      approvalMode: z.enum(['REQUIRED', 'NOT_REQUIRED']).optional(), // absent = UNSPECIFIED
+      workflowKey: text().max(120).optional(),
+    })),
   })),
   mic07IamMapping: z.array(z.strictObject({
     functionKey: key(),
@@ -174,6 +202,28 @@ export function validateMic(manifest: unknown, ctx: MicContext): MicValidation {
     if (!eligible) found.add('COMPATIBILITY_KIND_INVALID');
     if (compat.fromVersion === undefined || !ctx.otherVersions.some((v) => v.moduleVersion === compat.fromVersion)) {
       found.add('COMPATIBILITY_FROM_VERSION_INVALID');
+    }
+  }
+
+  // FBE-04 (Q6): MIC-06 data resources — B10 / B11 / B12 keys, N-11, K10 (Q5), D-09, same-version actions.
+  const resources = new Set<string>();
+  for (const r of mic.mic06DataResources) {
+    if (resources.has(r.resourceKey)) found.add('DATA_RESOURCE_KEY_DUPLICATE');
+    resources.add(r.resourceKey);
+    if (r.interfaceKind === 'DIRECT_DB' && (blank(r.schema) || blank(r.table))) found.add('DATA_DIRECT_DB_TARGET_MISSING');
+    const fields = new Set<string>();
+    for (const c of r.columns) {
+      if (fields.has(c.name)) found.add('DATA_FIELD_DUPLICATE');
+      fields.add(c.name);
+      if (c.references !== undefined && !REFERENCE_TARGET.test(c.references)) found.add('DATA_REFERENCE_INVALID');
+    }
+    const rules = new Set<string>();
+    for (const a of r.access) {
+      if (!actions.has(pair(a.functionKey, a.actionKey))) found.add('DATA_ACCESS_ACTION_UNKNOWN');
+      const rule = pair(pair(a.functionKey, a.actionKey), a.operation);
+      if (rules.has(rule)) found.add('DATA_ACCESS_DUPLICATE');
+      rules.add(rule);
+      if (a.approvalMode === 'REQUIRED' && blank(a.workflowKey)) found.add('DATA_WORKFLOW_REQUIRED');
     }
   }
 

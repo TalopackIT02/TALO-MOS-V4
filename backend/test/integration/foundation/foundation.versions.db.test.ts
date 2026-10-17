@@ -258,8 +258,8 @@ describe.skipIf(!enabled)('FBE-02C Module Version + MIC — PostgreSQL (talo_mos
     });
     const db = faultyDb(prismaFoundationDb(prisma), () => fault);
     const foundation = createFoundationModule({
-      prisma, authService: auth.service, logger, secureCookie: false,
-      repository: new SqlFoundationRepository(db), versionRepository: new SqlModuleVersionRepository(db), manifestRepository: new SqlManifestRepository(db),
+      prisma, authService: auth.service, logger, secureCookie: false, environment: 'TEST',
+      repository: new SqlFoundationRepository(db), versionRepository: new SqlModuleVersionRepository(db), manifestRepository: new SqlManifestRepository(db, 'TEST'),
     });
     app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger, apiRouters: [auth.router, foundation.router] });
     h = await AuthFixtures.connect();

@@ -208,10 +208,10 @@ describe('MIC cross-validation (P-17) — the 15 approved error codes', () => {
     expect(errorsOf(change('2.0.0'), eligible)).toEqual(['COMPATIBILITY_FROM_VERSION_INVALID']); // itself is not "another" version
   });
 
-  it('several errors are reported together, in the approved order; only the 15 codes exist', () => {
+  it('several errors are reported together, in the approved order; only the 15 + 7 (FBE-04 Q6) codes exist', () => {
     const mic = validMic();
     const many = { ...mic, mic04Navigation: [{ menuLabel: 'x', functionKey: 'GHOST' }], mic07IamMapping: mic.mic07IamMapping.slice(1) };
     expect(errorsOf(many, ctx({ moduleVersion: '9.0.0' }))).toEqual(['IDENTITY_MODULE_VERSION_MISMATCH', 'NAVIGATION_FUNCTION_UNKNOWN', 'IAM_MAPPING_MISSING']);
-    expect(MIC_ERROR_CODES).toHaveLength(15);
+    expect(MIC_ERROR_CODES).toHaveLength(22);
   });
 });

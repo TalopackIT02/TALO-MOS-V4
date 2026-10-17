@@ -239,7 +239,10 @@ describe('FBE-03 SUBMIT materialisation (R3–R11)', () => {
 
   it('R9 a valid MIC without Functions / Actions (P-16 / P-17 unchanged) → 200, no B03–B06 rows, no registry statement', async () => {
     const { h, m, v } = setup();
-    const empty = { ...validMic(), mic02Functions: [], mic03Actions: [], mic04Navigation: [{ menuLabel: 'Bán hàng' }], mic05Api: [], mic07IamMapping: [] };
+    // FBE-04: MIC-06 access rules reference Actions, so the data resources are left out too.
+    const empty = {
+      ...validMic(), mic02Functions: [], mic03Actions: [], mic04Navigation: [{ menuLabel: 'Bán hàng' }], mic05Api: [], mic06DataResources: [], mic07IamMapping: [],
+    };
     expect(validateMic(empty, ctx()).ok).toBe(true);
     await put(h, m.module_id, v.version_id, empty);
     const count = registryStatements(h);

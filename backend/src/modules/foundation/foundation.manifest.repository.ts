@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import type { CompatibilityEnvironment, CompatibilityPlan } from './foundation.compatibility.js';
+import { materializeCompatibility } from './foundation.compatibility.repository.js';
+import type { PlannedContract } from './foundation.data.js';
+import { materializeData } from './foundation.data.repository.js';
 import type { PlannedFunction } from './foundation.registry.js';
 import { materializeRegistry } from './foundation.registry.repository.js';
 import type { AuditRecord, FoundationDb, SqlExecutor } from './foundation.repository.js';
@@ -12,6 +16,8 @@ import type { VersionRecord } from './foundation.versions.repository.js';
 // The row lock (FOR UPDATE OF v) serialises concurrent PUT / SUBMIT on one version; each UPDATE re-checks
 // status = 'DRAFT', so a statement that finds no DRAFT row changes nothing. Bind parameters only. No DELETE.
 // NOT_TESTED on PostgreSQL (FBE-02C): FOR UPDATE needs an UPDATE privilege on B02 that talo_app does not have yet.
+// FBE-04 (Q1): B10–B12 Data Contracts and the B13 / B14 compatibility check are written after B03–B06, still before
+// the status change, in the same transaction; B07 / B08 are unchanged.
 
 export const MANIFEST_SQL = {
   lockVersion: `
@@ -72,8 +78,16 @@ export interface SubmitCommand {
   readonly correlationId: string;
   // Validates the locked manifest against its context and returns its SHA-256; throws to reject (rolls back).
   // FBE-03: also returns the Function / Action registry plan materialised before the status change.
-  readonly prepare: (locked: LockedVersion, others: readonly OtherVersion[]) => { readonly manifestHash: string; readonly registry: readonly PlannedFunction[] };
+  // FBE-04: and the Data Contract plan (B10–B12) and the compatibility plan (B13 / B14).
+  readonly prepare: (locked: LockedVersion, others: readonly OtherVersion[]) => SubmitPlan;
   readonly audit: (version: VersionRecord) => ManifestAuditRecord;
+}
+
+export interface SubmitPlan {
+  readonly manifestHash: string;
+  readonly registry: readonly PlannedFunction[];
+  readonly data: readonly PlannedContract[];
+  readonly compatibility: CompatibilityPlan;
 }
 
 export class VersionNotFoundError extends Error {
@@ -128,9 +142,12 @@ function updatedRow(rows: unknown[]): VersionRecord {
 
 export class SqlManifestRepository implements ManifestRepository {
   private readonly db: FoundationDb;
+  private readonly environment: CompatibilityEnvironment;
 
-  constructor(db: FoundationDb) {
+  // environment: B13.environment of every compatibility check written by SUBMIT (Q8).
+  constructor(db: FoundationDb, environment: CompatibilityEnvironment) {
     this.db = db;
+    this.environment = environment;
   }
 
   async updateManifest(command: UpdateManifestCommand): Promise<VersionRecord> {
@@ -151,9 +168,12 @@ export class SqlManifestRepository implements ManifestRepository {
         const o = otherRow.parse(r);
         return { moduleVersion: o.module_version, status: o.status };
       });
-      const { manifestHash, registry } = command.prepare(locked, others);
+      const { manifestHash, registry, data, compatibility } = command.prepare(locked, others);
       // FBE-03 (phase A): B03 / B04 identities and B05 / B06 declarations, same transaction, before IN_REVIEW.
       await materializeRegistry(tx, moduleId, versionId, registry);
+      // FBE-04 (Q1): B10–B12 (needs the B06 rows just written), then B13 / B14.
+      await materializeData(tx, versionId, data);
+      await materializeCompatibility(tx, moduleId, versionId, this.environment, compatibility);
       const version = updatedRow(await tx.query(MANIFEST_SQL.submitVersion, [versionId, moduleId, manifestHash, command.actorAccountId]));
       await tx.execute(MANIFEST_SQL.insertSubmitEvent, [
         moduleId, versionId, command.actorAccountId, JSON.stringify({ status: 'DRAFT' }),

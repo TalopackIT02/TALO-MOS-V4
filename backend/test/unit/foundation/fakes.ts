@@ -7,6 +7,8 @@ import { createLogger } from '../../../src/core/logging/logger.js';
 import type { ClientInfo } from '../../../src/modules/auth/audit.js';
 import { AuthError } from '../../../src/modules/auth/auth.service.js';
 import type { SessionBody } from '../../../src/modules/auth/auth.service.js';
+import { COMPAT_SQL } from '../../../src/modules/foundation/foundation.compatibility.repository.js';
+import { DATA_SQL } from '../../../src/modules/foundation/foundation.data.repository.js';
 import { MANIFEST_SQL, SqlManifestRepository } from '../../../src/modules/foundation/foundation.manifest.repository.js';
 import { moduleManifestRouter } from '../../../src/modules/foundation/foundation.manifest.routes.js';
 import { ModuleManifestService } from '../../../src/modules/foundation/foundation.manifest.service.js';
@@ -23,6 +25,7 @@ import { healthRouter } from '../../../src/modules/health/health.routes.js';
 // In-memory doubles for FBE-01A / FBE-02A (no PostgreSQL). FakeDb answers the exact FOUNDATION_SQL and VERSION_SQL
 // statements and implements a transaction mock: writes inside transaction() go to a staged copy that becomes visible
 // only on commit. B02 keeps the UNIQUE (module_id, module_version) and the FKs to B01 / (version_id, module_id) of B08.
+// FBE-04: B10–B14 with the DDL Revision 02 FKs, UNIQUEs, CHECKs (A-04…A-11, N-06, N-09…N-13, D-09) and VARCHAR widths.
 
 export const TEST_ORIGIN = 'http://127.0.0.1:5173';
 
@@ -97,6 +100,27 @@ export interface VersionActionRow {
   definition_hash: string | null; is_deprecated: boolean;
 }
 
+export interface DataContractRow {
+  data_contract_id: string; version_id: string; resource_key: string; data_owner_key: string; interface_kind: string; schema_name: string | null;
+  table_name: string | null; schema_version: string; contract_spec: unknown; contract_hash: string;
+}
+export interface DataFieldRow {
+  field_id: string; data_contract_id: string; field_name: string; field_type: string; is_required: boolean; default_expression: string | null;
+  is_primary_key: boolean; references_target: string | null; description: string | null;
+}
+export interface AccessRuleRow {
+  access_rule_id: string; data_contract_id: string; version_action_id: string; data_operation: string; approval_mode: string; workflow_key: string | null;
+  is_enabled: boolean;
+}
+export interface CompatCheckRow {
+  check_id: string; module_id: string; from_version_id: string | null; to_version_id: string; environment: string; check_result: string;
+  database_fingerprint: string | null; started_at: string; completed_at: string | null;
+}
+export interface CompatChangeRow {
+  change_id: string; check_id: string; change_area: string; object_key: string; change_type: string; severity: string; previous_value: unknown;
+  proposed_value: unknown; resolution_status: string; details: string | null;
+}
+
 export interface Statement {
   readonly sql: string;
   readonly params: readonly unknown[];
@@ -113,7 +137,17 @@ export interface State {
   actions: ActionRow[];
   versionFunctions: VersionFunctionRow[];
   versionActions: VersionActionRow[];
+  dataContracts: DataContractRow[];
+  dataFields: DataFieldRow[];
+  accessRules: AccessRuleRow[];
+  compatChecks: CompatCheckRow[];
+  compatChanges: CompatChangeRow[];
 }
+
+const emptyState = (): State => ({
+  modules: [], events: [], audits: [], versions: [], versionAudits: [], functions: [], actions: [], versionFunctions: [], versionActions: [],
+  dataContracts: [], dataFields: [], accessRules: [], compatChecks: [], compatChanges: [],
+});
 
 export function pgError(code: string): Error {
   return Object.assign(new Error(`simulated SQLSTATE ${code}`), { code });
@@ -121,10 +155,17 @@ export function pgError(code: string): Error {
 
 const text = (value: unknown): string => String(value);
 const nullableText = (value: unknown): string | null => (value === null || value === undefined ? null : String(value));
+const jsonb = (value: unknown): unknown => (value === null || value === undefined ? null : JSON.parse(text(value)));
+const tooLong = (value: unknown, max: number) => value !== null && value !== undefined && text(value).length > max;
+const blank = (value: unknown) => value === null || value === undefined || text(value).trim() === '';
+const bool = (value: unknown): boolean => {
+  if (typeof value !== 'boolean') throw pgError('22P02');
+  return value;
+};
 
 export class FakeDb implements FoundationDb {
   readonly iam: IamFixture;
-  state: State = { modules: [], events: [], audits: [], versions: [], versionAudits: [], functions: [], actions: [], versionFunctions: [], versionActions: [] };
+  state: State = emptyState();
   readonly statements: Statement[] = [];
   readonly txLog: ('BEGIN' | 'COMMIT' | 'ROLLBACK')[] = [];
   readonly failOn = new Map<string, Error>();
@@ -151,6 +192,8 @@ export class FakeDb implements FoundationDb {
       versions: [...this.state.versions], versionAudits: [...this.state.versionAudits],
       functions: [...this.state.functions], actions: [...this.state.actions],
       versionFunctions: [...this.state.versionFunctions], versionActions: [...this.state.versionActions],
+      dataContracts: [...this.state.dataContracts], dataFields: [...this.state.dataFields], accessRules: [...this.state.accessRules],
+      compatChecks: [...this.state.compatChecks], compatChanges: [...this.state.compatChanges],
     };
     const tx: SqlExecutor = {
       query: (sql, params) => this.run(sql, params, staged, true),
@@ -313,6 +356,80 @@ export class FakeDb implements FoundationDb {
         });
         return [];
       }
+      case DATA_SQL.insertContract: {
+        // FK version_id → B02, UNIQUE (version_id, resource_key), A-04, N-06, N-11, VARCHAR widths; contract_spec JSONB.
+        if (!state.versions.some((v) => v.version_id === params[0])) throw pgError('23503');
+        if (state.dataContracts.some((x) => x.version_id === params[0] && x.resource_key === params[1])) throw pgError('23505');
+        if (!['API', 'VIEW', 'EVENT', 'DIRECT_DB'].includes(text(params[3])) || !/^[0-9a-f]{64}$/.test(text(params[8]))) throw pgError('23514');
+        if (params[3] === 'DIRECT_DB' && (blank(params[4]) || blank(params[5]))) throw pgError('23514');
+        if (tooLong(params[1], 120) || tooLong(params[2], 80) || tooLong(params[4], 100) || tooLong(params[5], 100) || tooLong(params[6], 40)) throw pgError('22001');
+        const row: DataContractRow = {
+          data_contract_id: randomUUID(), version_id: text(params[0]), resource_key: text(params[1]), data_owner_key: text(params[2]), interface_kind: text(params[3]),
+          schema_name: nullableText(params[4]), table_name: nullableText(params[5]), schema_version: text(params[6]), contract_spec: jsonb(params[7]), contract_hash: text(params[8]),
+        };
+        state.dataContracts.push(row);
+        return [{ data_contract_id: row.data_contract_id }];
+      }
+      case DATA_SQL.insertField: {
+        // FK → B10, UNIQUE (data_contract_id, field_name), VARCHAR widths; N-14 is PENDING (not modelled).
+        if (!state.dataContracts.some((x) => x.data_contract_id === params[0])) throw pgError('23503');
+        if (state.dataFields.some((x) => x.data_contract_id === params[0] && x.field_name === params[1])) throw pgError('23505');
+        if (tooLong(params[1], 100) || tooLong(params[2], 100) || tooLong(params[5], 250)) throw pgError('22001');
+        state.dataFields.push({
+          field_id: randomUUID(), data_contract_id: text(params[0]), field_name: text(params[1]), field_type: text(params[2]), is_required: bool(params[3]),
+          default_expression: null, is_primary_key: bool(params[4]), references_target: nullableText(params[5]), description: nullableText(params[6]),
+        });
+        return [];
+      }
+      case DATA_SQL.versionActions:
+        return state.versionActions.flatMap((va) => {
+          const vf = state.versionFunctions.find((x) => x.version_function_id === va.version_function_id);
+          const a = state.actions.find((x) => x.action_id === va.action_id);
+          const f = a ? state.functions.find((x) => x.function_id === a.function_id) : undefined;
+          return vf && a && f && vf.version_id === params[0] ? [{ function_key: f.function_key, action_key: a.action_key, version_action_id: va.version_action_id }] : [];
+        });
+      case DATA_SQL.insertAccessRule: {
+        // FKs → B10 / B06, UNIQUE (contract, version_action, operation), A-05, A-06, D-09 (N-12 holds: is_enabled stays FALSE).
+        if (!state.dataContracts.some((x) => x.data_contract_id === params[0]) || !state.versionActions.some((x) => x.version_action_id === params[1])) throw pgError('23503');
+        if (state.accessRules.some((x) => x.data_contract_id === params[0] && x.version_action_id === params[1] && x.data_operation === params[2])) throw pgError('23505');
+        if (!['SELECT', 'INSERT', 'UPDATE', 'DELETE'].includes(text(params[2])) || !['REQUIRED', 'NOT_REQUIRED', 'UNSPECIFIED'].includes(text(params[3]))) throw pgError('23514');
+        if (params[3] === 'REQUIRED' && blank(params[4])) throw pgError('23514');
+        if (tooLong(params[4], 120)) throw pgError('22001');
+        state.accessRules.push({
+          access_rule_id: randomUUID(), data_contract_id: text(params[0]), version_action_id: text(params[1]), data_operation: text(params[2]),
+          approval_mode: text(params[3]), workflow_key: nullableText(params[4]), is_enabled: false,
+        });
+        return [];
+      }
+      case COMPAT_SQL.fromVersion:
+        return state.versions.filter((v) => v.module_id === params[0] && v.module_version === params[1]).map((v) => ({ version_id: v.version_id, manifest_json: v.manifest_json }));
+      case COMPAT_SQL.insertCheck: {
+        // FKs → B01 and composite (version, module) → B02 for both versions, A-07, A-08, A-09; started_at = completed_at = now().
+        if (!state.modules.some((m) => m.module_id === params[0])) throw pgError('23503');
+        if (!state.versions.some((v) => v.version_id === params[2] && v.module_id === params[0])) throw pgError('23503');
+        if (params[1] !== null && !state.versions.some((v) => v.version_id === params[1] && v.module_id === params[0])) throw pgError('23503');
+        if (!['DEV', 'TEST', 'PROD'].includes(text(params[3])) || !['PASS', 'WARN', 'BLOCK', 'FAILED', 'PENDING'].includes(text(params[4]))) throw pgError('23514');
+        if (params[1] !== null && params[1] === params[2]) throw pgError('23514');
+        const at = '2026-10-17T10:00:00.000000Z';
+        const row: CompatCheckRow = {
+          check_id: randomUUID(), module_id: text(params[0]), from_version_id: nullableText(params[1]), to_version_id: text(params[2]), environment: text(params[3]),
+          check_result: text(params[4]), database_fingerprint: null, started_at: at, completed_at: at,
+        };
+        state.compatChecks.push(row);
+        return [{ check_id: row.check_id }];
+      }
+      case COMPAT_SQL.insertChange: {
+        // FK → B13, N-10, A-10, A-11, object_key VARCHAR(250); resolution_status default OPEN.
+        if (!state.compatChecks.some((x) => x.check_id === params[0])) throw pgError('23503');
+        if (!['FUNCTION', 'ACTION', 'DATA', 'API', 'MODULE', 'UI', 'IAM', 'AUDIT', 'COMPATIBILITY', 'INTEGRITY'].includes(text(params[1]))) throw pgError('23514');
+        if (!['ADDED', 'REMOVED', 'MODIFIED', 'MISSING'].includes(text(params[3])) || !['INFO', 'WARNING', 'BLOCKING'].includes(text(params[4]))) throw pgError('23514');
+        if (tooLong(params[2], 250)) throw pgError('22001');
+        state.compatChanges.push({
+          change_id: randomUUID(), check_id: text(params[0]), change_area: text(params[1]), object_key: text(params[2]), change_type: text(params[3]),
+          severity: text(params[4]), previous_value: jsonb(params[5]), proposed_value: jsonb(params[6]), resolution_status: 'OPEN', details: null,
+        });
+        return [];
+      }
       default:
         throw new Error('FakeDb: unexpected SQL');
     }
@@ -360,7 +477,7 @@ export function buildHarness(options: { iam?: IamFixture; extraRouters?: express
   const router = foundationRouter({ authService: auth, service, secureCookie: false });
   const versionService = new ModuleVersionService({ access: new SqlFoundationRepository(db), versions: new SqlModuleVersionRepository(db), logger });
   const versions = moduleVersionRouter({ authService: auth, service: versionService, secureCookie: false });
-  const manifestService = new ModuleManifestService({ access: new SqlFoundationRepository(db), manifests: new SqlManifestRepository(db), logger });
+  const manifestService = new ModuleManifestService({ access: new SqlFoundationRepository(db), manifests: new SqlManifestRepository(db, 'TEST'), logger });
   const manifests = moduleManifestRouter({ authService: auth, service: manifestService, secureCookie: false });
   const app = createApp({ config, logger, apiRouters: [healthRouter(), router, versions, manifests, ...(options.extraRouters ?? [])] });
   return { app, db, auth, logs };
