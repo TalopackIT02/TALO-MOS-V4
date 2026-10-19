@@ -8,6 +8,7 @@ import { createAuthModule } from './modules/auth/index.js';
 import { compatibilityEnvironment } from './modules/foundation/foundation.compatibility.js';
 import { createFoundationModule } from './modules/foundation/index.js';
 import { healthRouter } from './modules/health/health.routes.js';
+import { createSystemTestModule } from './modules/system-test/index.js';
 
 async function main(): Promise<void> {
   let config;
@@ -35,6 +36,11 @@ async function main(): Promise<void> {
       environment: compatibilityEnvironment(config.nodeEnv),
     });
     apiRouters.push(foundation.router);
+    // MOD-TEST-01: SYSTEM_TEST module API (IAM + module lifecycle checked on every request; read-only).
+    apiRouters.push(createSystemTestModule({
+      prisma: getPrismaClient(config.databaseUrl), authService: auth.service, navigation: foundation.navigationService, logger,
+      secureCookie: config.nodeEnv === 'production',
+    }).router);
   } else {
     logger.warn('DATABASE_URL not configured: /api/auth/* is not mounted');
   }

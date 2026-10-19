@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { groupOf, screenOfPath, SCREENS } from '../routes/shellScreens';
+import { groupOf, pathOfTab, screenOfPath, SCREENS, tabOfPath } from '../routes/shellScreens';
 import type { GroupId, ScreenId, ShellPath } from '../routes/shellScreens';
 import { authApi } from '../services/auth/authApi';
 import type { AccountSummary } from '../services/auth/authApi';
@@ -42,7 +42,7 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<GroupId>>(() => withParentExpanded(new Set<GroupId>(['foundation']), screen.id));
   const [pinnedFlyout, setPinnedFlyout] = useState<GroupId | null>(null);
-  const [tab, setTab] = useState<{ screen: ScreenId; index: number }>({ screen: screen.id, index: 0 });
+  const [tab, setTab] = useState<{ screen: ScreenId; index: number }>({ screen: screen.id, index: tabOfPath(path) });
   const [loggingOut, setLoggingOut] = useState(false);
   const activeTab = tab.screen === screen.id ? tab.index : 0;
 
@@ -50,6 +50,25 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   useEffect(() => {
     setExpanded((current) => withParentExpanded(current, screen.id));
   }, [screen.id]);
+
+  // MOD-TEST-01: a module sub-route (e.g. /system-test/data) opens its tab, also on back/forward.
+  useEffect(() => {
+    setTab({ screen: screen.id, index: tabOfPath(path) });
+  }, [path, screen.id]);
+
+  // A route of the Foundation menu (module screen) opened from the home screen.
+  const openPath = useCallback((target: ShellPath) => {
+    setMobileOpen(false);
+    setAccountPanelOpen(false);
+    onNavigate(target);
+  }, [onNavigate]);
+
+  // Tabs of a module screen with sub-routes keep the path in step; other screens keep their path.
+  function selectTab(index: number) {
+    setTab({ screen: screen.id, index });
+    const target = pathOfTab(screen.id, index);
+    if (target !== path) onNavigate(target);
+  }
 
   const navigate = useCallback((id: ScreenId) => {
     setMobileOpen(false);
@@ -170,8 +189,9 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
         <ShellWorkspace
           screen={screen}
           activeTab={activeTab}
-          onTab={(index) => setTab({ screen: screen.id, index })}
+          onTab={selectTab}
           onSessionLost={onSessionLost}
+          onOpenPath={openPath}
         />
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { ScreenBody } from '../pages/shell/ScreenBody';
 import { groupOf } from '../routes/shellScreens';
-import type { ShellScreen } from '../routes/shellScreens';
+import type { ShellPath, ShellScreen } from '../routes/shellScreens';
 
 // Workspace in the four logical blocks: 1 breadcrumb, 2 title + description, 3 screen actions (tabs directly under the
 // description, no label and no card of their own), 4 content of the selected action.
@@ -10,9 +10,10 @@ export interface ShellWorkspaceProps {
   readonly activeTab: number;
   readonly onTab: (index: number) => void;
   readonly onSessionLost: () => void;
+  readonly onOpenPath: (path: ShellPath) => void;
 }
 
-export function ShellWorkspace({ screen, activeTab, onTab, onSessionLost }: ShellWorkspaceProps) {
+export function ShellWorkspace({ screen, activeTab, onTab, onSessionLost, onOpenPath }: ShellWorkspaceProps) {
   const parent = groupOf(screen.id);
   return (
     <main className="workspace">
@@ -30,7 +31,7 @@ export function ShellWorkspace({ screen, activeTab, onTab, onSessionLost }: Shel
       </div>
       <section className="panel">
         <div className="panel-heading"><h2 id="bodyTitle">{screen.tabs[activeTab]}</h2></div>
-        <div className="panel-body" id="body"><ScreenBody screen={screen.id} tab={activeTab} onSessionLost={onSessionLost} /></div>
+        <div className="panel-body" id="body"><ScreenBody screen={screen.id} tab={activeTab} onSessionLost={onSessionLost} onOpenPath={onOpenPath} /></div>
       </section>
       <div className="footer">Dữ liệu Foundation lấy trực tiếp từ máy chủ · Quyền thao tác do máy chủ quyết định · Quản trị IAM chưa triển khai.</div>
     </main>

@@ -586,8 +586,9 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
   });
 
   // FE-01: the TEST administrator (role TALO_SYSTEM_ADMIN) is a legitimate assignment; only fixture assignments must be gone.
-  it('V8: IAM fixtures are gone after cleanup — permission definitions back to the baseline 13, no fixture assignment, no fixture of the run', async () => {
-    const [iam] = await h.ok(`SELECT (SELECT count(*) FROM iam.iam_permissions), (SELECT count(*) FROM iam.iam_permissions WHERE module_code <> 'FOUNDATION'),
+  it('V8: IAM fixtures are gone after cleanup — Foundation permission definitions back to the baseline 13, no fixture assignment, no fixture of the run', async () => {
+    // MOD-TEST-01: the approved SYSTEM_TEST permissions are legitimate definitions, not fixtures.
+    const [iam] = await h.ok(`SELECT (SELECT count(*) FROM iam.iam_permissions WHERE module_code = 'FOUNDATION'), (SELECT count(*) FROM iam.iam_permissions WHERE module_code NOT IN ('FOUNDATION', 'SYSTEM_TEST')),
       (SELECT count(*) FROM iam.iam_role_permissions rp JOIN iam.iam_roles r ON r.role_id = rp.role_id WHERE r.role_code LIKE 'FBET-%')
       + (SELECT count(*) FROM iam.iam_user_roles ur JOIN iam.iam_roles r ON r.role_id = ur.role_id WHERE r.role_code LIKE 'FBET-%')
       + (SELECT count(*) FROM iam.iam_user_permissions up JOIN iam.iam_user_accounts a ON a.user_account_id = up.user_account_id WHERE a.username ILIKE 'AUTHT-%'),

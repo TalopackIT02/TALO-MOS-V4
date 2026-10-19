@@ -37,3 +37,5 @@
 .app-shell .fx-module-list td{padding:7px 12px}
 .app-shell .fx-module-list .fx-btn{padding:5px 10px}
 @media(max-width:760px){.app-shell .fx-module-list{max-height:240px}}
+/* MOD-TEST-01 — a Foundation menu entry that opens a module screen of the shell. */
+.app-shell .fx-menu-link{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--green);cursor:pointer;text-decoration:underline;text-underline-offset:3px}

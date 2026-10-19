@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { foundationApi } from '../../services/foundation/foundationApi';
 import type { MenuNode, ModuleRecord, NavigationItem } from '../../services/foundation/foundationApi';
+import { shellPathOf } from '../../routes/shellScreens';
+import type { ShellPath } from '../../routes/shellScreens';
 import { FeedbackLine, settle } from './common';
 import type { Feedback, ScreenProps } from './common';
 
@@ -10,16 +12,22 @@ import type { Feedback, ScreenProps } from './common';
 // visibility). The backend offers no "list all items" nor "list functions" API: the parent and the function are entered
 // by id (items created or changed in this session are listed for convenience). No DELETE, no parent change.
 
-export function MenuTree({ nodes }: { nodes: readonly MenuNode[] }) {
+// MOD-TEST-01: a menu route that the shell can open (module screen) is a link when `onOpen` is given.
+export function MenuTree({ nodes, onOpen }: { nodes: readonly MenuNode[]; onOpen?: (path: ShellPath) => void }) {
   return (
     <ul className="fx-tree">
-      {nodes.map((n) => (
-        <li key={n.navigationId}>
-          <b>{n.menuTitle}</b>
-          {n.routePath && <small>{n.routePath}{n.screenKey ? ` · ${n.screenKey}` : ''}</small>}
-          {n.children.length > 0 && <MenuTree nodes={n.children} />}
-        </li>
-      ))}
+      {nodes.map((n) => {
+        const target = onOpen && n.routePath ? shellPathOf(n.routePath) : undefined;
+        return (
+          <li key={n.navigationId}>
+            {target && onOpen
+              ? <button type="button" className="fx-menu-link" onClick={() => onOpen(target)}>{n.menuTitle}</button>
+              : <b>{n.menuTitle}</b>}
+            {n.routePath && <small>{n.routePath}{n.screenKey ? ` · ${n.screenKey}` : ''}</small>}
+            {n.children.length > 0 && <MenuTree nodes={n.children} onOpen={onOpen} />}
+          </li>
+        );
+      })}
     </ul>
   );
 }
