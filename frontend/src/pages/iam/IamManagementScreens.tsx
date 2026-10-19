@@ -377,7 +377,8 @@ function useModuleFunctions(settle: <T>(r: ApiResult<T>) => T | null) {
   const [modules, setModules] = useState<ActiveModule[]>([]);
   const [moduleId, setModuleId] = useState('');
   const [functions, setFunctions] = useState<ModuleFunction[]>([]);
-  useEffect(() => { void iamApi.activeModules().then((r) => setModules(settle(r) ?? [])); }, [settle]);
+  // Integration-test fixtures (FBET_*) are hidden, as on the Module screen (display filter only; the API is unchanged).
+  useEffect(() => { void iamApi.activeModules().then((r) => setModules((settle(r) ?? []).filter((m) => !m.moduleKey.startsWith('FBET_')))); }, [settle]);
   useEffect(() => {
     setFunctions([]);
     if (moduleId) void iamApi.functions(moduleId).then((r) => setFunctions(settle(r) ?? []));
@@ -479,6 +480,8 @@ function FunctionMenus({ onSessionLost }: { onSessionLost: () => void }) {
   const [items, setItems] = useState<MenuItem[] | null>(null);
   const { modules, moduleId, setModuleId, functions, module } = useModuleFunctions(settle);
   const [functionId, setFunctionId] = useState('');
+  // An explicit kind: a Function item needs a Function (a group with a Function's name never opens anything).
+  const [kind, setKind] = useState<'function' | 'group'>('function');
   const [parentId, setParentId] = useState('');
   const [title, setTitle] = useState('');
   const [sortOrder, setSortOrder] = useState('0');
@@ -492,8 +495,11 @@ function FunctionMenus({ onSessionLost }: { onSessionLost: () => void }) {
   useEffect(() => { void reload(); }, [reload]);
 
   const fns = useMemo(() => byFunction(functions), [functions]);
+  // Selected module + global groups; without a selection every non-fixture item (FBET_* fixtures hidden).
+  const shownItems = (items ?? []).filter((i) => (moduleId ? i.moduleId === moduleId || i.moduleId === null : !(i.moduleKey ?? '').startsWith('FBET_')));
   const groups = (items ?? []).filter((i) => i.functionId === null && (i.moduleId === null || i.moduleId === moduleId));
-  const hasItem = (fid: string) => (items ?? []).some((i) => i.functionId === fid);
+  // One visible menu item per Function (a second one would show the same screen twice).
+  const hasItem = (fid: string) => (items ?? []).some((i) => i.functionId === fid && i.isVisible);
 
   async function save<T>(work: Promise<ApiResult<T>>, done: string) {
     if (busy) return false;
@@ -534,19 +540,25 @@ function FunctionMenus({ onSessionLost }: { onSessionLost: () => void }) {
     <>
       <FeedbackLine feedback={feedback} />
       <p className="info">Tạo và sửa mục menu (B09) qua API Foundation hiện có (quyền foundation.navigation.manage). Module / Function được chọn theo tên từ phiên bản ACTIVE; menu chỉ hiện với tài khoản có quyền IAM hiệu lực và khi Module ACTIVE + ENABLED.</p>
-      <form className="fx-form" onSubmit={(e) => void create(e, functionId ? 'function' : 'group')}>
+      <form className="fx-form" onSubmit={(e) => void create(e, kind)}>
+        <label>Loại mục
+          <select value={kind} onChange={(e) => { const k = e.target.value === 'group' ? 'group' : 'function'; setKind(k); if (k === 'group') setFunctionId(''); }}>
+            <option value="function">Mục chức năng (mở màn hình của Function)</option>
+            <option value="group">Nhóm menu (chỉ để chứa mục con)</option>
+          </select>
+        </label>
         <label>Module
           <select value={moduleId} onChange={(e) => { setModuleId(e.target.value); setFunctionId(''); setParentId(''); }}>
             <option value="">Chọn module…</option>
             {modules.map((m) => <option key={m.moduleId} value={m.moduleId}>{m.moduleKey} {m.activeVersion}{m.isEnabled ? '' : ' (đang tắt)'}</option>)}
           </select>
         </label>
-        <label>Function (để trống = nhóm menu)
-          <select value={functionId} onChange={(e) => { setFunctionId(e.target.value); const f = fns.find((x) => x.functionId === e.target.value); if (f) setTitle(f.displayName); }} disabled={!moduleId}>
-            <option value="">— Nhóm menu —</option>
+        {kind === 'function' && <label>Function
+          <select required value={functionId} onChange={(e) => { setFunctionId(e.target.value); const f = fns.find((x) => x.functionId === e.target.value); if (f) setTitle(f.displayName); }} disabled={!moduleId}>
+            <option value="">Chọn Function…</option>
             {fns.map((f) => <option key={f.functionId} value={f.functionId}>{f.displayName} ({f.functionKey}){hasItem(f.functionId) ? ' · đã có menu' : ''}</option>)}
           </select>
-        </label>
+        </label>}
         <label>Menu cha
           <select value={parentId} onChange={(e) => setParentId(e.target.value)}>
             <option value="">— Gốc —</option>
@@ -555,8 +567,14 @@ function FunctionMenus({ onSessionLost }: { onSessionLost: () => void }) {
         </label>
         <label>Tiêu đề<input required maxLength={150} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
         <label>Thứ tự<input inputMode="numeric" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></label>
-        <div><button type="submit" className="fx-btn primary" disabled={busy || !title.trim() || (!moduleId && !!functionId)}>{functionId ? 'Tạo mục chức năng' : 'Tạo nhóm menu'}</button></div>
+        <div><button type="submit" className="fx-btn primary" disabled={busy || !title.trim() || (kind === 'function' && (!moduleId || !functionId || hasItem(functionId)))}>{kind === 'function' ? 'Tạo mục chức năng' : 'Tạo nhóm menu'}</button></div>
       </form>
+      {kind === 'function' && functionId && hasItem(functionId) && (
+        <p className="fx-msg error">Function này đã có mục menu đang hiển thị; không tạo trùng. Dùng “Sửa” ở bảng bên dưới để đổi tiêu đề, thứ tự hoặc menu cha.</p>
+      )}
+      {kind === 'group' && fns.some((f) => f.displayName.trim().toLowerCase() === title.trim().toLowerCase()) && (
+        <p className="fx-msg error">Tiêu đề trùng tên một Function: nhóm menu không mở chức năng. Chọn “Mục chức năng” để tạo mục mở màn hình.</p>
+      )}
       {module && <p className="muted">{module.moduleKey} {module.activeVersion}: {fns.length} Function — {fns.filter((f) => hasItem(f.functionId)).length} đã có mục menu.</p>}
 
       {editId && (
@@ -571,11 +589,12 @@ function FunctionMenus({ onSessionLost }: { onSessionLost: () => void }) {
         </form>
       )}
       <div className="fx-section">
-        <div className="fx-toolbar"><h3 style={{ margin: 0 }}>Mục menu đang lưu (B09)</h3><button type="button" className="fx-btn" onClick={() => void reload()}>Tải lại</button></div>
+        <div className="fx-toolbar"><h3 style={{ margin: 0 }}>Mục menu đang lưu (B09)</h3><button type="button" className="fx-btn" onClick={() => void reload()}>Tải lại</button>
+          <span className="muted">{moduleId ? `Mục của ${module?.moduleKey ?? 'module đã chọn'} và nhóm chung` : 'Nhóm chung và mục của module không phải kiểm thử'} — {shownItems.length} mục</span></div>
         {items === null ? <p className="info">Đang tải…</p> : items.length === 0 ? <p className="muted">Chưa có mục menu.</p> : (
           <div className="fx-module-list"><table>
             <thead><tr><th>Tiêu đề</th><th>Menu cha</th><th>Module</th><th>Function</th><th>Thứ tự</th><th>Hiển thị</th><th /></tr></thead>
-            <tbody>{items.map((i) => (
+            <tbody>{shownItems.map((i) => (
               <tr key={i.navigationId} className={i.navigationId === editId ? 'fx-selected' : undefined}>
                 <td><b>{i.menuTitle}</b></td><td>{i.parentTitle ?? '—'}</td><td>{i.moduleKey ?? '—'}</td><td>{i.functionKey ?? '(nhóm)'}</td>
                 <td>{i.sortOrder}</td><td>{i.isVisible ? 'Có' : 'Không'}</td>

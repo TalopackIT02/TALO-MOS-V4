@@ -195,7 +195,7 @@ describe.skipIf(!enabled)('IAM-NEXT acceptance — IAM Management (talo_iam_admi
     expect(refused).toEqual([[422, 'SYSTEM_ROLE_LOCKED'], [422, 'PLATFORM_PERMISSION_LOCKED'], [422, 'PLATFORM_PERMISSION_LOCKED'], [422, 'SELF_ASSIGNMENT_FORBIDDEN']]);
 
     // IAM-11: every mutation has its SUCCESS audit by the administrator.
-    const [audits] = await h.ok(`SELECT count(*) FILTER (WHERE outcome = 'SUCCESS') FROM iam.iam_audit_logs WHERE actor_account_id = ${lit(admin.accountId)}`);
+    const [audits] = await h.ok(`SELECT count(*) FILTER (WHERE outcome = 'SUCCESS') FROM iam.iam_audit_logs WHERE actor_account_id = ${lit(admin.accountId)} AND action_code LIKE 'IAM.%'`); // Auth LOGIN rows excluded
     expect(Number(audits?.[0])).toBe(1 + ST_PERMS.length + 1 + 1 + 1 + 1); // role, 3 role-permissions, assign, deny, revoke deny, revoke role
     evidence['audits'] = audits?.[0];
   });
