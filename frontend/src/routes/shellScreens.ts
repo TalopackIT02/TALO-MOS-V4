@@ -1,7 +1,7 @@
 // AppShell administration screens (frontend only). They are NOT the business menu: the business menu comes from
 // GET /api/foundation/navigation, filtered by the backend (enabled module, ACTIVE version, effective IAM grant).
 // FE-01: Foundation screens are connected to the Foundation API; the server decides every permission (403 shown as is).
-// IAM screens stay informational until an IAM administration API exists.
+// IAM screens use the IAM Management API (TALO-IAM-NEXT).
 
 import { INSTALLED, moduleScreens } from './moduleScreens';
 import type { ModuleScreen } from './moduleScreens';
@@ -31,8 +31,8 @@ export const SCREENS = {
   home: { id: 'home', path: '/', name: 'Trang chủ', desc: 'Chức năng nghiệp vụ được cấp cho tài khoản và các màn hình quản trị nền tảng.', tabs: ['Chức năng của tôi'] },
   module: { id: 'module', path: '/foundation/modules', name: 'Quản lý Module', desc: 'Đăng ký module, quản lý phiên bản, hồ sơ MIC và vòng đời phê duyệt – kích hoạt.', tabs: ['Module & Phiên bản', 'Đăng ký Module'] },
   navigation: { id: 'navigation', path: '/foundation/navigation', name: 'Điều hướng', desc: 'Cây menu ứng dụng do Foundation quản lý, lọc theo quyền IAM của từng tài khoản.', tabs: ['Menu của tôi', 'Quản trị menu'] },
-  accounts: { id: 'accounts', path: '/iam/accounts', name: 'Quản lý tài khoản', desc: 'Chưa triển khai: chưa có API quản trị tài khoản IAM.', tabs: ['Danh sách tài khoản'] },
-  roles: { id: 'roles', path: '/iam/roles', name: 'Vai trò và quyền', desc: 'Chưa triển khai: chưa có API quản trị vai trò và quyền IAM.', tabs: ['Danh sách vai trò'] },
+  accounts: { id: 'accounts', path: '/iam/accounts', name: 'Quản lý tài khoản', desc: 'Tìm tài khoản, xem vai trò, quyền trực tiếp và quyền hiệu lực; gán và thu hồi.', tabs: ['Danh sách tài khoản'] },
+  roles: { id: 'roles', path: '/iam/roles', name: 'Vai trò và quyền', desc: 'Vai trò và permission của vai trò, danh mục permission theo MIC-07, mục menu chức năng (B09).', tabs: ['Vai trò', 'Danh mục Permission', 'Menu chức năng (B09)'] },
 } as const satisfies Record<AdminScreenId, ShellScreen>;
 
 const ADMIN_LIST: readonly ShellScreen[] = Object.values(SCREENS);

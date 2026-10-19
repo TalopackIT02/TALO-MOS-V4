@@ -37,7 +37,7 @@ export function ScreenBody({ screen, tab, onSessionLost, onOpenPath }: { screen:
     case 'accounts':
       return <AccountsScreen onSessionLost={onSessionLost} />;
     case 'roles':
-      return <RolesScreen onSessionLost={onSessionLost} />;
+      return <RolesScreen tab={tab} onSessionLost={onSessionLost} />;
     default: {
       // MOD-TEST-02: an installed module screen (component exported by the package entry).
       const Module = MODULE_SCREENS.find((m) => m.id === screen)?.component;
