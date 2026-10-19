@@ -1,5 +1,5 @@
 import express from 'express';
-import type { Router, Request, Response } from 'express';
+import type { Router, Request } from 'express';
 import { z } from 'zod';
 import type { AuthService } from '../auth/auth.service.js';
 import { sessionHandler } from '../foundation/foundation.http.js';
