@@ -395,7 +395,7 @@ describe('SYSTEM_TEST HTTP routes (mock)', () => {
 describe('Full Regression runner — fixed suites and redaction (ST-10, source level)', () => {
   it('runs only the existing suites, by fixed constants; no shell metacharacter in any argument', () => {
     expect(SUITES.map((s) => s.key)).toEqual(['BACKEND_TYPECHECK', 'BACKEND_BUILD', 'NON_DB', 'FOUNDATION_UNIT', 'FBE01_DB', 'FBE02_DB', 'FBE03_DB', 'FBE04_DB',
-      'FBE05_DB', 'FBE06_DB', 'FBE07_DB', 'SYSTEM_TEST_DB', 'AUTH_DB', 'AUTH_PRIVILEGES', 'DB_SMOKE', 'FRONTEND_BUILD']);
+      'FBE05_DB', 'FBE06_DB', 'FBE07_DB', 'SYSTEM_TEST_DB', 'IAM_ADMIN_DB', 'AUTH_DB', 'AUTH_PRIVILEGES', 'DB_SMOKE', 'FRONTEND_BUILD']);
     for (const s of SUITES) {
       expect(['npm', 'npx']).toContain(s.command);
       for (const a of s.args) expect(a).toMatch(/^[A-Za-z0-9_./:-]+$/);

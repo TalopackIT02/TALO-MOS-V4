@@ -33,6 +33,10 @@ export const SUITES: readonly SuiteDef[] = [
     args: ['vitest', 'run', 'test/integration/system-test/system-test.db.test.ts'], env: FOUNDATION_DB,
   },
   {
+    key: 'IAM_ADMIN_DB', label: 'IAM Management DB (talo_app, no persistent write)', cwd: 'backend', command: 'npx',
+    args: ['vitest', 'run', 'test/integration/iam-admin/iam-admin.db.test.ts'], env: FOUNDATION_DB,
+  },
+  {
     key: 'AUTH_DB', label: 'Auth DB', cwd: 'backend', command: 'npx',
     args: ['vitest', 'run', 'test/integration/auth/auth.db.test.ts', 'test/integration/auth/provisioning.db.test.ts', '--no-file-parallelism'], env: { TALO_AUTH_DB: '1' },
   },
