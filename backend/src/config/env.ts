@@ -14,6 +14,8 @@ export interface AppConfig {
   readonly databaseUrl: string | undefined;
   // IAM-NEXT B1: optional dedicated connection of IAM Management (role talo_iam_admin). Never logged.
   readonly iamAdminDatabaseUrl: string | undefined;
+  // Root administrator protected against IAM mutations (deployment configuration; never set through the API).
+  readonly iamRootAdminAccountId: string | undefined;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
 }
 
@@ -41,6 +43,7 @@ const RawEnv = z.object({
   TRUST_PROXY: optionalString,
   DATABASE_URL: optionalString,
   IAM_ADMIN_DATABASE_URL: optionalString,
+  IAM_ROOT_ADMIN_ACCOUNT_ID: optionalString,
   LOG_LEVEL: z.preprocess((value) => (value === '' ? undefined : value), z.enum(['debug', 'info', 'warn', 'error']).default('info')),
 });
 
@@ -145,6 +148,15 @@ function parseIamAdminDatabaseUrl(value: string | undefined, databaseUrl: string
   return value;
 }
 
+function parseRootAdminId(value: string | undefined, issues: string[]): string | undefined {
+  if (value === undefined) return undefined;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value)) {
+    issues.push('IAM_ROOT_ADMIN_ACCOUNT_ID must be a lowercase account UUID');
+    return undefined;
+  }
+  return value;
+}
+
 // Never includes environment values in error messages, only variable names.
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = RawEnv.safeParse(env);
@@ -161,6 +173,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     trustProxy: parseTrustProxy(raw.TRUST_PROXY, issues),
     databaseUrl: parseDatabaseUrl(raw.DATABASE_URL, issues),
     iamAdminDatabaseUrl: parseIamAdminDatabaseUrl(raw.IAM_ADMIN_DATABASE_URL, raw.DATABASE_URL, issues),
+    iamRootAdminAccountId: parseRootAdminId(raw.IAM_ROOT_ADMIN_ACCOUNT_ID, issues),
     logLevel: raw.LOG_LEVEL,
   };
   if (issues.length > 0) throw new ConfigError(issues);

@@ -21,14 +21,16 @@ const uuid = z.uuid();
 const idBody = z.strictObject({permissionId:uuid});
 const roleBody = z.strictObject({roleId:uuid});
 const direct = z.strictObject({permissionId:uuid,effect:z.enum(['ALLOW','DENY']),reason:z.string().trim().min(1).max(2000),expiresAt:z.iso.datetime({offset:true}).nullable().optional()});
-const pageQuery=z.strictObject({search:z.string().max(100).optional(),page:z.coerce.number().int().min(1).max(100000).optional(),pageSize:z.coerce.number().int().min(1).max(100).optional()});
+const accountField=z.enum(['username','employeeCode','fullName','accountStatus']);
+const pageQuery=z.strictObject({search:z.string().max(100).optional(),field:z.union([accountField,z.literal('all')]).optional(),status:z.string().regex(/^[A-Z_]{1,30}$/).optional(),
+  sort:accountField.optional(),dir:z.enum(['asc','desc']).optional(),page:z.coerce.number().int().min(1).max(100000).optional(),pageSize:z.coerce.number().int().min(1).max(100).optional()});
 // Catalog reads used by several admin screens (accounts, roles, permissions, assignments): any one admin permission.
 const CATALOG: readonly PermissionRef[] = [P.roles, P.permissions, P.assignments, P.accounts];
 type Work=(req:Request,actor:Actor,repo:IamAdminRepository)=>Promise<object>;
 
-export function iamAdminRouter({db,authService,secureCookie}:{db:FoundationDb;authService:Pick<AuthService,'describeSession'>;secureCookie:boolean}):Router {
+export function iamAdminRouter({db,authService,secureCookie,rootAccountId=null}:{db:FoundationDb;authService:Pick<AuthService,'describeSession'>;secureCookie:boolean;rootAccountId?:string|null}):Router {
   const router=express.Router();
-  const repo=new IamAdminRepository(db);
+  const repo=new IamAdminRepository(db,rootAccountId);
   const session=sessionHandler({authService,secureCookie});
   const handler=(p:PermissionRef|readonly PermissionRef[],fn:Work,status=200)=>session(async(req,res,actor)=>{
     try {
@@ -43,7 +45,11 @@ export function iamAdminRouter({db,authService,secureCookie}:{db:FoundationDb;au
     }
   });
   const id=(req:Request,name:string)=>iamId(req.params[name]);
-  router.get('/iam/admin/accounts',handler(P.accounts,async(req,_a,r)=>{const x=iamBody(pageQuery,req.query);return r.accounts(x.search?.trim()??'',x.page??1,x.pageSize??25);}));
+  // The actor's OWN admin capabilities (AppShell menus / screens): any authenticated session, evaluated by evaluateAccess().
+  router.get('/iam/admin/me/capabilities',session(async(_req,res,actor)=>{res.status(200).json({permissions:await repo.capabilities(actor)});}));
+  router.get('/iam/admin/accounts',handler(P.accounts,async(req,_a,r)=>{const x=iamBody(pageQuery,req.query);
+    return r.accounts({search:x.search?.trim()??'',field:x.field??'all',status:x.status??null,sort:x.sort??'username',dir:x.dir??'asc',page:x.page??1,pageSize:x.pageSize??25});}));
+  router.get('/iam/admin/permission-tree',handler(CATALOG,async(_req,_a,r)=>({tree:await r.permissionTree()})));
   router.get('/iam/admin/accounts/:accountId',handler(P.accounts,async(req,_a,r)=>({account:await r.account(id(req,'accountId'))})));
   router.get('/iam/admin/roles',handler(CATALOG,async(_req,_a,r)=>({roles:await r.roles()})));
   router.post('/iam/admin/roles',handler(P.roles,async(req,a,r)=>({role:await r.createRole(a,iamBody(role,req.body))}),201));

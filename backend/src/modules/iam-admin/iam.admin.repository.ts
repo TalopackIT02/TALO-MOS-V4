@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { sqlstateOf } from '../auth/sqlstate.js';
 import type { FoundationDb, SqlExecutor } from '../foundation/foundation.repository.js';
 import type { Actor } from '../foundation/foundation.access.js';
-import type { PermissionRef } from '../foundation/foundation.permissions.js';
+import type { GrantFacts, PermissionRef } from '../foundation/foundation.permissions.js';
+import * as FOUNDATION_PERMISSIONS from '../foundation/foundation.permissions.js';
 import { evaluateAccess } from '../foundation/foundation.permissions.js';
 import { canonicalDigest } from '../foundation/foundation.json.js';
 import { SqlFoundationRepository } from '../foundation/foundation.repository.js';
@@ -31,6 +32,7 @@ export const IAM_MESSAGES: Record<string, string> = {
   ROLE_INACTIVE: 'Vai trò đang không hoạt động.',
   PLATFORM_PERMISSION_LOCKED: 'Permission quản trị nền tảng (IAM / FOUNDATION) chỉ được cấp qua quy trình khởi tạo đã phê duyệt, không qua giao diện.',
   SELF_ASSIGNMENT_FORBIDDEN: 'Không được tự cấp, thu hồi hoặc mở rộng quyền cho chính tài khoản của mình.',
+  ROOT_ADMIN_PROTECTED: 'Quyền quản trị cốt lõi của tài khoản Admin gốc được bảo vệ, không thể thu hồi hoặc chặn qua quản trị IAM thông thường.',
   EXPIRY_INVALID: 'Thời điểm hết hạn phải ở tương lai.',
   BINDING_INVALID: 'Permission phải khớp đúng một ánh xạ MIC-07 (K05) của phiên bản ACTIVE, toàn vẹn mã băm.',
   PERMISSION_TRIPLE_EXISTS: 'Bộ ba Module / Resource / Operation (K05) đã có permission.',
@@ -82,11 +84,57 @@ const likePattern = (search: string) => `%${search.replace(/[\\%_]/g, (c) => `\\
 
 const ACCOUNT_COLUMNS = `a.user_account_id::text AS "accountId", a.username, a.account_status AS "accountStatus", (a.disabled_at IS NOT NULL) AS "disabled",
   m.employee_code AS "employeeCode", m.full_name AS "fullName", m.membership_status AS "membershipStatus"`;
-const ACCOUNT_FILTER = `($1 = '' OR a.username ILIKE $2 ESCAPE '\\' OR m.employee_code ILIKE $2 ESCAPE '\\' OR m.full_name ILIKE $2 ESCAPE '\\')`;
+// Server-side Field Search / sort of the account list: column allowlist (identifiers never come from the request).
+export const ACCOUNT_FIELDS = { username: 'a.username', employeeCode: 'm.employee_code', fullName: 'm.full_name', accountStatus: 'a.account_status' } as const;
+export type AccountField = keyof typeof ACCOUNT_FIELDS;
+export interface AccountQuery {
+  readonly search: string;
+  readonly field: AccountField | 'all';
+  readonly status: string | null;
+  readonly sort: AccountField;
+  readonly dir: 'asc' | 'desc';
+  readonly page: number;
+  readonly pageSize: number;
+}
+function accountFilter(field: AccountField | 'all'): string {
+  const cols = field === 'all' ? [ACCOUNT_FIELDS.username, ACCOUNT_FIELDS.employeeCode, ACCOUNT_FIELDS.fullName] : [ACCOUNT_FIELDS[field]];
+  return `($1 = '' OR ${cols.map((c) => `${c} ILIKE $2 ESCAPE '\\'`).join(' OR ')}) AND ($3::text IS NULL OR a.account_status = $3)`;
+}
+
+// Admin screens and actions whose availability the AppShell shows (each answer comes from evaluateAccess()).
+const isPermissionRef = (v: unknown): v is PermissionRef =>
+  typeof v === 'object' && v !== null && 'permissionCode' in v && 'moduleCode' in v && 'resourceCode' in v && 'operation' in v;
+export const ADMIN_CAPABILITY_REFS: readonly PermissionRef[] = [
+  ...Object.values(FOUNDATION_PERMISSIONS).filter(isPermissionRef),
+  IAM_ADMIN_PERMISSIONS.accounts, IAM_ADMIN_PERMISSIONS.roles, IAM_ADMIN_PERMISSIONS.permissions, IAM_ADMIN_PERMISSIONS.assignments,
+];
+
+// Refusals by a protection rule: recorded as an IAM audit FAILURE row (outside the rolled-back transaction).
+const AUDITED_REFUSALS = new Set(['ROOT_ADMIN_PROTECTED', 'SYSTEM_ROLE_LOCKED', 'PLATFORM_PERMISSION_LOCKED', 'SELF_ASSIGNMENT_FORBIDDEN']);
+const isValidGrant = (g: GrantFacts) => g.roleActive && g.notRevoked && g.started && g.notExpired;
 
 export class IamAdminRepository {
   private readonly access: SqlFoundationRepository;
-  constructor(private readonly db: FoundationDb) { this.access = new SqlFoundationRepository(db); }
+  // rootAccountId: the protected root administrator (server configuration IAM_ROOT_ADMIN_ACCOUNT_ID); null = not configured
+  // (then no system-role assignment can be revoked through this API at all — the stricter rule).
+  constructor(private readonly db: FoundationDb, private readonly rootAccountId: string | null = null) { this.access = new SqlFoundationRepository(db); }
+
+  isRoot(accountId: unknown): boolean {
+    return this.rootAccountId !== null && accountId === this.rootAccountId;
+  }
+
+  // The actor's OWN admin capabilities (its own session assurance): read only, no audit, fail closed (false).
+  async capabilities(actor: Actor): Promise<Record<string, boolean>> {
+    const out: Record<string, boolean> = {};
+    for (const ref of ADMIN_CAPABILITY_REFS) {
+      try {
+        out[ref.permissionCode] = evaluateAccess(await this.access.loadAccessFacts(actor.userAccountId, ref), actor.assuranceLevel).allowed;
+      } catch {
+        out[ref.permissionCode] = false;
+      }
+    }
+    return out;
+  }
 
   // Allowed when ANY of the permissions is effective (catalog reads shared by several admin screens); otherwise one IAM
   // audit DENIED row and 403. A lookup or audit failure is a 503 (never an allow).
@@ -123,22 +171,27 @@ export class IamAdminRepository {
     }
   }
 
-  async accounts(search: string, page: number, pageSize: number) {
+  async accounts(q: AccountQuery) {
     return this.read(async () => {
+      const where = accountFilter(q.field);
+      const params = [q.search, likePattern(q.search), q.status];
       const total = one(await this.db.query(
-        `SELECT count(*)::int AS total FROM iam.iam_user_accounts a JOIN iam.iam_memberships m ON m.membership_id=a.membership_id WHERE ${ACCOUNT_FILTER}`,
-        [search, likePattern(search)]));
+        `SELECT count(*)::int AS total FROM iam.iam_user_accounts a JOIN iam.iam_memberships m ON m.membership_id=a.membership_id WHERE ${where}`, params));
       const accounts = rows(await this.db.query(
         `SELECT ${ACCOUNT_COLUMNS} FROM iam.iam_user_accounts a JOIN iam.iam_memberships m ON m.membership_id=a.membership_id
-          WHERE ${ACCOUNT_FILTER} ORDER BY a.username COLLATE "C", a.user_account_id LIMIT $3 OFFSET $4`,
-        [search, likePattern(search), pageSize, (page - 1) * pageSize]));
-      return { accounts, total: total.total, page, pageSize };
+          WHERE ${where} ORDER BY ${ACCOUNT_FIELDS[q.sort]} COLLATE "C" ${q.dir === 'desc' ? 'DESC' : 'ASC'}, a.user_account_id LIMIT $4 OFFSET $5`,
+        [...params, q.pageSize, (q.page - 1) * q.pageSize])).map((a): Record<string, unknown> => ({ ...a, isRoot: this.isRoot(a.accountId) }));
+      return { accounts, total: total.total, page: q.page, pageSize: q.pageSize };
     });
   }
 
   async account(accountId: string) {
-    return this.read(async () => one(await this.db.query(
-      `SELECT ${ACCOUNT_COLUMNS} FROM iam.iam_user_accounts a JOIN iam.iam_memberships m ON m.membership_id=a.membership_id WHERE a.user_account_id=$1::uuid`, [accountId])));
+    return this.read(async () => {
+      const a = one(await this.db.query(
+        `SELECT ${ACCOUNT_COLUMNS} FROM iam.iam_user_accounts a JOIN iam.iam_memberships m ON m.membership_id=a.membership_id WHERE a.user_account_id=$1::uuid`, [accountId]));
+      const out: Record<string, unknown> = { ...a, isRoot: this.isRoot(a.accountId) };
+      return out;
+    });
   }
 
   async roles() {
@@ -167,27 +220,86 @@ export class IamAdminRepository {
   async effective(accountId: string) {
     const permissions = await this.permissions();
     return this.read(async () => {
-      const result: { permissionId: unknown; permissionCode: unknown; allowed: boolean; reason: string; assumedAssuranceLevel: unknown }[] = [];
+      const result: Record<string, unknown>[] = [];
       for (const p of permissions) {
         const ref: PermissionRef = { permissionCode: String(p.permissionCode), moduleCode: String(p.moduleCode), resourceCode: String(p.resourceCode), operation: String(p.operation) };
         const minimum = typeof p.minimumAssuranceLevel === 'number' ? p.minimumAssuranceLevel : 1;
-        const decision = evaluateAccess(await this.access.loadAccessFacts(accountId, ref), minimum);
-        result.push({ permissionId: p.permissionId, permissionCode: p.permissionCode, allowed: decision.allowed, reason: decision.allowed ? 'ALLOW' : decision.reason, assumedAssuranceLevel: minimum });
+        const facts = await this.access.loadAccessFacts(accountId, ref);
+        const decision = evaluateAccess(facts, minimum);
+        // Sources = labels of the VALID grants the evaluator saw; the decision itself is evaluateAccess()'s.
+        const valid = facts.grants.filter(isValidGrant);
+        const sources = [
+          ...(valid.some((g) => g.source === 'ROLE') ? ['ROLE'] : []),
+          ...(valid.some((g) => g.source === 'DIRECT' && g.effect === 'ALLOW') ? ['DIRECT_ALLOW'] : []),
+          ...(valid.some((g) => g.source === 'DIRECT' && g.effect === 'DENY') ? ['DIRECT_DENY'] : []),
+        ];
+        result.push({
+          permissionId: p.permissionId, permissionCode: p.permissionCode, moduleCode: p.moduleCode, resourceCode: p.resourceCode, operation: p.operation,
+          description: p.description, allowed: decision.allowed, reason: decision.allowed ? 'ALLOW' : decision.reason, assumedAssuranceLevel: minimum, sources,
+        });
       }
       return result;
     });
   }
 
-  // Navigation adapter (read only): every B09 item with the names of its module / function / parent.
+  // Navigation adapter (read only): every B09 item with the names of its module / function (display name in the ACTIVE
+  // version, B05) / parent.
   async navigationItems() {
     return this.read(async () => rows(await this.db.query(
       `SELECT n.navigation_id::text AS "navigationId",n.parent_id::text AS "parentId",p.menu_title AS "parentTitle",n.module_id::text AS "moduleId",m.module_key AS "moduleKey",
-              n.function_id::text AS "functionId",f.function_key AS "functionKey",n.menu_title AS "menuTitle",n.sort_order AS "sortOrder",n.is_visible AS "isVisible"
+              m.module_name AS "moduleName",n.function_id::text AS "functionId",f.function_key AS "functionKey",vf.display_name AS "functionName",
+              n.menu_title AS "menuTitle",n.sort_order AS "sortOrder",n.is_visible AS "isVisible"
          FROM foundation.fnd_navigation_items n
          LEFT JOIN foundation.fnd_navigation_items p ON p.navigation_id=n.parent_id
          LEFT JOIN foundation.fnd_modules m ON m.module_id=n.module_id
          LEFT JOIN foundation.fnd_functions f ON f.function_id=n.function_id
+         LEFT JOIN foundation.fnd_module_versions v ON v.module_id=n.module_id AND v.status='ACTIVE'
+         LEFT JOIN foundation.fnd_version_functions vf ON vf.version_id=v.version_id AND vf.function_id=n.function_id
         ORDER BY n.sort_order,n.menu_title,n.navigation_id`, [])));
+  }
+
+  // Permission tree of the IAM screens: Module (ACTIVE version) → Function (B05 display name) → Action (B06: MIC-03 name)
+  // → the permission of its K05 triple when defined. Platform permissions (IAM / FOUNDATION) apart (locked, bootstrap
+  // only); permissions bound to no declared Action apart. Read only; nothing is created.
+  async permissionTree() {
+    const permissions = await this.permissions();
+    return this.read(async () => {
+      const declared = rows(await this.db.query(
+        `SELECT m.module_key AS "moduleKey", m.module_name AS "moduleName", m.description AS "moduleDescription", m.is_enabled AS "isEnabled",
+                v.module_version AS "moduleVersion", f.function_key AS "functionKey", vf.display_name AS "functionName",
+                a.action_key AS "actionKey", va.action_spec->>'name' AS "actionName", va.description AS "actionDescription"
+           FROM foundation.fnd_modules m
+           JOIN foundation.fnd_module_versions v ON v.module_id=m.module_id AND v.status='ACTIVE'
+           JOIN foundation.fnd_version_functions vf ON vf.version_id=v.version_id
+           JOIN foundation.fnd_functions f ON f.function_id=vf.function_id
+           JOIN foundation.fnd_version_actions va ON va.version_function_id=vf.version_function_id
+           JOIN foundation.fnd_actions a ON a.action_id=va.action_id
+          ORDER BY m.module_key COLLATE "C", f.function_key COLLATE "C", a.action_key COLLATE "C"`, []));
+      const tripleOf = (p: Record<string, unknown>) => `${String(p.moduleCode)}/${String(p.resourceCode)}/${String(p.operation)}`;
+      const byTriple = new Map(permissions.map((p) => [tripleOf(p), p]));
+      const used = new Set<string>();
+      type Fn = { functionKey: string; functionName: unknown; actions: Record<string, unknown>[] };
+      const modules: { moduleKey: string; moduleName: unknown; description: unknown; isEnabled: unknown; moduleVersion: unknown; functions: Fn[] }[] = [];
+      for (const d of declared) {
+        const key = String(d.moduleKey);
+        let mod = modules.find((m) => m.moduleKey === key);
+        if (!mod) {
+          mod = { moduleKey: key, moduleName: d.moduleName, description: d.moduleDescription, isEnabled: d.isEnabled, moduleVersion: d.moduleVersion, functions: [] };
+          modules.push(mod);
+        }
+        let fn = mod.functions.find((f) => f.functionKey === String(d.functionKey));
+        if (!fn) {
+          fn = { functionKey: String(d.functionKey), functionName: d.functionName, actions: [] };
+          mod.functions.push(fn);
+        }
+        const triple = `${key}/${String(d.functionKey)}/${String(d.actionKey)}`;
+        const permission = byTriple.get(triple) ?? null;
+        if (permission) used.add(triple);
+        fn.actions.push({ actionKey: d.actionKey, actionName: d.actionName, actionDescription: d.actionDescription, permission });
+      }
+      const isPlatform = (p: Record<string, unknown>) => PLATFORM_MODULE_CODES.some((m) => m === p.moduleCode);
+      return { modules, platform: permissions.filter(isPlatform), unbound: permissions.filter((p) => !isPlatform(p) && !used.has(tripleOf(p))) };
+    });
   }
   // Modules with exactly one ACTIVE version (the only ones whose Functions can be offered by the menu).
   async activeModules() {
@@ -215,26 +327,43 @@ export class IamAdminRepository {
         return row;
       });
     } catch (error) {
-      throw error instanceof IamError ? error : iamDbError(error) ?? error;
+      const mapped = error instanceof IamError ? error : iamDbError(error) ?? error;
+      // A refusal by a protection rule is recorded (IAM audit FAILURE, after the rollback); the refusal stands either way.
+      if (mapped instanceof IamError && AUDITED_REFUSALS.has(mapped.code)) {
+        await this.db.execute(
+          'INSERT INTO iam.iam_audit_logs(actor_account_id,action_code,target_type,outcome,metadata) VALUES ($1::uuid,$2,$3,$4,$5::jsonb)',
+          [actor.userAccountId, action, targetType, 'FAILURE', JSON.stringify({ v: 1, requestId: actor.requestId, reason: mapped.code, ...details })],
+        ).catch(() => undefined);
+      }
+      throw mapped;
     }
   }
 
   // Role row inside the transaction (locked) + the anti-escalation facts: system role, role holding a platform permission,
-  // role currently held by the actor. A system / platform role is never changed, granted or revoked through this API.
+  // role currently held by the actor. A system / platform role is never changed or granted through this API.
   private async lockedRole(tx: SqlExecutor, actor: Actor, roleId: string) {
-    const role = one(await tx.query(
-      `SELECT r.role_id::text AS id, r.is_system AS "isSystem", r.is_active AS "isActive",
-              EXISTS (SELECT 1 FROM iam.iam_role_permissions rp JOIN iam.iam_permissions p ON p.permission_id = rp.permission_id
-                       WHERE rp.role_id = r.role_id AND p.module_code IN ${PLATFORM_SQL}) AS platform,
-              EXISTS (SELECT 1 FROM iam.iam_user_roles ur WHERE ur.role_id = r.role_id AND ur.user_account_id = $2::uuid AND ur.revoked_at IS NULL) AS "heldByActor"
-         FROM iam.iam_roles r WHERE r.role_id = $1::uuid FOR UPDATE OF r`, [roleId, actor.userAccountId]));
+    const role = await this.roleFacts(tx, actor, roleId);
     if (role.isSystem === true) throw new IamError(422, 'SYSTEM_ROLE_LOCKED');
     if (role.platform === true) throw new IamError(422, 'PLATFORM_PERMISSION_LOCKED');
     return role;
   }
 
+  private async roleFacts(tx: SqlExecutor, actor: Actor, roleId: string) {
+    return one(await tx.query(
+      `SELECT r.role_id::text AS id, r.is_system AS "isSystem", r.is_active AS "isActive",
+              EXISTS (SELECT 1 FROM iam.iam_role_permissions rp JOIN iam.iam_permissions p ON p.permission_id = rp.permission_id
+                       WHERE rp.role_id = r.role_id AND p.module_code IN ${PLATFORM_SQL}) AS platform,
+              EXISTS (SELECT 1 FROM iam.iam_user_roles ur WHERE ur.role_id = r.role_id AND ur.user_account_id = $2::uuid AND ur.revoked_at IS NULL) AS "heldByActor"
+         FROM iam.iam_roles r WHERE r.role_id = $1::uuid FOR UPDATE OF r`, [roleId, actor.userAccountId]));
+  }
+
   private static notSelf(actor: Actor, accountId: string): void {
     if (actor.userAccountId === accountId) throw new IamError(422, 'SELF_ASSIGNMENT_FORBIDDEN');
+  }
+
+  private static async isPlatformPermission(tx: SqlExecutor, permissionId: string): Promise<boolean> {
+    const p = one(await tx.query('SELECT module_code AS "moduleCode" FROM iam.iam_permissions WHERE permission_id=$1::uuid', [permissionId]));
+    return typeof p.moduleCode !== 'string' || PLATFORM_MODULE_CODES.some((m) => m === p.moduleCode);
   }
 
   private static async businessPermission(tx: SqlExecutor, permissionId: string): Promise<void> {
@@ -286,16 +415,23 @@ export class IamAdminRepository {
       IamAdminRepository.notSelf(actor, accountId);
       const current = one(await tx.query('SELECT (revoked_at IS NOT NULL) AS revoked, role_id::text AS "roleId" FROM iam.iam_user_roles WHERE user_role_id=$1::uuid AND user_account_id=$2::uuid FOR UPDATE', [assignmentId, accountId]));
       if (current.revoked === true) throw new IamError(409, 'ALREADY_REVOKED');
-      // Revoking a system / platform role (e.g. TALO_SYSTEM_ADMIN) could lock the platform out: bootstrap procedure only.
-      await this.lockedRole(tx, actor, String(current.roleId));
+      // A system / platform role (e.g. TALO_SYSTEM_ADMIN): never from the root administrator; from another account only
+      // when the root administrator is configured (the platform always keeps one protected administrator).
+      const role = await this.roleFacts(tx, actor, String(current.roleId));
+      if (role.isSystem === true || role.platform === true) {
+        if (this.isRoot(accountId)) throw new IamError(422, 'ROOT_ADMIN_PROTECTED');
+        if (this.rootAccountId === null) throw new IamError(422, role.isSystem === true ? 'SYSTEM_ROLE_LOCKED' : 'PLATFORM_PERMISSION_LOCKED');
+      }
       return one(await tx.query('UPDATE iam.iam_user_roles SET revoked_at=statement_timestamp() WHERE user_role_id=$1::uuid AND user_account_id=$2::uuid AND revoked_at IS NULL RETURNING user_role_id::text AS id,role_id::text AS "roleId"', [assignmentId, accountId]));
     });
   }
   async assignDirect(actor: Actor, accountId: string, data: { permissionId: string; effect: 'ALLOW' | 'DENY'; reason: string; expiresAt?: string | null | undefined }) {
     if (data.expiresAt && !(Date.parse(data.expiresAt) > Date.now())) throw new IamError(422, 'EXPIRY_INVALID');
-    IamAdminRepository.notSelf(actor, accountId);
     return this.mutation(actor, 'IAM.ACCOUNT.PERMISSION.ASSIGN', 'USER_ACCOUNT', { accountId, permissionId: data.permissionId, effect: data.effect }, async tx => {
-      // ALLOW would escalate, DENY could lock an administrator out: platform permissions are bootstrap-only.
+      IamAdminRepository.notSelf(actor, accountId);
+      // ALLOW would escalate, DENY could lock an administrator out: platform permissions are bootstrap-only (for the root
+      // administrator the refusal names the root protection).
+      if (this.isRoot(accountId) && await IamAdminRepository.isPlatformPermission(tx, data.permissionId)) throw new IamError(422, 'ROOT_ADMIN_PROTECTED');
       await IamAdminRepository.businessPermission(tx, data.permissionId);
       // An active duplicate hits uq_iam_user_active_direct_permission → 23505 → 409.
       return one(await tx.query('INSERT INTO iam.iam_user_permissions(user_account_id,permission_id,effect,reason,assigned_by_id,expires_at) VALUES($1::uuid,$2::uuid,$3,$4,$5::uuid,$6::timestamptz) RETURNING user_permission_id::text AS id,permission_id::text AS "permissionId",effect', [accountId, data.permissionId, data.effect, data.reason, actor.userAccountId, data.expiresAt ?? null]));
@@ -306,7 +442,10 @@ export class IamAdminRepository {
       IamAdminRepository.notSelf(actor, accountId);
       const current = one(await tx.query('SELECT (revoked_at IS NOT NULL) AS revoked, permission_id::text AS "permissionId" FROM iam.iam_user_permissions WHERE user_permission_id=$1::uuid AND user_account_id=$2::uuid FOR UPDATE', [assignmentId, accountId]));
       if (current.revoked === true) throw new IamError(409, 'ALREADY_REVOKED');
-      await IamAdminRepository.businessPermission(tx, String(current.permissionId));
+      if (await IamAdminRepository.isPlatformPermission(tx, String(current.permissionId))) {
+        if (this.isRoot(accountId)) throw new IamError(422, 'ROOT_ADMIN_PROTECTED');
+        if (this.rootAccountId === null) throw new IamError(422, 'PLATFORM_PERMISSION_LOCKED');
+      }
       return one(await tx.query('UPDATE iam.iam_user_permissions SET revoked_at=statement_timestamp() WHERE user_permission_id=$1::uuid AND user_account_id=$2::uuid AND revoked_at IS NULL RETURNING user_permission_id::text AS id,permission_id::text AS "permissionId"', [assignmentId, accountId]));
     });
   }

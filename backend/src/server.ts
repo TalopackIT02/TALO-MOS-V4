@@ -47,7 +47,10 @@ async function main(): Promise<void> {
     iamAdmin = await connectIamAdmin({
       iamUrl: config.iamAdminDatabaseUrl, apiClient: getPrismaClient(config.databaseUrl), createClient: createPrismaClient, logger,
     });
-    apiRouters.push(iamAdminRouter({ db: iamAdmin.db, authService: auth.service, secureCookie: config.nodeEnv === 'production' }));
+    apiRouters.push(iamAdminRouter({
+      db: iamAdmin.db, authService: auth.service, secureCookie: config.nodeEnv === 'production', rootAccountId: config.iamRootAdminAccountId ?? null,
+    }));
+    logger.info('IAM Management: root administrator protection', { configured: config.iamRootAdminAccountId !== undefined });
     // MOD-TEST-02: module packages of modules/ (generated registry), mounted through the Host capabilities; every module
     // request is still checked for Session + IAM + ACTIVE + ENABLED by those capabilities.
     const db = prismaFoundationDb(getPrismaClient(config.databaseUrl));

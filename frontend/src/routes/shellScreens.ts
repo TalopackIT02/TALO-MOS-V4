@@ -30,9 +30,9 @@ export interface NavGroup {
 export const SCREENS = {
   home: { id: 'home', path: '/', name: 'Trang chủ', desc: 'Chức năng nghiệp vụ được cấp cho tài khoản và các màn hình quản trị nền tảng.', tabs: ['Chức năng của tôi'] },
   module: { id: 'module', path: '/foundation/modules', name: 'Quản lý Module', desc: 'Đăng ký module, quản lý phiên bản, hồ sơ MIC và vòng đời phê duyệt – kích hoạt.', tabs: ['Module & Phiên bản', 'Đăng ký Module'] },
-  navigation: { id: 'navigation', path: '/foundation/navigation', name: 'Điều hướng', desc: 'Cây menu ứng dụng do Foundation quản lý, lọc theo quyền IAM của từng tài khoản.', tabs: ['Menu của tôi', 'Quản trị menu'] },
+  navigation: { id: 'navigation', path: '/foundation/navigation', name: 'Điều hướng', desc: 'Nơi duy nhất quản lý menu chức năng (B09): chọn Module / Chức năng theo tên, tạo nhóm hoặc mục chức năng, sửa tiêu đề, thứ tự, hiển thị.', tabs: ['Menu của tôi', 'Quản trị menu (B09)'] },
   accounts: { id: 'accounts', path: '/iam/accounts', name: 'Quản lý tài khoản', desc: 'Tìm tài khoản, xem vai trò, quyền trực tiếp và quyền hiệu lực; gán và thu hồi.', tabs: ['Danh sách tài khoản'] },
-  roles: { id: 'roles', path: '/iam/roles', name: 'Vai trò và quyền', desc: 'Vai trò và permission của vai trò, danh mục permission theo MIC-07, mục menu chức năng (B09).', tabs: ['Vai trò', 'Danh mục Permission', 'Menu chức năng (B09)'] },
+  roles: { id: 'roles', path: '/iam/roles', name: 'Vai trò và quyền', desc: 'Vai trò và quyền theo cây Module → Chức năng → Thao tác; danh mục permission theo MIC-07. Menu (B09) quản lý tại Foundation › Điều hướng.', tabs: ['Vai trò', 'Danh mục Permission'] },
 } as const satisfies Record<AdminScreenId, ShellScreen>;
 
 const ADMIN_LIST: readonly ShellScreen[] = Object.values(SCREENS);
@@ -84,9 +84,51 @@ export function groupOf(id: ScreenId): NavGroup | undefined {
   return NAV_GROUPS.find((group) => group.children.some((child) => child === id));
 }
 
-// Client-side screen search of the approved HTML: first screen whose name contains the query.
-export function findScreen(query: string): ShellScreen | undefined {
-  const q = query.trim().toLowerCase();
+// ------------------------------------------------------------------------------------------------- WS06 screen access
+// Screen → permission(s) that open it (any one), and per tab. The values are the codes evaluated for the session by
+// GET /api/iam/admin/me/capabilities (evaluateAccess()); the API of each screen checks the same permissions again, so
+// this only decides what is SHOWN (menu, home cards, search, breadcrumb, direct URL) — never what is allowed.
+//   module     → foundation.module_registry.read      (tab "Đăng ký Module" → foundation.module_registry.create)
+//   navigation → foundation.navigation.manage         (GET/POST/PATCH B09 items)
+//   accounts   → iam.accounts.read                    (writes: iam.assignments.manage)
+//   roles      → iam.roles.manage | iam.permissions.manage | iam.assignments.manage (catalog reads accept any of them)
+type Can = (code: string) => boolean;
+const ROLES_ANY = ['iam.roles.manage', 'iam.permissions.manage', 'iam.assignments.manage'] as const;
+export const SCREEN_ACCESS: Readonly<Record<Exclude<AdminScreenId, 'home'>, { readonly open: readonly string[]; readonly tabs: readonly (readonly string[])[] }>> = {
+  module: { open: ['foundation.module_registry.read'], tabs: [['foundation.module_registry.read'], ['foundation.module_registry.create']] },
+  navigation: { open: ['foundation.navigation.manage'], tabs: [['foundation.navigation.manage'], ['foundation.navigation.manage']] },
+  accounts: { open: ['iam.accounts.read'], tabs: [['iam.accounts.read']] },
+  roles: { open: ROLES_ANY, tabs: [ROLES_ANY, ROLES_ANY] },
+};
+
+const isAdminScreen = (id: ScreenId): id is Exclude<AdminScreenId, 'home'> => id === 'module' || id === 'navigation' || id === 'accounts' || id === 'roles';
+
+// Whether an ADMIN screen may be shown (home always; module screens are decided by the menu — see AppShell).
+export function canOpenAdmin(id: ScreenId, can: Can): boolean {
+  if (id === 'home') return true;
+  return isAdminScreen(id) && SCREEN_ACCESS[id].open.some(can);
+}
+
+// Indexes of the tabs of an admin screen that may be shown.
+export function adminTabs(id: ScreenId, can: Can): number[] {
+  if (!isAdminScreen(id)) return screenById(id).tabs.map((_, i) => i);
+  return SCREEN_ACCESS[id].tabs.flatMap((codes, i) => (codes.some(can) ? [i] : []));
+}
+
+// Admin groups with only the screens the session may open (an empty group is not shown).
+export function visibleGroups(can: Can): NavGroup[] {
+  return NAV_GROUPS.map((g) => ({ ...g, children: g.children.filter((id) => canOpenAdmin(id, can)) })).filter((g) => g.children.length > 0);
+}
+
+// Search target: an allowed admin screen or a business menu entry (built by AppShell from the filtered lists).
+export interface SearchTarget {
+  readonly name: string;
+  readonly path: ShellPath;
+}
+
+// Client-side screen search: first target whose name contains the query (only targets the session may open).
+export function findTarget(query: string, targets: readonly SearchTarget[]): SearchTarget | undefined {
+  const q = query.trim().toLocaleLowerCase('vi');
   if (!q) return undefined;
-  return ADMIN_LIST.find((screen) => screen.name.toLowerCase().includes(q));
+  return targets.find((t) => t.name.toLocaleLowerCase('vi').includes(q));
 }

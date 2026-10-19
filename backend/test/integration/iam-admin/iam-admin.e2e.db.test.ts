@@ -43,6 +43,7 @@ describe.skipIf(!enabled)('IAM-NEXT acceptance — IAM Management (talo_iam_admi
   let h: PsqlSession;
   let fx: AuthFixtures;
   let app: Express;
+  let authModule: Awaited<ReturnType<typeof createAuthModule>> | undefined;
   const run = `${Date.now().toString(36).toUpperCase()}_${randomBytes(3).toString('hex').toUpperCase()}`;
   const tag = `FBET-${run}`;
   const perm: Record<string, string> = {};
@@ -82,6 +83,7 @@ describe.skipIf(!enabled)('IAM-NEXT acceptance — IAM Management (talo_iam_admi
     const logger = createLogger({ level: 'error' });
     const hasher = new PasswordHasher();
     const auth = await createAuthModule({ prisma: api, logger, production: false, hasher, loginLimiter: new SlidingWindowRateLimiter({ limit: 10_000, windowMs: 15 * 60_000 }) });
+    authModule = auth;
     const foundation = createFoundationModule({ prisma: api, authService: auth.service, logger, secureCookie: false, environment: 'TEST' });
     const db = prismaFoundationDb(api);
     app = createApp({
@@ -198,5 +200,98 @@ describe.skipIf(!enabled)('IAM-NEXT acceptance — IAM Management (talo_iam_admi
     const [audits] = await h.ok(`SELECT count(*) FILTER (WHERE outcome = 'SUCCESS') FROM iam.iam_audit_logs WHERE actor_account_id = ${lit(admin.accountId)} AND action_code LIKE 'IAM.%'`); // Auth LOGIN rows excluded
     expect(Number(audits?.[0])).toBe(1 + ST_PERMS.length + 1 + 1 + 1 + 1); // role, 3 role-permissions, assign, deny, revoke deny, revoke role
     evidence['audits'] = audits?.[0];
+  });
+
+  // MASTER CONTRACT WS06 / WS07 on the real database. Six session profiles (fixture accounts + fixture roles, removed by
+  // UUID): what /iam/admin/me/capabilities answers (source of the menu / home / search / screen guard) is exactly what the
+  // admin APIs then allow (layer 3). Root protection: a fixture account configured as root for a second router instance.
+  it('six profiles: capabilities = API decisions; root administrator protected in the mutation layer with audit', async () => {
+    const PLATFORM = [
+      'foundation.module_registry.read', 'foundation.module_registry.create', 'foundation.module_version.read', 'foundation.module_version.create',
+      'foundation.module_version.update', 'foundation.module_version.submit', 'foundation.module_version.approve', 'foundation.module_version.reject',
+      'foundation.module_version.activate', 'foundation.module_version.retire', 'foundation.module_registry.enable', 'foundation.module_registry.disable',
+      'foundation.navigation.manage', 'iam.accounts.read', 'iam.roles.manage', 'iam.permissions.manage', 'iam.assignments.manage',
+    ];
+    for (const code of PLATFORM) {
+      const [row] = await h.ok(`SELECT permission_id FROM iam.iam_permissions WHERE permission_code = ${lit(code)}`);
+      if (!row?.[0]) throw new Error(`permission ${code} not registered`);
+      perm[code] = row[0];
+    }
+    async function profile(name: string, codes: readonly string[]) {
+      const acc = await fx.create();
+      if (codes.length > 0) {
+        const roleId = randomUUID();
+        created.harnessRoles.push(roleId);
+        await h.ok('BEGIN');
+        await h.ok(`INSERT INTO iam.iam_roles (role_id, role_code, role_name, is_active, is_system) VALUES (${lit(roleId)}, ${lit(`${tag}-P-${name}`)}, ${lit(`FBET profile ${name}`)}, true, false)`);
+        for (const code of codes) await h.ok(`INSERT INTO iam.iam_role_permissions (role_id, permission_id) VALUES (${lit(roleId)}, ${lit(perm[code] ?? NIL)})`);
+        await h.ok(`INSERT INTO iam.iam_user_roles (user_role_id, user_account_id, role_id) VALUES (${lit(randomUUID())}, ${lit(acc.accountId)}, ${lit(roleId)})`);
+        await h.ok('COMMIT');
+      }
+      return login(acc.accountId, acc.username, acc.password);
+    }
+    const profiles: Record<string, readonly string[]> = {
+      none: [], foundationView: ['foundation.module_registry.read'], iamRead: ['iam.accounts.read'], roleManager: ['iam.roles.manage'],
+      systemTest: ST_PERMS, fullAdmin: PLATFORM,
+    };
+    const matrix: Record<string, unknown> = {};
+    const sessions: Record<string, { accountId: string; cookie: string }> = {};
+    for (const [name, codes] of Object.entries(profiles)) {
+      const s = await profile(name, codes);
+      sessions[name] = s;
+      const capRes = await get('/iam/admin/me/capabilities', s.cookie);
+      expect(capRes.status).toBe(200);
+      const granted = Object.entries(capRes.body.permissions).filter(([, v]) => v === true).map(([k]) => k).sort();
+      expect(granted).toEqual(codes.filter((c) => PLATFORM.includes(c)).sort());
+      const has = (c: string) => codes.includes(c);
+      const status = async (url: string) => (await get(url, s.cookie)).status;
+      const row = {
+        modules: await status('/foundation/modules'),
+        b09: await status('/iam/admin/foundation/navigation/items'),
+        accounts: await status('/iam/admin/accounts'),
+        tree: await status('/iam/admin/permission-tree'),
+        systemTest: await status('/system-test/health'),
+      };
+      expect(row).toEqual({
+        modules: has('foundation.module_registry.read') ? 200 : 403,
+        b09: has('foundation.navigation.manage') ? 200 : 403,
+        accounts: has('iam.accounts.read') ? 200 : 403,
+        tree: ['iam.roles.manage', 'iam.permissions.manage', 'iam.assignments.manage', 'iam.accounts.read'].some(has) ? 200 : 403,
+        systemTest: has('system_test.diagnostics.read') ? 200 : 403,
+      });
+      matrix[name] = row;
+    }
+    evidence['profiles'] = matrix;
+    const admin = sessions['fullAdmin'];
+    if (!admin || !authModule) throw new Error('fullAdmin profile');
+
+    // Field Search on the real data: the administrator finds a fixture account by its username only.
+    const [rootFxRow] = await h.ok(`SELECT username FROM iam.iam_user_accounts WHERE user_account_id = ${lit(sessions['none']?.accountId ?? NIL)}`);
+    const found = await get(`/iam/admin/accounts?field=username&search=${encodeURIComponent(rootFxRow?.[0] ?? '')}&sort=username&dir=desc`, admin.cookie);
+    expect([found.status, found.body.total, found.body.accounts[0]?.accountId]).toEqual([200, 1, sessions['none']?.accountId]);
+    expect((await get('/iam/admin/accounts?field=password_hash&search=x', admin.cookie)).status).toBe(400);
+
+    // WS07: a fixture account plays the root administrator (second router instance; the real root is never touched).
+    const root = sessions['none'];
+    if (!root) throw new Error('root fixture');
+    const rootApp = createApp({
+      config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger: createLogger({ level: 'error' }),
+      apiRouters: [authModule.router, iamAdminRouter({ db: prismaFoundationDb(iam), authService: authModule.service, secureCookie: false, rootAccountId: root.accountId })],
+    });
+    const rootSend = (url: string, body: unknown) => request(rootApp).post(`/api${url}`).set('User-Agent', fx.userAgent).set('Origin', TEST_ORIGIN)
+      .set('Content-Type', 'application/json').set('Cookie', admin.cookie).send(JSON.stringify(body));
+    const denyRoot = await rootSend(`/iam/admin/accounts/${root.accountId}/permissions`, { permissionId: perm['iam.accounts.read'], effect: 'DENY', reason: 'WS07 acceptance' });
+    expect([denyRoot.status, denyRoot.body.error?.code]).toEqual([422, 'ROOT_ADMIN_PROTECTED']);
+    const [rootDirect] = await h.ok(`SELECT count(*) FROM iam.iam_user_permissions WHERE user_account_id = ${lit(root.accountId)}`);
+    expect(rootDirect?.[0]).toBe('0');
+    const rootView = await request(rootApp).get(`/api/iam/admin/accounts/${root.accountId}`).set('User-Agent', fx.userAgent).set('Cookie', admin.cookie);
+    expect(rootView.body.account.isRoot).toBe(true);
+    const [failure] = await h.ok(`SELECT count(*) FROM iam.iam_audit_logs WHERE actor_account_id = ${lit(admin.accountId)} AND outcome = 'FAILURE' AND metadata->>'reason' = 'ROOT_ADMIN_PROTECTED'`);
+    expect(failure?.[0]).toBe('1');
+    // A non-root account: the platform permission stays locked for everybody (no backdoor either way).
+    const other = sessions['iamRead'];
+    const denyOther = await rootSend(`/iam/admin/accounts/${other?.accountId ?? NIL}/permissions`, { permissionId: perm['iam.accounts.read'], effect: 'DENY', reason: 'x' });
+    expect([denyOther.status, denyOther.body.error?.code]).toEqual([422, 'PLATFORM_PERMISSION_LOCKED']);
+    evidence['rootProtection'] = { blocked: denyRoot.body.error?.code, failureAudit: failure?.[0] };
   });
 });

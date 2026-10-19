@@ -413,6 +413,16 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_m
     const last = await get(`/system-test/tables/B01/rows?page=${lastPage}&pageSize=100`, full.cookie);
     expect(last.body.data.rows.length).toBe(Number(b01Total?.[0]) - (lastPage - 1) * 100);
     expect((await get(`/system-test/tables/B01/rows?page=${lastPage + 1}&pageSize=100`, full.cookie)).body.data.rows).toEqual([]);
+    // WS03 — server field search (bound ILIKE on the text form) + sort (allowlisted column, table order as tiebreak).
+    const found = await get('/system-test/tables/B01/rows?search=SYSTEM_TEST&field=module_key&sort=module_key&dir=desc&pageSize=100', full.cookie);
+    expect(found.status).toBe(200);
+    const exp = await h.ok(`SELECT module_key FROM foundation.fnd_modules WHERE strpos(lower(module_key::text), 'system_test') > 0 ORDER BY module_key DESC NULLS LAST, created_at, module_id LIMIT 100`);
+    const keyAt = (VIEWER_TABLES.find((x) => x.tableKey === 'B01')?.columns ?? []).indexOf('module_key');
+    expect(found.body.data.rows.map((r: (string | null)[]) => r[keyAt])).toEqual(exp.map((r) => r[0]));
+    expect(found.body.data.rows.length).toBeGreaterThanOrEqual(1);
+    const injected = await get(`/system-test/tables/B01/rows?search=${encodeURIComponent("%' OR 1=1 --")}`, full.cookie);
+    expect([injected.status, injected.body.data.totalRows]).toEqual([200, 0]); // literal text, never SQL
+    for (const q of ['field=manifest_json&search=x', 'sort=session_id', 'field=module_key%3B']) expect((await get(`/system-test/tables/B01/rows?${q}`, full.cookie)).status).toBe(400);
     expect(await foundationCounts()).toEqual(before); // ST-07: the viewer wrote nothing
     evidence['viewer'] = { readable: READABLE, refused: NOT_READABLE, b01Rows: b01Total?.[0] };
 

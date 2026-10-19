@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ModuleHost, ReadOnlyQuery as SqlExecutor } from './host.js';
-import { countSql, rowsSql } from './system-test.tables.js';
-import type { ViewerTable } from './system-test.tables.js';
+import { NO_VIEW, containsPattern, countSql, rowsSql } from './system-test.tables.js';
+import type { ViewerQuery, ViewerTable } from './system-test.tables.js';
 
 // MOD-TEST-01 — every statement of the SYSTEM_TEST module. SELECT only: the module never writes Foundation, IAM or any
 // other table (its only write path is the shared AccessGuard DENIED audit). Values travel as bind parameters; SQL
@@ -89,7 +89,7 @@ export class TableNotReadableError extends Error {
 export interface SystemTestRepository {
   readableTables(tables: readonly ViewerTable[]): Promise<ReadonlyMap<string, boolean>>;
   // Throws TableNotReadableError when a listed column is not readable (checked before the data query).
-  tablePage(table: ViewerTable, limit: number, offset: number): Promise<TablePage>;
+  tablePage(table: ViewerTable, limit: number, offset: number, view?: ViewerQuery): Promise<TablePage>;
   diagnostics(moduleKey: string): Promise<DiagnosticsSnapshot>;
 }
 
@@ -124,11 +124,12 @@ export class SqlSystemTestRepository implements SystemTestRepository {
     return this.readOnly((tx) => privileges(tx, tables));
   }
 
-  async tablePage(table: ViewerTable, limit: number, offset: number): Promise<TablePage> {
+  async tablePage(table: ViewerTable, limit: number, offset: number, view: ViewerQuery = NO_VIEW): Promise<TablePage> {
     return this.readOnly(async (tx) => {
       if ((await privileges(tx, [table])).get(table.tableKey) !== true) throw new TableNotReadableError();
-      const [count] = await tx.query(countSql(table), []);
-      const rows = (await tx.query(rowsSql(table), [limit, offset])).map((row) => {
+      const filter = view.search === '' ? [] : [containsPattern(view.search)];
+      const [count] = await tx.query(countSql(table, view), filter);
+      const rows = (await tx.query(rowsSql(table, view), [...filter, limit, offset])).map((row) => {
         const record = z.record(z.string(), cell).parse(row);
         return table.columns.map((c) => record[c] ?? null);
       });

@@ -1,25 +1,26 @@
 import { useState } from 'react';
 import nameUrl from '../assets/images/talopack-name.png';
 import symbolUrl from '../assets/images/talopack-symbol.png';
-import { findScreen } from '../routes/shellScreens';
-import type { ScreenId } from '../routes/shellScreens';
+import { findTarget } from '../routes/shellScreens';
+import type { SearchTarget, ShellPath } from '../routes/shellScreens';
 import type { AccountSummary } from '../services/auth/authApi';
 import { t } from '../services/auth/messages';
 import { accountInitial, displayName, SHELL_TEXT } from './shellText';
 
 // Topbar: brand zone (same width as the sidebar), company name (display text only — no company selection), screen
-// search, and the signed-in account from the session with its menu (logout).
+// search (only screens the session may open — WS06), and the signed-in account from the session with its menu (logout).
 
 export interface ShellTopbarProps {
   readonly account: AccountSummary;
   readonly menuOpen: boolean;
   readonly loggingOut: boolean;
   readonly onToggleMenu: () => void;
-  readonly onSearch: (id: ScreenId) => void;
+  readonly targets: readonly SearchTarget[];
+  readonly onSearch: (path: ShellPath) => void;
   readonly onLogout: () => void;
 }
 
-export function ShellTopbar({ account, menuOpen, loggingOut, onToggleMenu, onSearch, onLogout }: ShellTopbarProps) {
+export function ShellTopbar({ account, menuOpen, loggingOut, targets, onToggleMenu, onSearch, onLogout }: ShellTopbarProps) {
   const [query, setQuery] = useState('');
   const name = displayName(account);
 
@@ -43,8 +44,8 @@ export function ShellTopbar({ account, menuOpen, loggingOut, onToggleMenu, onSea
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
-            const screen = findScreen(event.target.value);
-            if (screen) onSearch(screen.id);
+            const target = findTarget(event.target.value, targets);
+            if (target) onSearch(target.path);
           }}
         />
         <div className="user-menu">

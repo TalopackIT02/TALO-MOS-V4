@@ -41,6 +41,16 @@ export interface TableInfo {
   hiddenColumns: string[];
 }
 
+// Server-side field search / sort: columns must be shown columns of the table (the server refuses anything else).
+export interface RowsView {
+  search: string;
+  field: string | null;
+  sort: string | null;
+  dir: 'asc' | 'desc';
+}
+
+export const NO_ROWS_VIEW: RowsView = { search: '', field: null, sort: null, dir: 'asc' };
+
 export interface TableRows {
   table: TableInfo;
   orderBy: string[];
@@ -219,8 +229,13 @@ export const systemTestApi = {
     if (!Array.isArray(v)) throw new Error('tables');
     return v.map(toTable);
   }),
-  rows: (tableKey: string, page: number, pageSize: number) =>
-    call('GET', `/tables/${encodeURIComponent(tableKey)}/rows?page=${page}&pageSize=${pageSize}`, 'data', toRows),
+  rows: (tableKey: string, page: number, pageSize: number, view: RowsView = NO_ROWS_VIEW) => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (view.search.trim() !== '') q.set('search', view.search.trim());
+    if (view.field !== null) q.set('field', view.field);
+    if (view.sort !== null) { q.set('sort', view.sort); q.set('dir', view.dir); }
+    return call('GET', `/tables/${encodeURIComponent(tableKey)}/rows?${q.toString()}`, 'data', toRows);
+  },
   results: () => call('GET', '/results', 'results', toResults),
 };
 

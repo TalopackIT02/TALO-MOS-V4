@@ -21,8 +21,8 @@ import type { DiagnosticsSnapshot, ModuleState, SystemTestRepository, TablePage 
 import { REGRESSION_FORMAT, parseRegressionResults } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.results.js';
 import { createModule } from '../../../src/installed-modules/SYSTEM_TEST/backend/index.js';
 import { SystemTestError } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.service.js';
-import { VIEWER_TABLES, countSql, rowsSql } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.tables.js';
-import type { ViewerTable } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.tables.js';
+import { NO_VIEW, VIEWER_TABLES, containsPattern, countSql, rowsSql } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.tables.js';
+import type { ViewerQuery, ViewerTable } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.tables.js';
 import { SUITES, redact, testCounts } from '../../system-test/regression.support.js';
 import { FakeAuth, TEST_ORIGIN, pgError, token } from '../foundation/fakes.js';
 import { HOST_SQL, createHostCapabilities } from '../../../src/module-host/capabilities.js';
@@ -88,13 +88,15 @@ class FakeRepo implements SystemTestRepository {
   pageError: Error | null = null;
   readonly calls: string[] = [];
   lastPage: { table: string; limit: number; offset: number } | null = null;
+  lastView: ViewerQuery | null = null;
 
   async readableTables(tables: readonly ViewerTable[]): Promise<ReadonlyMap<string, boolean>> {
     this.calls.push('readableTables');
     return new Map(tables.map((t) => [t.tableKey, this.readable.has(t.tableKey)]));
   }
 
-  async tablePage(table: ViewerTable, limit: number, offset: number): Promise<TablePage> {
+  async tablePage(table: ViewerTable, limit: number, offset: number, view: ViewerQuery = NO_VIEW): Promise<TablePage> {
+    this.lastView = view;
     this.calls.push(`tablePage:${table.tableKey}`);
     this.lastPage = { table: table.tableKey, limit, offset };
     if (this.pageError) throw this.pageError;
@@ -296,6 +298,35 @@ describe('SystemTestService (mock) — IAM first, then module lifecycle, then th
     for (const key of ['B15', 'b01', 'fnd_modules', 'iam_credentials', 'B01; DROP TABLE x', '', 'B00']) {
       await expect(t.service.rows(actor, key, {})).rejects.toMatchObject({ status: 404, code: 'TABLE_NOT_FOUND' });
     }
+  });
+
+  it('WS03: field search / sort — only shown columns of THAT table; the text is a bind parameter; default view = no filter', async () => {
+    const t = build();
+    t.allowAll();
+    const page = await t.service.rows(actor, 'B01', {});
+    expect([page.view, t.repo.lastView]).toEqual([NO_VIEW, NO_VIEW]);
+    await t.service.rows(actor, 'B01', { search: '  core ', field: 'module_key', sort: 'module_name', dir: 'desc' });
+    expect(t.repo.lastView).toEqual({ search: 'core', field: 'module_key', sort: 'module_name', dir: 'desc' });
+    for (const q of [
+      { field: 'manifest_json' }, { sort: 'manifest_json' }, { field: 'session_id' }, { sort: 'password_hash' }, { field: 'module_key; DROP' },
+      { sort: '"module_key"' }, { dir: 'up' }, { search: 'x'.repeat(101) }, { search: ['a', 'b'] }, { field: 'MODULE_KEY' },
+    ]) await expect(t.service.rows(actor, 'B02', q)).rejects.toMatchObject({ status: 400, code: 'VALIDATION_ERROR' });
+    await expect(t.service.rows(actor, 'B08', { field: 'session_id', search: 'x' })).rejects.toMatchObject({ status: 400 }); // hidden column
+  });
+
+  it('WS03: filter / sort SQL — identifiers from the allowlist only, search pattern $1, paging $2 / $3, PK last in ORDER BY', () => {
+    const b01 = VIEWER_TABLES[0];
+    if (b01 === undefined) throw new Error('B01');
+    const q: ViewerQuery = { search: 'a', field: 'module_key', sort: 'module_name', dir: 'desc' };
+    const sql = rowsSql(b01, q);
+    expect(sql).toContain(`FROM "foundation"."fnd_modules" WHERE ("module_key"::text ILIKE $1 ESCAPE '\\') ORDER BY "module_name" DESC NULLS LAST, "created_at", "module_id" LIMIT $2 OFFSET $3`);
+    expect(countSql(b01, q)).toBe(`SELECT count(*)::int AS n FROM "foundation"."fnd_modules" WHERE ("module_key"::text ILIKE $1 ESCAPE '\\')`);
+    const all = rowsSql(b01, { ...q, field: null, sort: null });
+    expect(all.match(/ILIKE \$1/g)?.length).toBe(b01.columns.length);
+    expect(all).toContain('ORDER BY "created_at", "module_id" LIMIT $2 OFFSET $3');
+    expect(rowsSql(b01, { ...q, sort: 'not_a_column', search: '' })).toContain('ORDER BY "created_at", "module_id" LIMIT $1 OFFSET $2');
+    expect(containsPattern('50%_a\\b')).toBe('%50\\%\\_a\\\\b%');
+    for (const t of VIEWER_TABLES) expect(rowsSql(t, { ...q, field: null })).not.toMatch(WRITE);
   });
 
   it('ST-06: a table without SELECT (B07 / B08 / B12 for talo_app) → 403 TABLE_NOT_READABLE; 42501 likewise; other errors 503', async () => {

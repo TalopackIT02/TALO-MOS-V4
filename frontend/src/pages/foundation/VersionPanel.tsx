@@ -4,6 +4,8 @@ import { foundationApi, isJsonObject } from '../../services/foundation/foundatio
 import type { ModuleRecord, VersionRecord } from '../../services/foundation/foundationApi';
 import { FeedbackLine, StatusTag, formatTime, settle } from './common';
 import type { Feedback } from './common';
+import { DataTable } from '../../components/DataTable';
+import type { Column } from '../../components/DataTable';
 
 // FE-04 / FE-05 — versions of one module: create a DRAFT, edit the MIC JSON (DRAFT only), SUBMIT, then the lifecycle
 // actions that match the known status. ACTIVATE / RETIRE / REJECT ask for confirmation. The backend validates everything
@@ -57,6 +59,15 @@ function sameJson(a: unknown, b: unknown): boolean {
   }
   return a === b;
 }
+
+// WS03: version list (client mode — a module has few versions). Sort values are ISO timestamps / SemVer text.
+const VERSION_COLUMNS: Column<VersionRecord>[] = [
+  { key: 'moduleVersion', label: 'Phiên bản', value: (x) => x.moduleVersion, render: (x) => <b>{x.moduleVersion}</b> },
+  { key: 'status', label: 'Trạng thái', value: (x) => x.status, render: (x) => <StatusTag status={x.status} /> },
+  { key: 'createdAt', label: 'Tạo lúc', value: (x) => x.createdAt, render: (x) => formatTime(x.createdAt), searchable: false },
+  { key: 'reviewedAt', label: 'Duyệt lúc', value: (x) => x.reviewedAt ?? '', render: (x) => formatTime(x.reviewedAt), searchable: false },
+  { key: 'activatedAt', label: 'Kích hoạt', value: (x) => x.activatedAt ?? '', render: (x) => formatTime(x.activatedAt), searchable: false },
+];
 
 export interface VersionPanelProps {
   readonly module: ModuleRecord;
@@ -190,25 +201,18 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
         <button type="submit" className="fx-btn primary" disabled={busy}>Tạo phiên bản nháp</button>
         <button type="button" className="fx-btn" onClick={() => { if (discardOk()) void load(selected?.versionId); }}>Tải lại</button>
       </form>
-      {versions === null ? <p className="info">Đang tải…</p> : versions.length === 0 ? <p className="info">Module chưa có phiên bản nào.</p> : (
-        <div className="tablewrap">
-          <table>
-            <thead><tr><th>Phiên bản</th><th>Trạng thái</th><th>Tạo lúc</th><th>Duyệt lúc</th><th>Kích hoạt</th><th /></tr></thead>
-            <tbody>
-              {versions.map((x) => (
-                <tr key={x.versionId} className={x.versionId === selected?.versionId ? 'fx-selected' : undefined}>
-                  <td><b>{x.moduleVersion}</b></td>
-                  <td><StatusTag status={x.status} /></td>
-                  <td>{formatTime(x.createdAt)}</td>
-                  <td>{formatTime(x.reviewedAt)}</td>
-                  <td>{formatTime(x.activatedAt)}</td>
-                  <td><button type="button" className="fx-btn" onClick={() => choose(x)}>Chi tiết</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable
+        label="phiên bản"
+        compact
+        columns={VERSION_COLUMNS}
+        rows={versions}
+        rowKey={(x) => x.versionId}
+        selectedKey={selected?.versionId ?? null}
+        emptyText="Module chưa có phiên bản nào."
+        pageSizes={[5, 10, 25]}
+        initial={{ pageSize: 10, sort: 'createdAt', dir: 'desc' }}
+        actions={(x) => <button type="button" className="fx-btn" onClick={() => choose(x)}>Chi tiết</button>}
+      />
       {selected && (
         <div className="fx-section">
           <h3>Phiên bản {selected.moduleVersion} · <StatusTag status={selected.status} /></h3>

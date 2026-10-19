@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { groupOf, pathOfTab, screenById, screenOfPath, SCREENS, tabOfPath } from '../routes/shellScreens';
-import type { GroupId, ScreenId, ShellPath } from '../routes/shellScreens';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { adminTabs, canOpenAdmin, groupOf, MODULE_SCREENS, pathOfTab, screenById, screenOfPath, SCREENS, tabOfPath, visibleGroups } from '../routes/shellScreens';
+import type { ScreenId, SearchTarget, ShellPath } from '../routes/shellScreens';
+import { businessEntries, menuPaths, menuTrail, ShellDataContext, useShellDataSource } from '../contexts/ShellData';
+import type { BusinessEntry } from '../contexts/ShellData';
 import { authApi } from '../services/auth/authApi';
 import type { AccountSummary } from '../services/auth/authApi';
 import type { UiMessage } from '../services/auth/errorMessages';
@@ -12,8 +14,8 @@ import { ShellWorkspace } from './ShellWorkspace';
 import '../styles/app-shell.css';
 
 // TASK F1 — AppShell after login (React port of frontend/TALO-MOS-V4-Appshell.html). The account shown is the one of
-// GET /api/auth/session; logout is POST /api/auth/logout. No role, permission, company or branch data exists in the
-// session contract, so none is shown or inferred.
+// GET /api/auth/session; logout is POST /api/auth/logout. No company or branch data exists in the session contract, so none
+// is shown. Menus and admin screens follow the backend menu and the session's capabilities (WS01 / WS06).
 
 const MOBILE_QUERY = '(max-width:760px)';
 
@@ -21,11 +23,20 @@ function isMobile(): boolean {
   return window.matchMedia(MOBILE_QUERY).matches;
 }
 
-function withParentExpanded(expanded: ReadonlySet<GroupId>, id: ScreenId): ReadonlySet<GroupId> {
-  const parent = groupOf(id);
-  if (!parent || expanded.has(parent.id)) return expanded;
-  return new Set(expanded).add(parent.id);
+// Key of the sidebar group that contains the screen / path (admin group, or the B09 business group of a module route).
+function parentKey(id: ScreenId, path: string, business: readonly BusinessEntry[]): string | undefined {
+  const admin = groupOf(id);
+  if (admin) return admin.id;
+  for (const e of business) if (e.kind === 'group' && e.links.some((l) => l.path === path)) return e.id;
+  return undefined;
 }
+
+function withParent(expanded: ReadonlySet<string>, key: string | undefined): ReadonlySet<string> {
+  if (!key || expanded.has(key)) return expanded;
+  return new Set(expanded).add(key);
+}
+
+export type ScreenAccess = 'checking' | 'allowed' | 'denied';
 
 export interface AppShellProps {
   readonly account: AccountSummary;
@@ -40,26 +51,58 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [expanded, setExpanded] = useState<ReadonlySet<GroupId>>(() => withParentExpanded(new Set<GroupId>(['foundation']), screen.id));
-  const [pinnedFlyout, setPinnedFlyout] = useState<GroupId | null>(null);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => withParent(new Set<string>(), groupOf(screen.id)?.id));
+  const [pinnedFlyout, setPinnedFlyout] = useState<string | null>(null);
   const [tab, setTab] = useState<{ screen: ScreenId; index: number }>({ screen: screen.id, index: tabOfPath(path) });
   const [loggingOut, setLoggingOut] = useState(false);
-  const activeTab = tab.screen === screen.id ? tab.index : 0;
 
-  // Back/forward or a reload on a sub-screen: open its group as a menu click would.
+  // An API answer 401 inside a screen: the session is gone — back to the login screen (App re-reads the session).
+  const onSessionLost = useCallback(() => {
+    onLoggedOut({ text: t('SESSION.INVALID'), tone: 'warning' });
+  }, [onLoggedOut]);
+
+  // WS01 / WS06: one business menu + the session's admin capabilities for the sidebar, home, search, crumb and guard.
+  const shellData = useShellDataSource(onSessionLost);
+  const { menu, capabilities, can } = shellData;
+  const business = useMemo(() => (menu === null ? null : businessEntries(menu)), [menu]);
+  const groups = useMemo(() => (capabilities === null ? [] : visibleGroups(can)), [capabilities, can]);
+  const routes = useMemo(() => menuPaths(menu ?? []), [menu]);
+  const moduleScreen = MODULE_SCREENS.find((m) => m.id === screen.id);
+
+  // Screen access shown by the shell (layer 2). Admin screens: capabilities; module screens: the path must be one of the
+  // account's menu routes (the module API checks Session + IAM + ACTIVE + ENABLED again).
+  const access: ScreenAccess = screen.id === 'home' ? 'allowed'
+    : moduleScreen ? (menu === null ? 'checking' : routes.has(path) ? 'allowed' : 'denied')
+      : capabilities === null ? 'checking' : canOpenAdmin(screen.id, can) ? 'allowed' : 'denied';
+  const tabs = moduleScreen ? moduleScreen.tabPaths.flatMap((p, i) => (routes.has(p) ? [i] : [])) : adminTabs(screen.id, can);
+  const wanted = tab.screen === screen.id ? tab.index : 0;
+  const activeTab = tabs.includes(wanted) ? wanted : tabs[0] ?? 0;
+  const crumb = groupOf(screen.id) ? [groupOf(screen.id)?.name ?? '', screen.name]
+    : moduleScreen ? (menuTrail(menu ?? [], path).length > 0 ? menuTrail(menu ?? [], path) : [screen.name]) : [screen.name];
+
+  // Search only offers what the session may open (allowed admin screens + business menu entries).
+  const targets = useMemo<SearchTarget[]>(() => [
+    SCREENS.home,
+    ...groups.flatMap((g) => g.children.map((id) => SCREENS[id])),
+    ...(business ?? []).flatMap((e) => (e.kind === 'link' ? [e.link] : e.links)).flatMap((l) => (l.path ? [{ name: l.title, path: l.path }] : [])),
+  ], [groups, business]);
+
+  // Back/forward, a reload on a sub-screen or the menu arriving: open the parent group as a menu click would.
   useEffect(() => {
-    setExpanded((current) => withParentExpanded(current, screen.id));
-  }, [screen.id]);
+    setExpanded((current) => withParent(current, parentKey(screen.id, path, business ?? [])));
+  }, [screen.id, path, business]);
 
   // MOD-TEST-01/02: a module tab route (declared by its package) opens that tab, also on back/forward.
   useEffect(() => {
     setTab({ screen: screen.id, index: tabOfPath(path) });
   }, [path, screen.id]);
 
-  // A route of the Foundation menu (module screen) opened from the home screen.
+  // A route of the business menu (module screen) or an admin screen path.
   const openPath = useCallback((target: ShellPath) => {
     setMobileOpen(false);
     setAccountPanelOpen(false);
+    setAccountMenuOpen(false);
+    setPinnedFlyout(null);
     onNavigate(target);
   }, [onNavigate]);
 
@@ -71,17 +114,12 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   }
 
   const navigate = useCallback((id: ScreenId) => {
-    setMobileOpen(false);
-    setAccountPanelOpen(false);
-    setAccountMenuOpen(false);
-    setPinnedFlyout(null);
     setTab({ screen: id, index: 0 });
-    setExpanded((current) => withParentExpanded(current, id));
-    onNavigate(screenById(id).path);
-  }, [onNavigate]);
+    openPath(screenById(id).path);
+  }, [openPath]);
 
-  function toggleGroup(id: GroupId) {
-    const flip = (current: ReadonlySet<GroupId>) => {
+  function toggleGroup(id: string) {
+    const flip = (current: ReadonlySet<string>) => {
       const next = new Set(current);
       if (!next.delete(id)) next.add(id);
       return next;
@@ -115,11 +153,6 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
     setMobileOpen(false);
     setAccountPanelOpen(false);
   }
-
-  // An API answer 401 inside a screen: the session is gone — back to the login screen (App re-reads the session).
-  const onSessionLost = useCallback(() => {
-    onLoggedOut({ text: t('SESSION.INVALID'), tone: 'warning' });
-  }, [onLoggedOut]);
 
   async function logout() {
     if (loggingOut) return;
@@ -157,43 +190,53 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
     .filter(Boolean).join(' ');
 
   return (
-    <div className={shellClass}>
-      <ShellTopbar
-        account={account}
-        menuOpen={accountMenuOpen}
-        loggingOut={loggingOut}
-        onToggleMenu={() => setAccountMenuOpen((current) => !current)}
-        onSearch={(id) => { if (id !== screen.id) navigate(id); }}
-        onLogout={() => void logout()}
-      />
-      <div className="mobile-overlay" onClick={closeOverlays} />
-      <MobileAccountPanel account={account} open={accountPanelOpen} loggingOut={loggingOut} onLogout={() => void logout()} />
-      <MobileBottomNav
-        screenId={screen.id}
-        menuOpen={mobileOpen}
-        accountOpen={accountPanelOpen}
-        onMenu={toggleMobileMenu}
-        onHome={() => navigate('home')}
-        onAccount={toggleAccountPanel}
-      />
-      <div className={compact ? 'layout compact' : 'layout'}>
-        <ShellSidebar
-          selected={screen.id}
-          compact={compact}
-          expanded={expanded}
-          pinnedFlyout={pinnedFlyout}
-          onSelect={navigate}
-          onToggleGroup={toggleGroup}
-          onToggleCompact={toggleCompact}
+    <ShellDataContext.Provider value={shellData}>
+      <div className={shellClass}>
+        <ShellTopbar
+          account={account}
+          menuOpen={accountMenuOpen}
+          loggingOut={loggingOut}
+          targets={targets}
+          onToggleMenu={() => setAccountMenuOpen((current) => !current)}
+          onSearch={(target) => { if (target !== path) openPath(target); }}
+          onLogout={() => void logout()}
         />
-        <ShellWorkspace
-          screen={screen}
-          activeTab={activeTab}
-          onTab={selectTab}
-          onSessionLost={onSessionLost}
-          onOpenPath={openPath}
+        <div className="mobile-overlay" onClick={closeOverlays} />
+        <MobileAccountPanel account={account} open={accountPanelOpen} loggingOut={loggingOut} onLogout={() => void logout()} />
+        <MobileBottomNav
+          screenId={screen.id}
+          menuOpen={mobileOpen}
+          accountOpen={accountPanelOpen}
+          onMenu={toggleMobileMenu}
+          onHome={() => navigate('home')}
+          onAccount={toggleAccountPanel}
         />
+        <div className={compact ? 'layout compact' : 'layout'}>
+          <ShellSidebar
+            selected={screen.id}
+            path={path}
+            compact={compact}
+            expanded={expanded}
+            pinnedFlyout={pinnedFlyout}
+            business={business}
+            groups={groups}
+            onSelect={navigate}
+            onOpenPath={openPath}
+            onToggleGroup={toggleGroup}
+            onToggleCompact={toggleCompact}
+          />
+          <ShellWorkspace
+            screen={screen}
+            crumb={crumb}
+            access={access}
+            tabs={tabs}
+            activeTab={activeTab}
+            onTab={selectTab}
+            onSessionLost={onSessionLost}
+            onOpenPath={openPath}
+          />
+        </div>
       </div>
-    </div>
+    </ShellDataContext.Provider>
   );
 }

@@ -3,18 +3,28 @@ import type { ApiResult } from '../foundation/foundationApi';
 // Client of the IAM Management API (/api/iam/admin/*). Same rules as the Foundation client: same-origin cookie session,
 // no token storage, no retry of a write, every answer parsed (no unchecked cast); the server decides every permission.
 
-export type Account = { accountId: string; username: string; accountStatus: string; disabled: boolean; employeeCode: string; fullName: string; membershipStatus: string };
+export type Account = { accountId: string; username: string; accountStatus: string; disabled: boolean; employeeCode: string; fullName: string; membershipStatus: string; isRoot: boolean };
 export type Role = { roleId: string; roleCode: string; roleName: string; description: string | null; isActive: boolean; isSystem: boolean; permissionCount: number; activeAssignments: number };
 export type Permission = { permissionId: string; permissionCode: string; moduleCode: string; resourceCode: string; operation: string; minimumAssuranceLevel: number; description: string | null };
 export type RolePermission = { permissionId: string; permissionCode: string; moduleCode: string; resourceCode: string; operation: string };
 export type RoleAssignment = { userRoleId: string; roleId: string; roleCode: string; roleName: string; roleActive: boolean; assignedAt: string; revokedAt: string | null };
 export type DirectGrant = { userPermissionId: string; permissionId: string; permissionCode: string; effect: string; reason: string | null; assignedAt: string; expiresAt: string | null; revokedAt: string | null; expired: boolean };
-export type Effective = { permissionId: string; permissionCode: string; allowed: boolean; reason: string; assumedAssuranceLevel: number };
+export type GrantSource = 'ROLE' | 'DIRECT_ALLOW' | 'DIRECT_DENY';
+export type Effective = {
+  permissionId: string; permissionCode: string; moduleCode: string; resourceCode: string; operation: string; description: string | null;
+  allowed: boolean; reason: string; assumedAssuranceLevel: number; sources: GrantSource[];
+};
+export type TreeAction = { actionKey: string; actionName: string | null; actionDescription: string | null; permission: Permission | null };
+export type TreeFunction = { functionKey: string; functionName: string | null; actions: TreeAction[] };
+export type TreeModule = { moduleKey: string; moduleName: string | null; description: string | null; isEnabled: boolean; moduleVersion: string; functions: TreeFunction[] };
+export type PermissionTree = { modules: TreeModule[]; platform: Permission[]; unbound: Permission[] };
+export type AccountField = 'username' | 'employeeCode' | 'fullName' | 'accountStatus';
+export type AccountQuery = { search: string; field: AccountField | null; status: string | null; sort: AccountField; dir: 'asc' | 'desc'; page: number; pageSize: number };
 export type ActiveModule = { moduleId: string; moduleKey: string; moduleName: string; isEnabled: boolean; activeVersion: string };
 export type ModuleFunction = { functionId: string; functionKey: string; displayName: string; actionKey: string | null };
 export type MenuItem = {
   navigationId: string; parentId: string | null; parentTitle: string | null; moduleId: string | null; moduleKey: string | null;
-  functionId: string | null; functionKey: string | null; menuTitle: string; sortOrder: number; isVisible: boolean;
+  moduleName: string | null; functionId: string | null; functionKey: string | null; functionName: string | null; menuTitle: string; sortOrder: number; isVisible: boolean;
 };
 
 type Json = Record<string, unknown>;
@@ -33,7 +43,7 @@ const ok = () => (payload: unknown): true => { obj(payload); return true; };
 
 const toAccount = (o: Json): Account => ({
   accountId: str(o, 'accountId'), username: str(o, 'username'), accountStatus: str(o, 'accountStatus'), disabled: bool(o, 'disabled'),
-  employeeCode: str(o, 'employeeCode'), fullName: str(o, 'fullName'), membershipStatus: str(o, 'membershipStatus'),
+  employeeCode: str(o, 'employeeCode'), fullName: str(o, 'fullName'), membershipStatus: str(o, 'membershipStatus'), isRoot: o['isRoot'] === true,
 });
 const toRole = (o: Json): Role => ({
   roleId: str(o, 'roleId'), roleCode: str(o, 'roleCode'), roleName: str(o, 'roleName'), description: optStr(o, 'description'), isActive: bool(o, 'isActive'),
@@ -56,15 +66,38 @@ const toDirect = (o: Json): DirectGrant => ({
 });
 const toEffective = (o: Json): Effective => ({
   permissionId: str(o, 'permissionId'), permissionCode: str(o, 'permissionCode'), allowed: bool(o, 'allowed'), reason: str(o, 'reason'),
-  assumedAssuranceLevel: num(o, 'assumedAssuranceLevel'),
+  assumedAssuranceLevel: num(o, 'assumedAssuranceLevel'), moduleCode: str(o, 'moduleCode'), resourceCode: str(o, 'resourceCode'), operation: str(o, 'operation'),
+  description: optStr(o, 'description'), sources: sourcesOf(o['sources']),
 });
+const SOURCES: readonly GrantSource[] = ['ROLE', 'DIRECT_ALLOW', 'DIRECT_DENY'];
+const sourcesOf = (v: unknown): GrantSource[] => (Array.isArray(v) ? SOURCES.filter((s) => v.includes(s)) : []);
+const toTreeAction = (o: Json): TreeAction => ({
+  actionKey: str(o, 'actionKey'), actionName: optStr(o, 'actionName'), actionDescription: optStr(o, 'actionDescription'),
+  permission: isObject(o['permission']) ? toPermission(o['permission']) : null,
+});
+const toTreeFunction = (o: Json): TreeFunction => ({ functionKey: str(o, 'functionKey'), functionName: optStr(o, 'functionName'), actions: list('actions', toTreeAction)(o) });
+const toTreeModule = (o: Json): TreeModule => ({
+  moduleKey: str(o, 'moduleKey'), moduleName: optStr(o, 'moduleName'), description: optStr(o, 'description'), isEnabled: bool(o, 'isEnabled'),
+  moduleVersion: str(o, 'moduleVersion'), functions: list('functions', toTreeFunction)(o),
+});
+const toTree = (payload: unknown): PermissionTree => {
+  const t = obj(obj(payload)['tree']);
+  return { modules: list('modules', toTreeModule)(t), platform: list('platform', toPermission)(t), unbound: list('unbound', toPermission)(t) };
+};
+// The session's own admin capabilities: permission code → evaluateAccess() decision (only booleans are kept).
+export type Capabilities = Readonly<Record<string, boolean>>;
+const toCapabilities = (payload: unknown): Capabilities => {
+  const p = obj(obj(payload)['permissions']);
+  return Object.fromEntries(Object.entries(p).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'));
+};
 const toModule = (o: Json): ActiveModule => ({
   moduleId: str(o, 'moduleId'), moduleKey: str(o, 'moduleKey'), moduleName: str(o, 'moduleName'), isEnabled: bool(o, 'isEnabled'), activeVersion: str(o, 'activeVersion'),
 });
 const toFunction = (o: Json): ModuleFunction => ({ functionId: str(o, 'functionId'), functionKey: str(o, 'functionKey'), displayName: str(o, 'displayName'), actionKey: optStr(o, 'actionKey') });
 const toItem = (o: Json): MenuItem => ({
   navigationId: str(o, 'navigationId'), parentId: optStr(o, 'parentId'), parentTitle: optStr(o, 'parentTitle'), moduleId: optStr(o, 'moduleId'), moduleKey: optStr(o, 'moduleKey'),
-  functionId: optStr(o, 'functionId'), functionKey: optStr(o, 'functionKey'), menuTitle: str(o, 'menuTitle'), sortOrder: num(o, 'sortOrder'), isVisible: bool(o, 'isVisible'),
+  moduleName: optStr(o, 'moduleName'), functionId: optStr(o, 'functionId'), functionKey: optStr(o, 'functionKey'), functionName: optStr(o, 'functionName'),
+  menuTitle: str(o, 'menuTitle'), sortOrder: num(o, 'sortOrder'), isVisible: bool(o, 'isVisible'),
 });
 
 async function request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, parse: (payload: unknown) => T, body?: unknown): Promise<ApiResult<T>> {
@@ -100,7 +133,12 @@ async function request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: str
 
 const e = encodeURIComponent;
 export const iamApi = {
-  accounts: (search: string, page: number, pageSize: number) => request('GET', `/accounts?search=${e(search)}&page=${page}&pageSize=${pageSize}`, (p) => {
+  capabilities: () => request('GET', '/me/capabilities', toCapabilities),
+  permissionTree: () => request('GET', '/permission-tree', toTree),
+  accounts: (q: AccountQuery) => request('GET', `/accounts?${new URLSearchParams({
+    search: q.search, page: String(q.page), pageSize: String(q.pageSize), sort: q.sort, dir: q.dir,
+    ...(q.field ? { field: q.field } : {}), ...(q.status ? { status: q.status } : {}),
+  }).toString()}`, (p) => {
     const o = obj(p);
     return { accounts: list('accounts', toAccount)(o), total: num(o, 'total'), page: num(o, 'page'), pageSize: num(o, 'pageSize') };
   }),
@@ -137,7 +175,8 @@ export const IAM_TEXT: Record<string, string> = {
   BINDING_INVALID: 'Permission phải khớp đúng một ánh xạ MIC-07 (K05) của phiên bản ACTIVE.',
   PERMISSION_TRIPLE_EXISTS: 'Bộ ba Module / Resource / Operation đã có permission.',
   PLATFORM_PERMISSION_LOCKED: 'Permission quản trị nền tảng (IAM / FOUNDATION) chỉ được cấp qua quy trình khởi tạo đã phê duyệt, không qua giao diện.',
-  SELF_ASSIGNMENT_FORBIDDEN: 'Không được tự cấp, thu hồi hoặc mở rộng quyền cho chính tài khoản của mình.',
+  ROOT_ADMIN_PROTECTED: 'Tài khoản quản trị gốc được bảo vệ: không thu hồi vai trò hệ thống hoặc quyền quản trị nền tảng của tài khoản này qua giao diện. Thao tác đã bị chặn và ghi audit.',
+  SELF_ASSIGNMENT_FORBIDDEN:'Không được tự cấp, thu hồi hoặc mở rộng quyền cho chính tài khoản của mình.',
   IAM_DB_PRIVILEGE_MISSING: 'Cơ sở dữ liệu chưa cấp quyền cho thao tác IAM này (chờ chủ dự án phê duyệt GRANT). Không có thay đổi nào được lưu.',
 };
 

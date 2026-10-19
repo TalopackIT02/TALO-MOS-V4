@@ -56,10 +56,10 @@ describe.skipIf(!enabled)('IAM admin repository — PostgreSQL as talo_app (no p
   });
 
   it('every read of the IAM screens and of the Navigation adapter is valid SQL with the current grants', async () => {
-    const accounts = await repo.accounts('', 1, 25);
+    const accounts = await repo.accounts({ search: '', field: 'all', status: null, sort: 'username', dir: 'asc', page: 1, pageSize: 25 });
     expect(accounts.total).toBeGreaterThanOrEqual(1);
     expect(accounts.accounts.every((a) => !('password' in a) && !('credential' in a))).toBe(true);
-    expect((await repo.accounts('%_no_such_user_%', 1, 25)).total).toBe(0);
+    expect((await repo.accounts({ search: '%_no_such_user_%', field: 'all', status: null, sort: 'username', dir: 'asc', page: 1, pageSize: 25 })).total).toBe(0);
     const [first] = accounts.accounts;
     const accountId = String(first?.accountId);
     expect((await repo.account(accountId)).accountId).toBe(accountId);
