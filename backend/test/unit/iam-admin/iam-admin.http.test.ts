@@ -18,6 +18,7 @@ const TARGET = '30000000-0000-4000-8000-000000000002';
 const ROLE = '40000000-0000-4000-8000-000000000001';
 const PERM = '50000000-0000-4000-8000-000000000001';
 const ASSIGN = '60000000-0000-4000-8000-000000000001';
+const PLATFORM_PERM = '50000000-0000-4000-8000-0000000000aa'; // an IAM / FOUNDATION permission
 const cookie = `talo_sid=${token('iam')}`;
 
 type Handler = (sql: string, params: readonly unknown[]) => unknown[] | undefined;
@@ -37,7 +38,11 @@ function harness(granted: readonly string[], script: Handler = () => undefined, 
       return granted.includes(code) || (params[0] === TARGET && code.startsWith('system_test.'))
         ? [{ source: 'ROLE', effect: 'ALLOW', role_active: true, not_revoked: true, started: true, not_expired: true }] : [];
     }
-    return script(sql, params) ?? [];
+    const scripted = script(sql, params);
+    if (scripted !== undefined) return scripted;
+    // Default: every permission is a business permission except PLATFORM_PERM.
+    if (sql.startsWith('SELECT module_code AS "moduleCode" FROM iam.iam_permissions')) return [{ moduleCode: params[0] === PLATFORM_PERM ? 'IAM' : 'SYSTEM_TEST' }];
+    return [];
   };
   const db: FoundationDb = {
     query: async (sql, params) => answer(sql, params),
@@ -147,7 +152,7 @@ describe('IAM admin — validation and error mapping (IAM-10)', () => {
   it('duplicate (23505) → 409 DUPLICATE; FK (23503) → 404; missing DB privilege (42501) → 503 IAM_DB_PRIVILEGE_MISSING — and NOTHING committed', async () => {
     for (const [state, status, code] of [['23505', 409, 'DUPLICATE'], ['23503', 404, 'NOT_FOUND'], ['42501', 503, 'IAM_DB_PRIVILEGE_MISSING']] as const) {
       const h = harness(ALL, (sql) => {
-        if (sql.includes('FROM iam.iam_roles WHERE role_id=$1::uuid FOR UPDATE')) return [{ id: ROLE, isSystem: false, isActive: true }];
+        if (sql.includes('FOR UPDATE OF r')) return [{ id: ROLE, isSystem: false, isActive: true, platform: false, heldByActor: false }];
         if (sql.startsWith('INSERT INTO iam.iam_user_roles')) throw pgError(state);
         return undefined;
       });
@@ -168,7 +173,7 @@ describe('IAM admin — roles, assignments, revoke (IAM-05 … IAM-08, IAM-11)',
   });
 
   it('system role is locked: update / grant / remove → 422 SYSTEM_ROLE_LOCKED, nothing committed', async () => {
-    const h = harness(ALL, (sql) => (sql.includes('FOR UPDATE') && sql.includes('iam_roles') ? [{ id: ROLE, isSystem: true, isActive: true }] : undefined));
+    const h = harness(ALL, (sql) => (sql.includes('FOR UPDATE') && sql.includes('iam_roles') ? [{ id: ROLE, isSystem: true, isActive: true, platform: false, heldByActor: false }] : undefined));
     for (const r of [
       await h.send('patch', `/iam/admin/roles/${ROLE}`, { isActive: false }),
       await h.send('post', `/iam/admin/roles/${ROLE}/permissions`, { permissionId: PERM }),
@@ -179,15 +184,14 @@ describe('IAM admin — roles, assignments, revoke (IAM-05 … IAM-08, IAM-11)',
 
   it('duplicate role → permission is 409 (not a silent 404); unknown role / permission 404; inactive role cannot be assigned', async () => {
     const dup = harness(ALL, (sql) => {
-      if (sql.includes('FOR UPDATE') && sql.includes('iam_roles')) return [{ id: ROLE, isSystem: false, isActive: true }];
-      if (sql.includes('SELECT 1 AS ok FROM iam.iam_permissions')) return [{ ok: 1 }];
+      if (sql.includes('FOR UPDATE') && sql.includes('iam_roles')) return [{ id: ROLE, isSystem: false, isActive: true, platform: false, heldByActor: false }];
       if (sql.startsWith('INSERT INTO iam.iam_role_permissions')) throw pgError('23505');
       return undefined;
     });
     expect((await dup.send('post', `/iam/admin/roles/${ROLE}/permissions`, { permissionId: PERM })).status).toBe(409);
-    const missing = harness(ALL);
+    const missing = harness(ALL, (sql) => (sql.startsWith('SELECT module_code AS "moduleCode"') ? [] : undefined));
     expect((await missing.send('post', `/iam/admin/roles/${ROLE}/permissions`, { permissionId: PERM })).status).toBe(404);
-    const inactive = harness(ALL, (sql) => (sql.includes('FOR UPDATE') && sql.includes('iam_roles') ? [{ id: ROLE, isSystem: false, isActive: false }] : undefined));
+    const inactive = harness(ALL, (sql) => (sql.includes('FOR UPDATE') && sql.includes('iam_roles') ? [{ id: ROLE, isSystem: false, isActive: false, platform: false, heldByActor: false }] : undefined));
     const r = await inactive.send('post', `/iam/admin/accounts/${TARGET}/roles`, { roleId: ROLE });
     expect([r.status, r.body.error.code]).toEqual([422, 'ROLE_INACTIVE']);
   });
@@ -195,7 +199,7 @@ describe('IAM admin — roles, assignments, revoke (IAM-05 … IAM-08, IAM-11)',
   it('revoke sets revoked_at once: second revoke → 409 ALREADY_REVOKED; unknown assignment 404', async () => {
     let revoked = false;
     const h = harness(ALL, (sql) => {
-      if (sql.includes('SELECT (revoked_at IS NOT NULL) AS revoked FROM iam.iam_user_permissions')) return [{ revoked }];
+      if (sql.includes('SELECT (revoked_at IS NOT NULL) AS revoked, permission_id::text AS "permissionId" FROM iam.iam_user_permissions')) return [{ revoked, permissionId: PERM }];
       if (sql.startsWith('UPDATE iam.iam_user_permissions SET revoked_at')) { revoked = true; return [{ id: ASSIGN, permissionId: PERM }]; }
       return undefined;
     });
@@ -272,5 +276,60 @@ describe('IAM admin — Navigation adapter (NAV-01 / NAV-02, read only)', () => 
     expect((await h.get(`/iam/admin/foundation/modules/${ROLE}/functions`)).status).toBe(200);
     expect(h.committed).toEqual([]);
     expect((await harness(['iam.accounts.read']).get('/iam/admin/foundation/navigation/items')).status).toBe(403);
+  });
+});
+
+describe('IAM admin — anti-escalation: platform administration is bootstrap-only (issue 1)', () => {
+  const role = (over: Record<string, boolean>) => (sql: string): unknown[] | undefined =>
+    (sql.includes('FOR UPDATE OF r') ? [{ id: ROLE, isSystem: false, isActive: true, platform: false, heldByActor: false, ...over }] : undefined);
+  const expectLocked = async (res: { status: number; body: { error: { code: string } } }, code: string) => expect([res.status, res.body.error.code]).toEqual([422, code]);
+
+  it('TALO_SYSTEM_ADMIN (system role) can be neither granted nor revoked through the API', async () => {
+    const h = harness(ALL, (sql) => {
+      if (sql.includes('FROM iam.iam_user_roles WHERE user_role_id')) return [{ revoked: false, roleId: ROLE }];
+      return role({ isSystem: true })(sql);
+    });
+    await expectLocked(await h.send('post', `/iam/admin/accounts/${TARGET}/roles`, { roleId: ROLE }), 'SYSTEM_ROLE_LOCKED');
+    await expectLocked(await h.send('post', `/iam/admin/accounts/${TARGET}/roles/${ASSIGN}/revoke`), 'SYSTEM_ROLE_LOCKED');
+    expect(h.committed).toEqual([]);
+  });
+
+  it('a custom role holding an IAM / FOUNDATION permission is locked like a system role', async () => {
+    const h = harness(ALL, role({ platform: true }));
+    await expectLocked(await h.send('post', `/iam/admin/accounts/${TARGET}/roles`, { roleId: ROLE }), 'PLATFORM_PERMISSION_LOCKED');
+    await expectLocked(await h.send('patch', `/iam/admin/roles/${ROLE}`, { isActive: true }), 'PLATFORM_PERMISSION_LOCKED');
+    expect(h.committed).toEqual([]);
+  });
+
+  it('platform permissions: no role → permission, no Direct ALLOW, no Direct DENY (lock-out), no revoke via API', async () => {
+    const h = harness(ALL, (sql) => {
+      if (sql.includes('FROM iam.iam_user_permissions WHERE user_permission_id')) return [{ revoked: false, permissionId: PLATFORM_PERM }];
+      return role({})(sql);
+    });
+    await expectLocked(await h.send('post', `/iam/admin/roles/${ROLE}/permissions`, { permissionId: PLATFORM_PERM }), 'PLATFORM_PERMISSION_LOCKED');
+    for (const effect of ['ALLOW', 'DENY']) {
+      await expectLocked(await h.send('post', `/iam/admin/accounts/${TARGET}/permissions`, { permissionId: PLATFORM_PERM, effect, reason: 'x' }), 'PLATFORM_PERMISSION_LOCKED');
+    }
+    await expectLocked(await h.send('post', `/iam/admin/accounts/${TARGET}/permissions/${ASSIGN}/revoke`), 'PLATFORM_PERMISSION_LOCKED');
+    expect(h.committed).toEqual([]);
+  });
+
+  it('no self-service: own roles / direct grants / revokes, widening a role the actor holds, re-activating it', async () => {
+    const h = harness(ALL, role({ heldByActor: true, isActive: false }));
+    for (const res of [
+      await h.send('post', `/iam/admin/accounts/${ADMIN}/roles`, { roleId: ROLE }),
+      await h.send('post', `/iam/admin/accounts/${ADMIN}/roles/${ASSIGN}/revoke`),
+      await h.send('post', `/iam/admin/accounts/${ADMIN}/permissions`, { permissionId: PERM, effect: 'ALLOW', reason: 'x' }),
+      await h.send('post', `/iam/admin/accounts/${ADMIN}/permissions/${ASSIGN}/revoke`),
+      await h.send('post', `/iam/admin/roles/${ROLE}/permissions`, { permissionId: PERM }),
+      await h.send('patch', `/iam/admin/roles/${ROLE}`, { isActive: true }),
+    ]) await expectLocked(res, 'SELF_ASSIGNMENT_FORBIDDEN');
+    expect(h.committed).toEqual([]);
+  });
+
+  it('ordinary role management stays possible: business permission to a role the actor does not hold', async () => {
+    const h = harness(ALL, (sql) => (sql.startsWith('INSERT INTO iam.iam_role_permissions') ? [{ id: ROLE, permissionId: PERM }] : role({})(sql)));
+    expect((await h.send('post', `/iam/admin/roles/${ROLE}/permissions`, { permissionId: PERM })).status).toBe(201);
+    expect(h.audits()).toHaveLength(1);
   });
 });

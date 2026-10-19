@@ -289,13 +289,13 @@ describe.skipIf(!enabled)('FBE-07 Foundation end-to-end acceptance — PostgreSQ
       if (!row?.[0] || !UUID.test(row[0])) throw new Error(`permission ${PERMS[key]} not registered`);
       perm[key] = row[0];
     }
-    const [base] = await h.ok(`SELECT (SELECT count(*) FROM iam.iam_permissions WHERE module_code NOT IN ('FOUNDATION', 'SYSTEM_TEST')), (SELECT count(*) FROM iam.iam_permissions WHERE module_code = 'FOUNDATION'),
+    const [base] = await h.ok(`SELECT (SELECT count(*) FROM iam.iam_permissions WHERE module_code NOT IN ('FOUNDATION', 'SYSTEM_TEST', 'IAM')), (SELECT count(*) FROM iam.iam_permissions WHERE module_code = 'FOUNDATION'),
       (SELECT count(*) FROM iam.iam_role_permissions) + (SELECT count(*) FROM iam.iam_user_roles) + (SELECT count(*) FROM iam.iam_user_permissions),
       (SELECT count(*) FROM iam.iam_audit_logs), (SELECT relacl::text FROM pg_class WHERE oid = 'iam.iam_permissions'::regclass)`);
     iamBaseline = (base ?? []).map((x) => x ?? '');
     // FE-01: the TEST administrator (role TALO_SYSTEM_ADMIN) is a legitimate assignment; fixture leftovers are checked above
     // and AC-10 compares the whole baseline (incl. assignments) after cleanup.
-    // MOD-TEST-01: the approved SYSTEM_TEST permissions are legitimate; any other non-Foundation definition is a leftover.
+    // MOD-TEST-01 / TALO-IAM-NEXT: the approved SYSTEM_TEST (and, once bootstrapped, IAM admin) permissions are legitimate; any other non-Foundation definition is a leftover.
     expect(iamBaseline.slice(0, 2)).toEqual(['0', '13']);
     evidence['iamBaseline'] = iamBaseline;
   });
@@ -478,7 +478,7 @@ describe.skipIf(!enabled)('FBE-07 Foundation end-to-end acceptance — PostgreSQ
   });
 
   it('AC-10: IAM fixtures removed by ownership proof — Foundation permissions back to 13, no assignment / AUTHT account left, IAM audit untouched; Foundation rows of the run kept (C2)', async () => {
-    const [after] = await h.ok(`SELECT (SELECT count(*) FROM iam.iam_permissions WHERE module_code NOT IN ('FOUNDATION', 'SYSTEM_TEST')), (SELECT count(*) FROM iam.iam_permissions WHERE module_code = 'FOUNDATION'),
+    const [after] = await h.ok(`SELECT (SELECT count(*) FROM iam.iam_permissions WHERE module_code NOT IN ('FOUNDATION', 'SYSTEM_TEST', 'IAM')), (SELECT count(*) FROM iam.iam_permissions WHERE module_code = 'FOUNDATION'),
       (SELECT count(*) FROM iam.iam_role_permissions) + (SELECT count(*) FROM iam.iam_user_roles) + (SELECT count(*) FROM iam.iam_user_permissions),
       (SELECT count(*) FROM iam.iam_audit_logs), (SELECT relacl::text FROM pg_class WHERE oid = 'iam.iam_permissions'::regclass)`);
     expect(after).toEqual(iamBaseline);

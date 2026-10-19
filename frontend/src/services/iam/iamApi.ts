@@ -136,5 +136,10 @@ export const IAM_TEXT: Record<string, string> = {
   EXPIRY_INVALID: 'Thời điểm hết hạn phải ở tương lai.',
   BINDING_INVALID: 'Permission phải khớp đúng một ánh xạ MIC-07 (K05) của phiên bản ACTIVE.',
   PERMISSION_TRIPLE_EXISTS: 'Bộ ba Module / Resource / Operation đã có permission.',
+  PLATFORM_PERMISSION_LOCKED: 'Permission quản trị nền tảng (IAM / FOUNDATION) chỉ được cấp qua quy trình khởi tạo đã phê duyệt, không qua giao diện.',
+  SELF_ASSIGNMENT_FORBIDDEN: 'Không được tự cấp, thu hồi hoặc mở rộng quyền cho chính tài khoản của mình.',
   IAM_DB_PRIVILEGE_MISSING: 'Cơ sở dữ liệu chưa cấp quyền cho thao tác IAM này (chờ chủ dự án phê duyệt GRANT). Không có thay đổi nào được lưu.',
 };
+
+// Permissions of platform administration (bootstrap-only on the server): not offered for grants in the UI.
+export const isPlatformPermission = (p: { moduleCode: string }) => p.moduleCode === 'IAM' || p.moduleCode === 'FOUNDATION';

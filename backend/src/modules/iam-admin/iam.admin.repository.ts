@@ -29,6 +29,8 @@ export const IAM_MESSAGES: Record<string, string> = {
   ALREADY_REVOKED: 'Bản ghi đã được thu hồi trước đó.',
   SYSTEM_ROLE_LOCKED: 'Vai trò hệ thống không được sửa hoặc gán quyền qua giao diện.',
   ROLE_INACTIVE: 'Vai trò đang không hoạt động.',
+  PLATFORM_PERMISSION_LOCKED: 'Permission quản trị nền tảng (IAM / FOUNDATION) chỉ được cấp qua quy trình khởi tạo đã phê duyệt, không qua giao diện.',
+  SELF_ASSIGNMENT_FORBIDDEN: 'Không được tự cấp, thu hồi hoặc mở rộng quyền cho chính tài khoản của mình.',
   EXPIRY_INVALID: 'Thời điểm hết hạn phải ở tương lai.',
   BINDING_INVALID: 'Permission phải khớp đúng một ánh xạ MIC-07 (K05) của phiên bản ACTIVE, toàn vẹn mã băm.',
   PERMISSION_TRIPLE_EXISTS: 'Bộ ba Module / Resource / Operation (K05) đã có permission.',
@@ -70,6 +72,12 @@ const one = (data: unknown[], missing = 'NOT_FOUND', status = 404): Record<strin
   if (first === undefined || rest.length > 0) throw new IamError(status, missing);
   return first;
 };
+// Platform administration lives in these K05 module codes. Their permissions (and any role holding one, and every system
+// role) are provisioned only by an approved DB-operator bootstrap: never granted, revoked or widened through this API, so
+// an account with IAM assignment rights cannot raise itself or anybody to platform administrator.
+export const PLATFORM_MODULE_CODES = ['IAM', 'FOUNDATION'] as const;
+const PLATFORM_SQL = `('IAM','FOUNDATION')`;
+
 const likePattern = (search: string) => `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 const ACCOUNT_COLUMNS = `a.user_account_id::text AS "accountId", a.username, a.account_status AS "accountStatus", (a.disabled_at IS NOT NULL) AS "disabled",
@@ -211,11 +219,27 @@ export class IamAdminRepository {
     }
   }
 
-  // Role row inside the transaction (locked), with the business checks shared by the role mutations.
-  private async lockedRole(tx: SqlExecutor, roleId: string, editable: boolean) {
-    const role = one(await tx.query('SELECT role_id::text AS id,is_system AS "isSystem",is_active AS "isActive" FROM iam.iam_roles WHERE role_id=$1::uuid FOR UPDATE', [roleId]));
-    if (editable && role.isSystem === true) throw new IamError(422, 'SYSTEM_ROLE_LOCKED');
+  // Role row inside the transaction (locked) + the anti-escalation facts: system role, role holding a platform permission,
+  // role currently held by the actor. A system / platform role is never changed, granted or revoked through this API.
+  private async lockedRole(tx: SqlExecutor, actor: Actor, roleId: string) {
+    const role = one(await tx.query(
+      `SELECT r.role_id::text AS id, r.is_system AS "isSystem", r.is_active AS "isActive",
+              EXISTS (SELECT 1 FROM iam.iam_role_permissions rp JOIN iam.iam_permissions p ON p.permission_id = rp.permission_id
+                       WHERE rp.role_id = r.role_id AND p.module_code IN ${PLATFORM_SQL}) AS platform,
+              EXISTS (SELECT 1 FROM iam.iam_user_roles ur WHERE ur.role_id = r.role_id AND ur.user_account_id = $2::uuid AND ur.revoked_at IS NULL) AS "heldByActor"
+         FROM iam.iam_roles r WHERE r.role_id = $1::uuid FOR UPDATE OF r`, [roleId, actor.userAccountId]));
+    if (role.isSystem === true) throw new IamError(422, 'SYSTEM_ROLE_LOCKED');
+    if (role.platform === true) throw new IamError(422, 'PLATFORM_PERMISSION_LOCKED');
     return role;
+  }
+
+  private static notSelf(actor: Actor, accountId: string): void {
+    if (actor.userAccountId === accountId) throw new IamError(422, 'SELF_ASSIGNMENT_FORBIDDEN');
+  }
+
+  private static async businessPermission(tx: SqlExecutor, permissionId: string): Promise<void> {
+    const p = one(await tx.query('SELECT module_code AS "moduleCode" FROM iam.iam_permissions WHERE permission_id=$1::uuid', [permissionId]));
+    if (typeof p.moduleCode !== 'string' || PLATFORM_MODULE_CODES.some((m) => m === p.moduleCode)) throw new IamError(422, 'PLATFORM_PERMISSION_LOCKED');
   }
 
   // is_active / is_system come from the column defaults (true / false): the API role never needs to write is_system.
@@ -225,7 +249,9 @@ export class IamAdminRepository {
   }
   async updateRole(actor: Actor, roleId: string, data: { roleName?: string | undefined; description?: string | null | undefined; isActive?: boolean | undefined }) {
     return this.mutation(actor, 'IAM.ROLE.UPDATE', 'ROLE', { fields: Object.keys(data).join(',') }, async tx => {
-      await this.lockedRole(tx, roleId, true);
+      const role = await this.lockedRole(tx, actor, roleId);
+      // Re-activating a role the actor holds would widen the actor's own rights.
+      if (data.isActive === true && role.isActive !== true && role.heldByActor === true) throw new IamError(422, 'SELF_ASSIGNMENT_FORBIDDEN');
       return one(await tx.query(
         'UPDATE iam.iam_roles SET role_name=coalesce($2,role_name),role_description=CASE WHEN $3::boolean THEN $4 ELSE role_description END,is_active=coalesce($5,is_active) WHERE role_id=$1::uuid AND NOT is_system RETURNING role_id::text AS id,role_code AS "roleCode",role_name AS "roleName",role_description AS description,is_active AS "isActive",is_system AS "isSystem"',
         [roleId, data.roleName ?? null, data.description !== undefined, data.description ?? null, data.isActive ?? null]));
@@ -233,21 +259,23 @@ export class IamAdminRepository {
   }
   async assignRolePermission(actor: Actor, roleId: string, permissionId: string) {
     return this.mutation(actor, 'IAM.ROLE.PERMISSION.ASSIGN', 'ROLE', { permissionId }, async tx => {
-      await this.lockedRole(tx, roleId, true);
-      one(await tx.query('SELECT 1 AS ok FROM iam.iam_permissions WHERE permission_id=$1::uuid', [permissionId]));
+      const role = await this.lockedRole(tx, actor, roleId);
+      if (role.heldByActor === true) throw new IamError(422, 'SELF_ASSIGNMENT_FORBIDDEN');
+      await IamAdminRepository.businessPermission(tx, permissionId);
       // A duplicate (role, permission) is the primary key → 23505 → 409 (never a silent no-op).
       return one(await tx.query('INSERT INTO iam.iam_role_permissions(role_id,permission_id) VALUES ($1::uuid,$2::uuid) RETURNING role_id::text AS id,permission_id::text AS "permissionId"', [roleId, permissionId]));
     });
   }
   async revokeRolePermission(actor: Actor, roleId: string, permissionId: string) {
     return this.mutation(actor, 'IAM.ROLE.PERMISSION.REMOVE', 'ROLE', { permissionId }, async tx => {
-      await this.lockedRole(tx, roleId, true);
+      await this.lockedRole(tx, actor, roleId);
       return one(await tx.query('DELETE FROM iam.iam_role_permissions rp WHERE rp.role_id=$1::uuid AND rp.permission_id=$2::uuid RETURNING role_id::text AS id,permission_id::text AS "permissionId"', [roleId, permissionId]));
     });
   }
   async assignUserRole(actor: Actor, accountId: string, roleId: string) {
     return this.mutation(actor, 'IAM.ACCOUNT.ROLE.ASSIGN', 'USER_ACCOUNT', { accountId, roleId }, async tx => {
-      const role = await this.lockedRole(tx, roleId, false);
+      IamAdminRepository.notSelf(actor, accountId);
+      const role = await this.lockedRole(tx, actor, roleId);
       if (role.isActive !== true) throw new IamError(422, 'ROLE_INACTIVE');
       // An active duplicate hits uq_iam_user_active_role → 23505 → 409, also between concurrent requests.
       return one(await tx.query('INSERT INTO iam.iam_user_roles(user_account_id,role_id,assigned_by_id) VALUES($1::uuid,$2::uuid,$3::uuid) RETURNING user_role_id::text AS id,role_id::text AS "roleId"', [accountId, roleId, actor.userAccountId]));
@@ -255,21 +283,30 @@ export class IamAdminRepository {
   }
   async revokeUserRole(actor: Actor, accountId: string, assignmentId: string) {
     return this.mutation(actor, 'IAM.ACCOUNT.ROLE.REVOKE', 'USER_ACCOUNT', { accountId, userRoleId: assignmentId }, async tx => {
-      const current = one(await tx.query('SELECT (revoked_at IS NOT NULL) AS revoked FROM iam.iam_user_roles WHERE user_role_id=$1::uuid AND user_account_id=$2::uuid FOR UPDATE', [assignmentId, accountId]));
+      IamAdminRepository.notSelf(actor, accountId);
+      const current = one(await tx.query('SELECT (revoked_at IS NOT NULL) AS revoked, role_id::text AS "roleId" FROM iam.iam_user_roles WHERE user_role_id=$1::uuid AND user_account_id=$2::uuid FOR UPDATE', [assignmentId, accountId]));
       if (current.revoked === true) throw new IamError(409, 'ALREADY_REVOKED');
+      // Revoking a system / platform role (e.g. TALO_SYSTEM_ADMIN) could lock the platform out: bootstrap procedure only.
+      await this.lockedRole(tx, actor, String(current.roleId));
       return one(await tx.query('UPDATE iam.iam_user_roles SET revoked_at=statement_timestamp() WHERE user_role_id=$1::uuid AND user_account_id=$2::uuid AND revoked_at IS NULL RETURNING user_role_id::text AS id,role_id::text AS "roleId"', [assignmentId, accountId]));
     });
   }
   async assignDirect(actor: Actor, accountId: string, data: { permissionId: string; effect: 'ALLOW' | 'DENY'; reason: string; expiresAt?: string | null | undefined }) {
     if (data.expiresAt && !(Date.parse(data.expiresAt) > Date.now())) throw new IamError(422, 'EXPIRY_INVALID');
-    return this.mutation(actor, 'IAM.ACCOUNT.PERMISSION.ASSIGN', 'USER_ACCOUNT', { accountId, permissionId: data.permissionId, effect: data.effect }, async tx =>
+    IamAdminRepository.notSelf(actor, accountId);
+    return this.mutation(actor, 'IAM.ACCOUNT.PERMISSION.ASSIGN', 'USER_ACCOUNT', { accountId, permissionId: data.permissionId, effect: data.effect }, async tx => {
+      // ALLOW would escalate, DENY could lock an administrator out: platform permissions are bootstrap-only.
+      await IamAdminRepository.businessPermission(tx, data.permissionId);
       // An active duplicate hits uq_iam_user_active_direct_permission → 23505 → 409.
-      one(await tx.query('INSERT INTO iam.iam_user_permissions(user_account_id,permission_id,effect,reason,assigned_by_id,expires_at) VALUES($1::uuid,$2::uuid,$3,$4,$5::uuid,$6::timestamptz) RETURNING user_permission_id::text AS id,permission_id::text AS "permissionId",effect', [accountId, data.permissionId, data.effect, data.reason, actor.userAccountId, data.expiresAt ?? null])));
+      return one(await tx.query('INSERT INTO iam.iam_user_permissions(user_account_id,permission_id,effect,reason,assigned_by_id,expires_at) VALUES($1::uuid,$2::uuid,$3,$4,$5::uuid,$6::timestamptz) RETURNING user_permission_id::text AS id,permission_id::text AS "permissionId",effect', [accountId, data.permissionId, data.effect, data.reason, actor.userAccountId, data.expiresAt ?? null]));
+    });
   }
   async revokeDirect(actor: Actor, accountId: string, assignmentId: string) {
     return this.mutation(actor, 'IAM.ACCOUNT.PERMISSION.REVOKE', 'USER_ACCOUNT', { accountId, userPermissionId: assignmentId }, async tx => {
-      const current = one(await tx.query('SELECT (revoked_at IS NOT NULL) AS revoked FROM iam.iam_user_permissions WHERE user_permission_id=$1::uuid AND user_account_id=$2::uuid FOR UPDATE', [assignmentId, accountId]));
+      IamAdminRepository.notSelf(actor, accountId);
+      const current = one(await tx.query('SELECT (revoked_at IS NOT NULL) AS revoked, permission_id::text AS "permissionId" FROM iam.iam_user_permissions WHERE user_permission_id=$1::uuid AND user_account_id=$2::uuid FOR UPDATE', [assignmentId, accountId]));
       if (current.revoked === true) throw new IamError(409, 'ALREADY_REVOKED');
+      await IamAdminRepository.businessPermission(tx, String(current.permissionId));
       return one(await tx.query('UPDATE iam.iam_user_permissions SET revoked_at=statement_timestamp() WHERE user_permission_id=$1::uuid AND user_account_id=$2::uuid AND revoked_at IS NULL RETURNING user_permission_id::text AS id,permission_id::text AS "permissionId"', [assignmentId, accountId]));
     });
   }

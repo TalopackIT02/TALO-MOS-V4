@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { IAM_TEXT, iamApi } from '../../services/iam/iamApi';
+import { IAM_TEXT, iamApi, isPlatformPermission } from '../../services/iam/iamApi';
 import type { Account, ActiveModule, DirectGrant, Effective, MenuItem, ModuleFunction, Permission, Role, RoleAssignment, RolePermission } from '../../services/iam/iamApi';
 import { foundationApi } from '../../services/foundation/foundationApi';
 import type { ApiResult } from '../../services/foundation/foundationApi';
@@ -169,7 +169,7 @@ function AccountDetail({ accountId, onSessionLost, onClose }: { accountId: strin
               <td><b>{a.roleCode}</b> — {a.roleName}{a.roleActive ? '' : ' (vai trò không hoạt động)'}</td>
               <td>{formatTime(a.assignedAt)}</td>
               <td>{a.revokedAt ? `Đã thu hồi ${formatTime(a.revokedAt)}` : statusTag(true, 'Hiệu lực')}</td>
-              <td>{!a.revokedAt && <button type="button" className="fx-btn danger" disabled={busy} onClick={() => void act(iamApi.revokeRole(accountId, a.userRoleId), `Đã thu hồi vai trò ${a.roleCode}.`, `Thu hồi vai trò ${a.roleCode}?`)}>Thu hồi</button>}</td>
+              <td>{!a.revokedAt && !roles.some((r) => r.roleId === a.roleId && r.isSystem) && <button type="button" className="fx-btn danger" disabled={busy} onClick={() => void act(iamApi.revokeRole(accountId, a.userRoleId), `Đã thu hồi vai trò ${a.roleCode}.`, `Thu hồi vai trò ${a.roleCode}?`)}>Thu hồi</button>}</td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -177,11 +177,12 @@ function AccountDetail({ accountId, onSessionLost, onClose }: { accountId: strin
       <div className="fx-toolbar" style={{ marginTop: 10 }}>
         <select aria-label="Vai trò" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
           <option value="">Chọn vai trò…</option>
-          {roles.filter((r) => r.isActive).map((r) => <option key={r.roleId} value={r.roleId}>{r.roleCode} — {r.roleName}</option>)}
+          {roles.filter((r) => r.isActive && !r.isSystem).map((r) => <option key={r.roleId} value={r.roleId}>{r.roleCode} — {r.roleName}</option>)}
         </select>
         <button type="button" className="fx-btn primary" disabled={!roleId || busy} onClick={() => void act(iamApi.assignRole(accountId, roleId), 'Đã gán vai trò.')}>Gán vai trò</button>
       </div>
 
+      <p className="muted">Vai trò hệ thống và permission quản trị nền tảng (IAM / FOUNDATION) chỉ được cấp qua quy trình khởi tạo đã phê duyệt; không tự cấp quyền cho chính mình.</p>
       <h4>Quyền trực tiếp (Direct ALLOW / DENY)</h4>
       {direct.length === 0 ? <p className="muted">Chưa có quyền trực tiếp.</p> : (
         <div className="tablewrap"><table>
@@ -202,7 +203,7 @@ function AccountDetail({ accountId, onSessionLost, onClose }: { accountId: strin
         <label>Permission
           <select value={permissionId} onChange={(e) => setPermissionId(e.target.value)}>
             <option value="">Chọn permission…</option>
-            {permissions.map((p) => <option key={p.permissionId} value={p.permissionId}>{p.permissionCode} ({p.moduleCode}/{p.resourceCode}/{p.operation})</option>)}
+            {permissions.filter((p) => !isPlatformPermission(p)).map((p) => <option key={p.permissionId} value={p.permissionId}>{p.permissionCode} ({p.moduleCode}/{p.resourceCode}/{p.operation})</option>)}
           </select>
         </label>
         <label>Hiệu ứng
@@ -290,7 +291,7 @@ function RoleManagement({ onSessionLost }: { onSessionLost: () => void }) {
     }
   }
 
-  const available = permissions.filter((p) => !assigned.some((a) => a.permissionId === p.permissionId));
+  const available = permissions.filter((p) => !isPlatformPermission(p) && !assigned.some((a) => a.permissionId === p.permissionId));
   return (
     <>
       <FeedbackLine feedback={feedback} />

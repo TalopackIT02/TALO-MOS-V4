@@ -94,6 +94,8 @@ describe.skipIf(!enabled)('IAM admin repository — PostgreSQL as talo_app (no p
       OR has_any_column_privilege('iam.iam_user_permissions','INSERT') OR has_any_column_privilege('iam.iam_role_permissions','INSERT')
       OR has_any_column_privilege('iam.iam_user_roles','UPDATE') OR has_table_privilege('iam.iam_role_permissions','DELETE')) AS w`);
     expect(priv?.w).toBe(false); // otherwise these attempts are not safe here: stop
+    const business = (await repo.permissions()).find((p) => p.permissionCode === 'system_test.diagnostics.read');
+    const businessId = String(business?.permissionId);
     const attempts: (() => Promise<unknown>)[] = [
       () => repo.createRole(actor, { roleCode: `ZZ_NEVER_${Date.now()}`, roleName: 'never stored' }),
       () => repo.updateRole(actor, randomUUID(), { isActive: false }),
@@ -101,7 +103,8 @@ describe.skipIf(!enabled)('IAM admin repository — PostgreSQL as talo_app (no p
       () => repo.revokeRolePermission(actor, randomUUID(), randomUUID()),
       () => repo.assignUserRole(actor, randomUUID(), randomUUID()),
       () => repo.revokeUserRole(actor, randomUUID(), randomUUID()),
-      () => repo.assignDirect(actor, randomUUID(), { permissionId: randomUUID(), effect: 'DENY', reason: 'never stored' }),
+      // A real business permission so the attempt reaches the INSERT (a random id is refused earlier: 404).
+      () => repo.assignDirect(actor, randomUUID(), { permissionId: businessId, effect: 'DENY', reason: 'never stored' }),
       () => repo.revokeDirect(actor, randomUUID(), randomUUID()),
     ];
     for (const attempt of attempts) {
