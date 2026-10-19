@@ -530,7 +530,7 @@ describe.skipIf(!enabled)('FBE-02C Module Version + MIC — PostgreSQL (talo_mos
   // ------------------------------------------------------------------ FBE-02B
 
   it('B1 / B2: PUT manifest stores JSONB (hash NULL, DRAFT, B08 UPDATE_MANIFEST, no B07); {manifest: null} stores SQL NULL', async () => {
-    const { accountId, cookie } = await actor(['registryCreate', 'create', 'update']);
+    const { accountId, cookie } = await actor(['registryCreate', 'create', 'update', 'read']);
     const { moduleId } = await newModule(cookie);
     const versionId = await newVersion(cookie, moduleId);
     const draft = { mic01Identity: { moduleKey: 'DRAFT' }, note: 'Bản nháp tiếng Việt', nested: { n: 42, list: [1, 'x', true, null] } };
@@ -540,6 +540,13 @@ describe.skipIf(!enabled)('FBE-02C Module Version + MIC — PostgreSQL (talo_mos
     const row = await b02(versionId);
     expect(row).toMatchObject({ status: 'DRAFT', jsonType: 'object', hash: '<null>' });
     expect(JSON.parse(row?.manifest ?? 'null')).toEqual(draft);
+    const detail = await send('get', `${versionsUrl(moduleId)}/${versionId}`, cookie);
+    expect(detail.status).toBe(200);
+    expect(detail.body.version.manifestJson).toEqual(draft);
+    const listed = await send('get', versionsUrl(moduleId), cookie);
+    expect(listed.status).toBe(200);
+    expect(listed.body.versions).toHaveLength(1);
+    expect(listed.body.versions[0]).toMatchObject({ versionId, manifestJson: draft });
     expect(await b08(rid(res))).toEqual([{
       action: 'MODULE_VERSION.UPDATE_MANIFEST', outcome: 'SUCCESS', targetType: 'MODULE_VERSION', targetId: versionId, moduleId, versionId, actor: accountId,
       metadata: { v: 1, reason: 'MANIFEST_UPDATED', requestId: rid(res) },

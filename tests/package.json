@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:visual": "playwright test login-ui.visual --project=demo --update-snapshots=all && playwright test login-ui.visual --project=react-dev --project=react-preview",
-    "test:ui": "playwright test login-ui.interaction login-css-scope --project=demo --project=react-dev --project=react-preview"
+    "test:ui": "playwright test login-ui.interaction login-css-scope --project=demo --project=react-dev --project=react-preview",
+    "test:foundation-mic": "playwright test foundation-mic-save --project=react-dev --project=react-preview"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
