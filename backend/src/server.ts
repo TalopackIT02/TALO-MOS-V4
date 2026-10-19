@@ -8,6 +8,7 @@ import { createAuthModule } from './modules/auth/index.js';
 import { compatibilityEnvironment } from './modules/foundation/foundation.compatibility.js';
 import { createFoundationModule } from './modules/foundation/index.js';
 import { healthRouter } from './modules/health/health.routes.js';
+import { iamAdminRouter } from './modules/iam-admin/iam.admin.routes.js';
 import { INSTALLED_MODULES } from './installed-modules/registry.js';
 import { mountModules } from './module-host/loader.js';
 import { prismaFoundationDb, SqlFoundationRepository } from './modules/foundation/foundation.repository.js';
@@ -38,6 +39,8 @@ async function main(): Promise<void> {
       environment: compatibilityEnvironment(config.nodeEnv),
     });
     apiRouters.push(foundation.router);
+    // IAM Management is additive: independent routes, sharing the existing Auth and IAM evaluator.
+    apiRouters.push(iamAdminRouter({ db: prismaFoundationDb(getPrismaClient(config.databaseUrl)), authService: auth.service, secureCookie: config.nodeEnv === 'production' }));
     // MOD-TEST-02: module packages of modules/ (generated registry), mounted through the Host capabilities; every module
     // request is still checked for Session + IAM + ACTIVE + ENABLED by those capabilities.
     const db = prismaFoundationDb(getPrismaClient(config.databaseUrl));
