@@ -7,13 +7,6 @@ import { FeedbackLine,settle } from '../foundation/common';
 import type { Feedback } from '../foundation/common';
 
 const val=(r:Row,key:string)=>String(r[key]??'—');
-function useIam<T>(fn:()=>Promise<import('../../services/foundation/foundationApi').ApiResult<T>>,onSessionLost:()=>void) {
-  const [value,setValue]=useState<T|null>(null);
-  const [feedback,setFeedback]=useState<Feedback|null>(null);
-  const load=useCallback(async()=>{setValue(settle(await fn(),onSessionLost,setFeedback));},[fn,onSessionLost]);
-  useEffect(()=>{void load();},[load]);
-  return {value,feedback,setFeedback,load};
-}
 async function action(result:Promise<import('../../services/foundation/foundationApi').ApiResult<unknown>>,onSessionLost:()=>void,setFeedback:(v:Feedback|null)=>void,onDone:()=>void){
   const data=settle(await result,onSessionLost,(v)=>setFeedback(v));
   if(data!==null){setFeedback({tone:'success',text:'Thao tác đã được ghi nhận.'});onDone();}
