@@ -1,0 +1,26 @@
+{
+  "packageFormat": "TALO-MODULE-PACKAGE-1",
+  "moduleKey": "SYSTEM_TEST",
+  "name": "System Test & Diagnostics",
+  "packageVersion": "1.0.0",
+  "contractVersion": "MIC-1.0",
+  "hostProtocol": "TALO-MODULE-HOST-1",
+  "backendEntry": "backend/index.ts",
+  "frontendEntry": "frontend/SystemTestScreen.tsx",
+  "micEntry": "mic/system-test.mic.ts",
+  "frontend": {
+    "screens": [
+      {
+        "screenKey": "system.test",
+        "name": "System Test & Diagnostics",
+        "description": "Chẩn đoán hệ thống, xem dữ liệu Foundation ở chế độ chỉ đọc và kết quả kiểm thử. Quyền do máy chủ quyết định.",
+        "tabs": [
+          { "label": "Kiểm tra hệ thống", "path": "/system-test" },
+          { "label": "Xem bảng dữ liệu", "path": "/system-test/data" },
+          { "label": "Chạy test & xem kết quả", "path": "/system-test/runner" }
+        ]
+      }
+    ]
+  },
+  "requiredCapabilities": ["session", "authorize", "evaluate", "lifecycle", "readOnly", "menuRoutes", "inspectManifest", "sqlstate", "regressionResults", "logger"]
+}

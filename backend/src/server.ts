@@ -8,7 +8,9 @@ import { createAuthModule } from './modules/auth/index.js';
 import { compatibilityEnvironment } from './modules/foundation/foundation.compatibility.js';
 import { createFoundationModule } from './modules/foundation/index.js';
 import { healthRouter } from './modules/health/health.routes.js';
-import { createSystemTestModule } from './modules/system-test/index.js';
+import { INSTALLED_MODULES } from './installed-modules/registry.js';
+import { mountModules } from './module-host/loader.js';
+import { prismaFoundationDb, SqlFoundationRepository } from './modules/foundation/foundation.repository.js';
 
 async function main(): Promise<void> {
   let config;
@@ -36,11 +38,13 @@ async function main(): Promise<void> {
       environment: compatibilityEnvironment(config.nodeEnv),
     });
     apiRouters.push(foundation.router);
-    // MOD-TEST-01: SYSTEM_TEST module API (IAM + module lifecycle checked on every request; read-only).
-    apiRouters.push(createSystemTestModule({
-      prisma: getPrismaClient(config.databaseUrl), authService: auth.service, navigation: foundation.navigationService, logger,
+    // MOD-TEST-02: module packages of modules/ (generated registry), mounted through the Host capabilities; every module
+    // request is still checked for Session + IAM + ACTIVE + ENABLED by those capabilities.
+    const db = prismaFoundationDb(getPrismaClient(config.databaseUrl));
+    apiRouters.push(...mountModules(INSTALLED_MODULES, {
+      db, access: new SqlFoundationRepository(db), authService: auth.service, navigation: foundation.navigationService, logger,
       secureCookie: config.nodeEnv === 'production',
-    }).router);
+    }, logger));
   } else {
     logger.warn('DATABASE_URL not configured: /api/auth/* is not mounted');
   }

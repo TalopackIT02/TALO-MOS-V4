@@ -1,8 +1,8 @@
+import { MODULE_SCREENS } from '../../routes/shellScreens';
 import type { ScreenId, ShellPath } from '../../routes/shellScreens';
 import { FeedbackLine } from '../foundation/common';
 import { ModuleScreen } from '../foundation/ModuleScreen';
 import { MenuTree, NavigationScreen, useMenu } from '../foundation/NavigationScreen';
-import { SystemTestScreen } from '../system-test/SystemTestScreen';
 
 // Block 4 of the AppShell screens. FE-01: Foundation screens call the Foundation API; the home screen shows the business
 // menu of the account (GET /api/foundation/navigation). IAM administration has no backend API yet: those screens say so
@@ -46,7 +46,10 @@ export function ScreenBody({ screen, tab, onSessionLost, onOpenPath }: { screen:
       return <NotAvailable what="quản lý tài khoản" />;
     case 'roles':
       return <NotAvailable what="quản lý vai trò và quyền" />;
-    case 'systemTest':
-      return <SystemTestScreen tab={tab} onSessionLost={onSessionLost} />;
+    default: {
+      // MOD-TEST-02: an installed module screen (component exported by the package entry).
+      const Module = MODULE_SCREENS.find((m) => m.id === screen)?.component;
+      return Module ? <Module tab={tab} onSessionLost={onSessionLost} /> : null;
+    }
   }
 }

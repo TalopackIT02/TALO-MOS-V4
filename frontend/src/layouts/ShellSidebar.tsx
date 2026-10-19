@@ -1,5 +1,5 @@
 import { NAV_GROUPS, SCREENS } from '../routes/shellScreens';
-import type { GroupId, NavGroup as NavGroupData, ScreenId } from '../routes/shellScreens';
+import type { AdminScreenId, GroupId, NavGroup as NavGroupData, ScreenId } from '../routes/shellScreens';
 
 // Sidebar: Trang chủ + groups with sub-menus. Expanded sidebar: a group click opens/closes its sub-menu. Compact
 // sidebar: a group click pins its flyout (click again, Escape, a click outside or choosing an item closes it; one
@@ -44,7 +44,7 @@ export function ShellSidebar({ selected, compact, expanded, pinnedFlyout, onSele
 }
 
 interface NavItemProps {
-  readonly id: ScreenId;
+  readonly id: AdminScreenId;
   readonly icon: string;
   readonly active: boolean;
   readonly onSelect: (id: ScreenId) => void;
@@ -75,7 +75,7 @@ function NavGroup({ group, selected, expanded, flyoutOpen, onSelect, onToggle }:
     <div className={entryClass} data-group={group.id}>
       <button
         type="button"
-        className={group.children.includes(selected) ? 'nav-btn parent-active' : 'nav-btn'}
+        className={group.children.some((child) => child === selected) ? 'nav-btn parent-active' : 'nav-btn'}
         aria-expanded={expanded}
         title={group.name}
         onClick={() => onToggle(group.id)}

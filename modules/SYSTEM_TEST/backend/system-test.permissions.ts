@@ -1,4 +1,4 @@
-import type { PermissionRef } from '../foundation/foundation.permissions.js';
+import type { ModulePermission as PermissionRef } from './host.js';
 
 // MOD-TEST-01 — IAM binding of the SYSTEM_TEST module (K05: moduleCode = module key, resourceCode = Function key,
 // operation = Action key, minimum assurance 1). Evaluated by the shared AccessGuard / evaluateAccess(); no admin bypass,

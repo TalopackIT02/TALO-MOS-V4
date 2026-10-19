@@ -5,10 +5,14 @@
   "description": "TALO-MOS-V4 frontend (React + TypeScript + Vite)",
   "type": "module",
   "scripts": {
+    "predev": "npm run modules:sync",
     "dev": "vite",
+    "pretypecheck": "npm run modules:sync",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "prebuild": "npm run modules:sync",
     "build": "npm run typecheck && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "modules:sync": "node ../backend/scripts/modules-sync.mjs frontend"
   },
   "dependencies": {
     "react": "19.3.0",

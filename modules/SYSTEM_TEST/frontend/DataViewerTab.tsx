@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { systemTestApi } from '../../services/system-test/systemTestApi';
-import type { TableInfo, TableRows } from '../../services/system-test/systemTestApi';
-import { FeedbackLine } from '../foundation/common';
-import type { Feedback } from '../foundation/common';
+import { systemTestApi } from './systemTestApi';
+import type { TableInfo, TableRows } from './systemTestApi';
+import { FeedbackLine } from './common';
+import type { Feedback } from './common';
 import { settleSt } from './common';
 
 // TAB 2 — Xem bảng dữ liệu (read only). Left: the server allowlist B01…B14 (a table the API role cannot SELECT says so);

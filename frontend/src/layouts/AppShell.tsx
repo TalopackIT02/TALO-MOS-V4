@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { groupOf, pathOfTab, screenOfPath, SCREENS, tabOfPath } from '../routes/shellScreens';
+import { groupOf, pathOfTab, screenById, screenOfPath, SCREENS, tabOfPath } from '../routes/shellScreens';
 import type { GroupId, ScreenId, ShellPath } from '../routes/shellScreens';
 import { authApi } from '../services/auth/authApi';
 import type { AccountSummary } from '../services/auth/authApi';
@@ -51,7 +51,7 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
     setExpanded((current) => withParentExpanded(current, screen.id));
   }, [screen.id]);
 
-  // MOD-TEST-01: a module sub-route (e.g. /system-test/data) opens its tab, also on back/forward.
+  // MOD-TEST-01/02: a module tab route (declared by its package) opens that tab, also on back/forward.
   useEffect(() => {
     setTab({ screen: screen.id, index: tabOfPath(path) });
   }, [path, screen.id]);
@@ -77,7 +77,7 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
     setPinnedFlyout(null);
     setTab({ screen: id, index: 0 });
     setExpanded((current) => withParentExpanded(current, id));
-    onNavigate(SCREENS[id].path);
+    onNavigate(screenById(id).path);
   }, [onNavigate]);
 
   function toggleGroup(id: GroupId) {

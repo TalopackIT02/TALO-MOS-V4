@@ -1,9 +1,10 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { REGRESSION_FORMAT, regressionResultsDir, regressionResultsFile, regressionRunSchema } from '../../src/modules/system-test/system-test.results.js';
-import type { RegressionRun, RegressionSuite } from '../../src/modules/system-test/system-test.results.js';
+import { dirname, join, resolve } from 'node:path';
+import { REGRESSION_FORMAT, regressionRunSchema } from '../../src/installed-modules/SYSTEM_TEST/backend/system-test.results.js';
+import type { RegressionRun, RegressionSuite } from '../../src/installed-modules/SYSTEM_TEST/backend/system-test.results.js';
+import { regressionResultsFile as resultsFileOf } from '../../src/module-host/capabilities.js';
 import { checkSmokeUrl } from '../smoke/dbSmoke.js';
 import { SUITES, redact, testCounts } from './regression.support.js';
 import type { SuiteDef } from './regression.support.js';
@@ -17,6 +18,10 @@ import type { SuiteDef } from './regression.support.js';
 // GET /api/system-test/results. The suites keep their own fixture rules (C2: Foundation rows append-only; IAM fixtures
 // removed by UUID with ownership proof).
 
+// MOD-TEST-02: Host-side tool. The results file location belongs to the Host (module-host/capabilities.ts); the format is
+// the SYSTEM_TEST package's (system-test.results.ts); the suites are this repository's (regression.support.ts).
+const regressionResultsFile = () => resultsFileOf('SYSTEM_TEST');
+const regressionResultsDir = () => dirname(regressionResultsFile());
 const SUITE_TIMEOUT_MS = 20 * 60_000;
 const BACKEND = resolve(import.meta.dirname, '../..');
 const REPO = resolve(BACKEND, '..');

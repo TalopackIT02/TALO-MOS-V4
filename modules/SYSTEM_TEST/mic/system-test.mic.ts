@@ -1,17 +1,17 @@
-import { MIC_STANDARD } from '../foundation/foundation.mic.js';
-import type { Mic } from '../foundation/foundation.mic.js';
-
 // MOD-TEST-01 — MIC-1.0 of SYSTEM_TEST 1.0.0 (INITIAL_REGISTRATION). It is submitted through the Foundation API (PUT
 // manifest → SUBMIT); the runtime never reads this file — diagnostics read the stored manifest of the ACTIVE version.
 // `moduleKey` is a parameter only so that integration tests can register the same MIC under a fixture key; the K05
 // mapping always follows the key (moduleCode = moduleKey, resourceCode = functionKey, operation = actionKey).
 // MIC-10 evidence is supplied by the caller: only results of test runs that really passed may be recorded as PASS.
+// MOD-TEST-02: self-contained (no Host import); the Host validates it with its own MIC-1.0 validator at PUT / SUBMIT.
 
-export type MicEvidence = Mic['mic10Manifest']['testEvidence'];
+const MIC_STANDARD = 'MIC-1.0';
+
+export type MicEvidence = readonly { readonly name: string; readonly result: 'PASS' | 'FAIL' | 'NOT_TESTED'; readonly reference: string }[];
 
 const ERRORS = ['FORBIDDEN', 'MODULE_UNAVAILABLE', 'SERVICE_BUSY'];
 
-export function systemTestMic(moduleKey: string, testEvidence: MicEvidence): Mic {
+export function systemTestMic(moduleKey: string, testEvidence: MicEvidence) {
   const map = (functionKey: string, actionKey: string) => ({ functionKey, actionKey, moduleCode: moduleKey, resourceCode: functionKey, operation: actionKey, minimumAssuranceLevel: 1 });
   return {
     mic01Identity: { moduleKey, moduleName: 'System Test & Diagnostics', moduleVersion: '1.0.0', micStandard: MIC_STANDARD },

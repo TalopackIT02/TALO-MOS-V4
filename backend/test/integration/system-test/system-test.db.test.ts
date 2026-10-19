@@ -17,18 +17,21 @@ import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.
 import { createFoundationModule } from '../../../src/modules/foundation/index.js';
 import { canonicalDigest } from '../../../src/modules/foundation/foundation.json.js';
 import type { PermissionRef } from '../../../src/modules/foundation/foundation.permissions.js';
-import { createSystemTestModule } from '../../../src/modules/system-test/index.js';
-import { systemTestMic } from '../../../src/modules/system-test/system-test.mic.js';
-import type { SystemTestBinding } from '../../../src/modules/system-test/system-test.permissions.js';
-import { REGRESSION_FORMAT } from '../../../src/modules/system-test/system-test.results.js';
-import { VIEWER_TABLES } from '../../../src/modules/system-test/system-test.tables.js';
+import { createModule } from '../../../src/installed-modules/SYSTEM_TEST/backend/index.js';
+import { createHostCapabilities } from '../../../src/module-host/capabilities.js';
+import { SqlFoundationRepository, prismaFoundationDb } from '../../../src/modules/foundation/foundation.repository.js';
+import { systemTestMic } from '../../../src/installed-modules/SYSTEM_TEST/mic/system-test.mic.js';
+import type { SystemTestBinding } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.permissions.js';
+import { REGRESSION_FORMAT } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.results.js';
+import { VIEWER_TABLES } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.tables.js';
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
 import { checkSmokeUrl } from '../../smoke/dbSmoke.js';
 import { AuthFixtures } from '../../support/authFixtures.js';
 import { PsqlSession, lit, uuidArray } from '../sc5/harness.js';
 
 // MOD-TEST-01 — SYSTEM_TEST module on PostgreSQL 18.6 (talo_mos_v4_test). Runs only with TALO_FOUNDATION_DB=1.
-// The REAL module code (createSystemTestModule: AccessGuard → lifecycle gate → read-only SQL as talo_app) is exercised
+// The REAL module code (MOD-TEST-02: installed package + REAL Host capabilities: AccessGuard → lifecycle gate → read-only
+// SQL as talo_app) is exercised
 // against ONE fixture module FBET_ST_<RUN> that carries the SYSTEM_TEST MIC under a fixture key, so that DISABLE /
 // RETIRE / DENY can be proven without touching the registered SYSTEM_TEST module. The fixture permissions follow K05 for
 // the fixture key (talo_test_harness, FBE-06B grant) and are removed with UUID ownership proof. Foundation rows are
@@ -262,9 +265,12 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_m
     const hasher = new PasswordHasher();
     const auth = await createAuthModule({ prisma, logger, production: false, hasher, loginLimiter: new SlidingWindowRateLimiter({ limit: 10_000, windowMs: 15 * 60_000 }) });
     const foundation = createFoundationModule({ prisma, authService: auth.service, logger, secureCookie: false, environment: 'TEST' });
-    const systemTest = createSystemTestModule({
-      prisma, authService: auth.service, navigation: foundation.navigationService, logger, secureCookie: false, binding, resultsFile: join(resultsDir, 'regression-latest.json'),
+    const db = prismaFoundationDb(prisma);
+    const host = createHostCapabilities(moduleKey, {
+      db, access: new SqlFoundationRepository(db), authService: auth.service, navigation: foundation.navigationService, logger, secureCookie: false,
+      resultsFile: join(resultsDir, 'regression-latest.json'),
     });
+    const systemTest = createModule(host, { binding });
     app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger, apiRouters: [auth.router, foundation.router, systemTest.router] });
     h = await AuthFixtures.connect();
     fx = new AuthFixtures(h, hasher);

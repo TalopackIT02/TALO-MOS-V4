@@ -1,17 +1,15 @@
 import express from 'express';
 import type { Response, Router } from 'express';
-import type { AuthService } from '../auth/auth.service.js';
-import { sessionHandler } from '../foundation/foundation.http.js';
+import type { ModuleHost } from './host.js';
 import { SystemTestError } from './system-test.service.js';
 import type { SystemTestService } from './system-test.service.js';
 
-// MOD-TEST-01 — SYSTEM_TEST module routes (MIC-05). Same session wrapper, origin / JSON protection, request id and
-// error envelope as the Foundation routers. No route accepts SQL, a table name, a command or a file path.
+// MOD-TEST-01 — SYSTEM_TEST module routes (MIC-05). The Host session wrapper (MOD-TEST-02 capability), origin / JSON
+// protection, request id and error envelope are those of the Foundation routers. No route accepts SQL, a table name, a command or a file path.
 
 export interface SystemTestRouterDeps {
-  readonly authService: Pick<AuthService, 'describeSession'>;
+  readonly host: Pick<ModuleHost, 'session'>;
   readonly service: SystemTestService;
-  readonly secureCookie: boolean;
 }
 
 async function answer(res: Response, run: () => Promise<object>): Promise<void> {
@@ -25,9 +23,9 @@ async function answer(res: Response, run: () => Promise<object>): Promise<void> 
   }
 }
 
-export function systemTestRouter({ authService, service, secureCookie }: SystemTestRouterDeps): Router {
+export function systemTestRouter({ host, service }: SystemTestRouterDeps): Router {
   const router = express.Router();
-  const handle = sessionHandler({ authService, secureCookie });
+  const handle = host.session.bind(host);
 
   router.get('/system-test/health', handle(async (_req, res, actor) => answer(res, async () => ({ health: await service.health(actor) }))));
   router.post('/system-test/checks/run', handle(async (req, res, actor) => answer(res, async () => ({ run: await service.runChecks(actor, req.body) }))));

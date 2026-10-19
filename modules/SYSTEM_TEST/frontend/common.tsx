@@ -1,11 +1,27 @@
-import type { ApiResult } from '../../services/foundation/foundationApi';
-import { describeSystemTestFailure } from '../../services/system-test/systemTestApi';
-import type { CheckResult } from '../../services/system-test/systemTestApi';
-import type { Feedback } from '../foundation/common';
-import '../../styles/system-test.css';
+import { describeSystemTestFailure } from './systemTestApi';
+import type { ApiResult, CheckResult } from './systemTestApi';
+import './system-test.css';
 
 // Shared pieces of the SYSTEM_TEST tabs (MOD-TEST-01). A 401 hands control back to App (login); every other failure
 // is shown with the module's own texts (MODULE_UNAVAILABLE, TABLE_NOT_READABLE …) or the Foundation texts.
+
+// MOD-TEST-02: the package carries its own small UI helpers (no import of the Host's screens); it relies only on the
+// Host's shell styles (.fx-btn, .fx-toolbar, .fx-msg, .note, .muted) for a consistent look.
+export interface Feedback {
+  readonly tone: 'error' | 'success' | 'info';
+  readonly text: string;
+}
+
+export function FeedbackLine({ feedback }: { feedback: Feedback | null }) {
+  if (!feedback) return null;
+  return <div className={`fx-msg ${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>{feedback.text}</div>;
+}
+
+export function formatTime(value: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('vi-VN');
+}
 
 export function settleSt<T>(result: ApiResult<T>, onSessionLost: () => void, report: (f: Feedback) => void): T | null {
   if (result.ok) return result.data;

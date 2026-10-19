@@ -1,5 +1,13 @@
-import type { ApiFailure, ApiResult } from '../foundation/foundationApi';
-import { describeFailure } from '../foundation/foundationMessages';
+// MOD-TEST-02: self-contained result envelope (same shape as the Host clients), no import of the Host's services.
+export interface ApiFailure {
+  ok: false;
+  status: number; // 0 = no response (network)
+  code: string;
+  details: string[];
+  requestId: string;
+}
+
+export type ApiResult<T> = { ok: true; data: T } | ApiFailure;
 
 // MOD-TEST-01 — client of the SYSTEM_TEST module API (/api/system-test/*). Same rules as the Foundation client: same-
 // origin cookie session, no token storage, no retry of a request with side effects, the server decides every permission.
@@ -222,7 +230,26 @@ const SYSTEM_TEST_TEXT: Record<string, string> = {
   TABLE_NOT_READABLE: 'Không có quyền xem bảng này.',
 };
 
+const BY_CODE: Record<string, string> = {
+  VALIDATION_ERROR: 'Thông tin chưa hợp lệ. Vui lòng kiểm tra lại các trường đã nhập.',
+  FORBIDDEN: 'Bạn không có quyền thực hiện thao tác này.',
+  SESSION_INVALID: 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.',
+  PASSWORD_CHANGE_REQUIRED: 'Bạn cần đổi mật khẩu trước khi sử dụng hệ thống.',
+  SERVICE_BUSY: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
+  UNEXPECTED_RESPONSE: 'Phản hồi từ máy chủ không đúng định dạng mong đợi.',
+};
+
+const BY_STATUS: Record<number, string> = {
+  0: 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng và thử lại.',
+  403: 'Bạn không có quyền thực hiện thao tác này.',
+  404: 'Không tìm thấy dữ liệu yêu cầu.',
+  503: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
+};
+
 export function describeSystemTestFailure(failure: ApiFailure): string {
   const own = SYSTEM_TEST_TEXT[failure.code];
-  return own ?? describeFailure(failure);
+  const base = own ?? BY_CODE[failure.code] ?? BY_STATUS[failure.status] ?? 'Đã xảy ra lỗi không xác định.';
+  const details = failure.details.length > 0 ? ` (${failure.details.join(', ')})` : '';
+  const reference = failure.status >= 500 && failure.requestId ? ` Mã tham chiếu: ${failure.requestId}.` : '';
+  return `${base}${details}${reference}`;
 }

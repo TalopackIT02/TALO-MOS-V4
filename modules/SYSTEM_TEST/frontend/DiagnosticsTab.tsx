@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { systemTestApi } from '../../services/system-test/systemTestApi';
-import type { CheckResult, Health, QuickCheckRun } from '../../services/system-test/systemTestApi';
-import { FeedbackLine, formatTime } from '../foundation/common';
-import type { Feedback } from '../foundation/common';
+import { systemTestApi } from './systemTestApi';
+import type { CheckResult, Health, QuickCheckRun } from './systemTestApi';
+import { FeedbackLine, formatTime } from './common';
+import type { Feedback } from './common';
 import { CheckList, settleSt } from './common';
 
 // TAB 1 — Kiểm tra hệ thống. Before a run every component is NOT_TESTED (never PASS without a real check). The quick

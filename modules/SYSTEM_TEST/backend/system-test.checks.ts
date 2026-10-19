@@ -1,8 +1,5 @@
-import { sqlstateOf } from '../auth/sqlstate.js';
-import { canonicalDigest } from '../foundation/foundation.json.js';
-import { micSchema } from '../foundation/foundation.mic.js';
-import type { Mic } from '../foundation/foundation.mic.js';
-import type { AccessDecision } from '../foundation/foundation.permissions.js';
+import { z } from 'zod';
+import type { ModuleAccessDecision as AccessDecision } from './host.js';
 import type { DiagnosticsSnapshot } from './system-test.repository.js';
 
 // MOD-TEST-01 — quick read-only checks (TAB 1). Pure evaluation of facts that the service has just read: nothing here
@@ -48,34 +45,40 @@ export interface CheckFacts {
   readonly iam: readonly IamFact[];
   // Route paths of the actor's menu (GET /api/foundation/navigation, already IAM-filtered), or the read failure.
   readonly menuRoutes: readonly string[] | { readonly error: unknown };
+  // MOD-TEST-02: Host MIC inspection of the single ACTIVE version (hash integrity, MIC-1.0 schema); null = not inspected.
+  readonly manifest: { readonly intact: boolean; readonly micValid: boolean } | null;
 }
 
 const failed = <T extends object>(v: T | { readonly error: unknown }): v is { readonly error: unknown } => 'error' in v;
 const sorted = (values: readonly string[]) => [...values].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 const same = (a: readonly string[], b: readonly string[]) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
-const reason = (error: unknown) => {
-  const state = sqlstateOf(error);
-  return state ? `SQLSTATE ${state}` : 'lỗi không xác định';
-};
+// Only the MIC sections the checks compare (the full MIC-1.0 validation is the Host's, via `inspectManifest`).
+const micSections = z.object({
+  mic01Identity: z.object({ moduleKey: z.string(), moduleVersion: z.string() }),
+  mic02Functions: z.array(z.object({ functionKey: z.string() })),
+  mic03Actions: z.array(z.object({ functionKey: z.string(), actionKey: z.string() })),
+  mic04Navigation: z.array(z.object({ functionKey: z.string().optional(), routePath: z.string().optional() })),
+  mic06DataResources: z.array(z.object({ resourceKey: z.string(), interfaceKind: z.string(), columns: z.array(z.unknown()) })),
+});
+type Mic = z.infer<typeof micSections>;
 
-function intactMic(snapshot: DiagnosticsSnapshot, moduleKey: string): { mic: Mic; moduleVersion: string } | string {
+function intactMic(snapshot: DiagnosticsSnapshot, moduleKey: string, manifest: CheckFacts['manifest']): { mic: Mic; moduleVersion: string } | string {
   if (snapshot.activeVersions.length !== 1) return `cần đúng một phiên bản ACTIVE, hiện có ${snapshot.activeVersions.length}`;
   const [v] = snapshot.activeVersions;
   if (v === undefined || v.manifestHash === null || v.manifestJson === null) return 'phiên bản ACTIVE không có hồ sơ MIC';
-  let digest: string;
-  try {
-    digest = canonicalDigest(v.manifestJson).sha256;
-  } catch {
-    return 'không tính được mã băm hồ sơ MIC';
-  }
-  if (digest !== v.manifestHash) return 'mã băm hồ sơ MIC không khớp manifest_hash';
-  const parsed = micSchema.safeParse(v.manifestJson);
-  if (!parsed.success) return 'hồ sơ MIC không đúng schema MIC-1.0';
+  if (manifest === null) return 'Host chưa kiểm tra hồ sơ MIC của phiên bản ACTIVE';
+  if (!manifest.intact) return 'mã băm hồ sơ MIC không khớp manifest_hash';
+  const parsed = micSections.safeParse(v.manifestJson);
+  if (!manifest.micValid || !parsed.success) return 'hồ sơ MIC không đúng schema MIC-1.0';
   if (parsed.data.mic01Identity.moduleKey !== moduleKey || parsed.data.mic01Identity.moduleVersion !== v.moduleVersion) return 'định danh MIC-01 không khớp B01 / B02';
   return { mic: parsed.data, moduleVersion: v.moduleVersion };
 }
 
-export function evaluateChecks(facts: CheckFacts): CheckResult[] {
+export function evaluateChecks(facts: CheckFacts, sqlstate: (error: unknown) => string | undefined = () => undefined): CheckResult[] {
+  const reason = (error: unknown) => {
+    const state = sqlstate(error);
+    return state ? `SQLSTATE ${state}` : 'lỗi không xác định';
+  };
   const out = new Map<CheckKey, { status: CheckStatus; detail: string }>();
   const set = (key: CheckKey, status: CheckStatus, detail: string) => out.set(key, { status, detail });
 
@@ -96,7 +99,7 @@ export function evaluateChecks(facts: CheckFacts): CheckResult[] {
   const dependents: CheckKey[] = ['REGISTRY', 'VERSION_MIC', 'FUNCTION_ACTION', 'DATA_CONTRACTS', 'COMPATIBILITY', 'LIFECYCLE'];
   const snapshot = facts.snapshot;
   if (failed(snapshot)) {
-    const denied = sqlstateOf(snapshot.error) === '42501';
+    const denied = sqlstate(snapshot.error) === '42501';
     set('POSTGRESQL', denied ? 'UNAVAILABLE' : 'FAIL', denied ? 'Vai trò API không có quyền đọc dữ liệu cần kiểm tra (SQLSTATE 42501).' : `Không đọc được PostgreSQL (${reason(snapshot.error)}).`);
     for (const key of dependents) set(key, 'UNAVAILABLE', 'Không đọc được dữ liệu Foundation.');
   } else {
@@ -107,7 +110,7 @@ export function evaluateChecks(facts: CheckFacts): CheckResult[] {
     set('LIFECYCLE', m && m.isEnabled && m.activeVersions === 1 ? 'PASS' : 'FAIL',
       m ? `is_enabled = ${m.isEnabled}; số phiên bản ACTIVE = ${m.activeVersions}.` : 'Không có Module.');
 
-    const intact = intactMic(snapshot, facts.moduleKey);
+    const intact = intactMic(snapshot, facts.moduleKey, facts.manifest);
     if (typeof intact === 'string') {
       set('VERSION_MIC', 'FAIL', intact);
       for (const key of ['FUNCTION_ACTION', 'DATA_CONTRACTS', 'COMPATIBILITY'] as const) set(key, 'NOT_TESTED', 'Chưa có hồ sơ MIC hợp lệ của phiên bản ACTIVE để đối chiếu.');

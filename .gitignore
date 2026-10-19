@@ -14,3 +14,6 @@ tests/test-results/
 tests/playwright-report/
 tests/e2e/__screenshots__/
 backend/src/infrastructure/prisma/generated/
+# MOD-TEST-02: module packages copied by the Host loader (scripts/modules-sync.mjs); generated, never committed.
+backend/src/installed-modules/
+frontend/src/installed-modules/

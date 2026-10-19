@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { systemTestApi } from '../../services/system-test/systemTestApi';
-import type { ResultsView } from '../../services/system-test/systemTestApi';
-import { FeedbackLine, formatTime } from '../foundation/common';
-import type { Feedback } from '../foundation/common';
+import { systemTestApi } from './systemTestApi';
+import type { ResultsView } from './systemTestApi';
+import { FeedbackLine, formatTime } from './common';
+import type { Feedback } from './common';
 import { CheckBadge, CheckList, settleSt } from './common';
 
 // TAB 3 — Chạy test & xem kết quả. QUICK TEST: the read-only checks of the server. FULL REGRESSION: the existing suites,

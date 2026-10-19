@@ -3,9 +3,13 @@
 // FE-01: Foundation screens are connected to the Foundation API; the server decides every permission (403 shown as is).
 // IAM screens stay informational until an IAM administration API exists.
 
-// MOD-TEST-01: module screens (systemTest) are not administration screens: they are reached from the Foundation menu
-// (GET /api/foundation/navigation) and never listed in the sidebar or the screen search.
-export type ScreenId = 'home' | 'module' | 'navigation' | 'accounts' | 'roles' | 'systemTest';
+import { INSTALLED, moduleScreens } from './moduleScreens';
+import type { ModuleScreen } from './moduleScreens';
+
+// MOD-TEST-02: module screens come from the installed packages (routes/moduleScreens.ts), not from this file. They are
+// reached from the Foundation menu (GET /api/foundation/navigation) and never listed in the sidebar or the screen search.
+export type AdminScreenId = 'home' | 'module' | 'navigation' | 'accounts' | 'roles';
+export type ScreenId = AdminScreenId | ModuleScreen['id'];
 export type GroupId = 'foundation' | 'iam';
 
 export interface ShellScreen {
@@ -20,7 +24,7 @@ export interface NavGroup {
   readonly id: GroupId;
   readonly name: string;
   readonly icon: string;
-  readonly children: readonly ScreenId[];
+  readonly children: readonly AdminScreenId[];
 }
 
 export const SCREENS = {
@@ -29,32 +33,31 @@ export const SCREENS = {
   navigation: { id: 'navigation', path: '/foundation/navigation', name: 'Điều hướng', desc: 'Cây menu ứng dụng do Foundation quản lý, lọc theo quyền IAM của từng tài khoản.', tabs: ['Menu của tôi', 'Quản trị menu'] },
   accounts: { id: 'accounts', path: '/iam/accounts', name: 'Quản lý tài khoản', desc: 'Chưa triển khai: chưa có API quản trị tài khoản IAM.', tabs: ['Danh sách tài khoản'] },
   roles: { id: 'roles', path: '/iam/roles', name: 'Vai trò và quyền', desc: 'Chưa triển khai: chưa có API quản trị vai trò và quyền IAM.', tabs: ['Danh sách vai trò'] },
-  systemTest: {
-    id: 'systemTest', path: '/system-test', name: 'System Test & Diagnostics',
-    desc: 'Chẩn đoán hệ thống, xem dữ liệu Foundation ở chế độ chỉ đọc và kết quả kiểm thử. Quyền do máy chủ quyết định.',
-    tabs: ['Kiểm tra hệ thống', 'Xem bảng dữ liệu', 'Chạy test & xem kết quả'],
-  },
-} as const satisfies Record<ScreenId, ShellScreen>;
+} as const satisfies Record<AdminScreenId, ShellScreen>;
 
-// Sub-routes of a module screen (MIC-04 routes of SYSTEM_TEST): same screen, another tab.
-const SUB_ROUTES = [
-  { path: '/system-test/data', screen: 'systemTest', tab: 1 },
-  { path: '/system-test/runner', screen: 'systemTest', tab: 2 },
-] as const;
-const MODULE_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>(['systemTest']);
+const ADMIN_LIST: readonly ShellScreen[] = Object.values(SCREENS);
+// Installed module screens (a path already used by the shell is refused).
+export const MODULE_SCREENS: readonly ModuleScreen[] = moduleScreens(INSTALLED, new Set(ADMIN_LIST.map((s) => s.path)));
+// Every tab path of a module screen: same screen, tab = index (tab 0 = the screen path).
+const SUB_ROUTES = MODULE_SCREENS.flatMap((m) => m.tabPaths.map((path, tab) => ({ path, screen: m.id, tab })));
 
-export type ShellPath = (typeof SCREENS)[ScreenId]['path'] | (typeof SUB_ROUTES)[number]['path'];
+// A path of an administration screen or of an installed module tab (validated by toShellPath / shellPathOf).
+export type ShellPath = string;
 
 export const NAV_GROUPS: readonly NavGroup[] = [
   { id: 'foundation', name: 'Foundation', icon: '⚙', children: ['module', 'navigation'] },
   { id: 'iam', name: 'IAM · Tài khoản và quyền', icon: '♙', children: ['accounts', 'roles'] },
 ];
 
-const SCREEN_LIST = Object.values(SCREENS);
+const SCREEN_LIST: readonly ShellScreen[] = [...ADMIN_LIST, ...MODULE_SCREENS];
+
+export function screenById(id: ScreenId): ShellScreen {
+  return SCREEN_LIST.find((s) => s.id === id) ?? SCREENS.home;
+}
 
 export function screenOfPath(path: string): ShellScreen | undefined {
   const sub = SUB_ROUTES.find((r) => r.path === path);
-  return sub ? SCREENS[sub.screen] : SCREEN_LIST.find((screen) => screen.path === path);
+  return sub ? screenById(sub.screen) : SCREEN_LIST.find((screen) => screen.path === path);
 }
 
 // Tab opened by a path (0 for a screen path).
@@ -64,12 +67,12 @@ export function tabOfPath(path: string): number {
 
 // Path of a tab of a screen that has sub-routes (the screen path for tab 0 or a screen without sub-routes).
 export function pathOfTab(id: ScreenId, tab: number): ShellPath {
-  return SUB_ROUTES.find((r) => r.screen === id && r.tab === tab)?.path ?? SCREENS[id].path;
+  return SUB_ROUTES.find((r) => r.screen === id && r.tab === tab)?.path ?? screenById(id).path;
 }
 
 // A menu route (B09 / MIC-04) the shell can open, or undefined.
 export function shellPathOf(path: string): ShellPath | undefined {
-  return SUB_ROUTES.find((r) => r.path === path)?.path ?? SCREEN_LIST.find((screen) => MODULE_SCREENS.has(screen.id) && screen.path === path)?.path;
+  return SUB_ROUTES.find((r) => r.path === path)?.path;
 }
 
 // Any path that is not a shell screen (including /login and /first-change for an authenticated session) opens home.
@@ -78,12 +81,12 @@ export function toShellPath(path: string): ShellPath {
 }
 
 export function groupOf(id: ScreenId): NavGroup | undefined {
-  return NAV_GROUPS.find((group) => group.children.includes(id));
+  return NAV_GROUPS.find((group) => group.children.some((child) => child === id));
 }
 
 // Client-side screen search of the approved HTML: first screen whose name contains the query.
 export function findScreen(query: string): ShellScreen | undefined {
   const q = query.trim().toLowerCase();
   if (!q) return undefined;
-  return SCREEN_LIST.find((screen) => !MODULE_SCREENS.has(screen.id) && screen.name.toLowerCase().includes(q));
+  return ADMIN_LIST.find((screen) => screen.name.toLowerCase().includes(q));
 }

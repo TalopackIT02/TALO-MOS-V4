@@ -8,16 +8,21 @@
     "node": ">=24.0.0"
   },
   "scripts": {
+    "predev": "npm run modules:sync",
     "dev": "tsx watch --env-file-if-exists=../.env src/server.ts",
+    "prebuild": "npm run modules:sync",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "start:local": "node --env-file-if-exists=../.env dist/server.js",
+    "pretypecheck": "npm run modules:sync",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit",
+    "pretest": "npm run modules:sync",
     "test": "vitest run",
     "smoke:db": "tsx --env-file-if-exists=../.env test/smoke/db-runtime.smoke.ts",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
-    "provision:account": "tsx --env-file-if-exists=../.env src/modules/auth/provisioning/cli.ts"
+    "provision:account": "tsx --env-file-if-exists=../.env src/modules/auth/provisioning/cli.ts",
+    "modules:sync": "node scripts/modules-sync.mjs backend"
   },
   "dependencies": {
     "@node-rs/argon2": "2.2.1",

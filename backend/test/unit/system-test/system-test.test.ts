@@ -12,21 +12,27 @@ import { validateMic } from '../../../src/modules/foundation/foundation.mic.js';
 import type { MenuNode } from '../../../src/modules/foundation/foundation.navigation.js';
 import type { AccessFacts, PermissionRef } from '../../../src/modules/foundation/foundation.permissions.js';
 import type { AuditRecord } from '../../../src/modules/foundation/foundation.repository.js';
-import { evaluateChecks } from '../../../src/modules/system-test/system-test.checks.js';
-import type { CheckFacts, IamFact } from '../../../src/modules/system-test/system-test.checks.js';
-import { systemTestMic } from '../../../src/modules/system-test/system-test.mic.js';
-import { SYSTEM_TEST_BINDING } from '../../../src/modules/system-test/system-test.permissions.js';
-import { SYSTEM_TEST_SQL, TableNotReadableError } from '../../../src/modules/system-test/system-test.repository.js';
-import type { DiagnosticsSnapshot, ModuleState, SystemTestRepository, TablePage } from '../../../src/modules/system-test/system-test.repository.js';
-import { REGRESSION_FORMAT, readRegressionResults } from '../../../src/modules/system-test/system-test.results.js';
-import { systemTestRouter } from '../../../src/modules/system-test/system-test.routes.js';
-import { SystemTestError, SystemTestService } from '../../../src/modules/system-test/system-test.service.js';
-import { VIEWER_TABLES, countSql, rowsSql } from '../../../src/modules/system-test/system-test.tables.js';
-import type { ViewerTable } from '../../../src/modules/system-test/system-test.tables.js';
+import { evaluateChecks } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.checks.js';
+import type { CheckFacts, IamFact } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.checks.js';
+import { systemTestMic } from '../../../src/installed-modules/SYSTEM_TEST/mic/system-test.mic.js';
+import { SYSTEM_TEST_BINDING } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.permissions.js';
+import { SYSTEM_TEST_SQL, TableNotReadableError } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.repository.js';
+import type { DiagnosticsSnapshot, ModuleState, SystemTestRepository, TablePage } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.repository.js';
+import { REGRESSION_FORMAT, parseRegressionResults } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.results.js';
+import { createModule } from '../../../src/installed-modules/SYSTEM_TEST/backend/index.js';
+import { SystemTestError } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.service.js';
+import { VIEWER_TABLES, countSql, rowsSql } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.tables.js';
+import type { ViewerTable } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.tables.js';
 import { SUITES, redact, testCounts } from '../../system-test/regression.support.js';
 import { FakeAuth, TEST_ORIGIN, pgError, token } from '../foundation/fakes.js';
+import { HOST_SQL, createHostCapabilities } from '../../../src/module-host/capabilities.js';
+import type { HostCapabilities } from '../../../src/module-host/contract.js';
+import { sqlstateOf } from '../../../src/modules/auth/sqlstate.js';
+import type { FoundationDb } from '../../../src/modules/foundation/foundation.repository.js';
 
 // MOD-TEST-01 — SYSTEM_TEST module, unit / mock level (no database). The DB level is test/integration/system-test.
+// MOD-TEST-02: Host compatibility test of the package (installed copy) mounted through the REAL Host capabilities
+// (session, AccessGuard, evaluateAccess, MIC inspection) over fakes; only lifecycle and the module repository are faked.
 
 const ACCOUNT = '30000000-0000-4000-8000-000000000001';
 const EVIDENCE = [{ name: 'unit', result: 'PASS' as const, reference: 'test/unit/system-test' }];
@@ -83,11 +89,6 @@ class FakeRepo implements SystemTestRepository {
   readonly calls: string[] = [];
   lastPage: { table: string; limit: number; offset: number } | null = null;
 
-  async moduleState(moduleKey: string): Promise<ModuleState | null> {
-    this.calls.push(`moduleState:${moduleKey}`);
-    return this.state;
-  }
-
   async readableTables(tables: readonly ViewerTable[]): Promise<ReadonlyMap<string, boolean>> {
     this.calls.push('readableTables');
     return new Map(tables.map((t) => [t.tableKey, this.readable.has(t.tableKey)]));
@@ -108,6 +109,13 @@ class FakeRepo implements SystemTestRepository {
   }
 }
 
+// The module repository is faked; any direct database use by the Host would be a defect here.
+const NO_DB: FoundationDb = {
+  query: async () => { throw new Error('unexpected database use'); },
+  execute: async () => { throw new Error('unexpected database use'); },
+  transaction: async () => { throw new Error('unexpected database use'); },
+};
+
 const menuOf = (routes: readonly string[]): MenuNode[] => [{
   navigationId: 'g', moduleId: 'm', functionId: null, menuTitle: 'System Test', sortOrder: 0, routePath: null, screenKey: null,
   children: routes.map((r, i) => ({ navigationId: `n${i}`, moduleId: 'm', functionId: `f${i}`, menuTitle: r, sortOrder: i, routePath: r, screenKey: null, children: [] })),
@@ -119,13 +127,15 @@ function build() {
   const nav = { routes: ['/system-test', '/system-test/data', '/system-test/runner'], fail: false };
   const logs: string[] = [];
   const logger = createLogger({ level: 'debug', sink: (line) => logs.push(line) });
-  const service = new SystemTestService({
-    access, repository: repo, logger, binding: SYSTEM_TEST_BINDING, resultsFile: join(tmpdir(), `st-missing-${process.pid}.json`),
-    navigation: { menu: async () => { if (nav.fail) throw pgError('57014'); return menuOf(nav.routes); } },
-  });
   const auth = new FakeAuth();
   auth.authenticated(token('st'), ACCOUNT);
-  const app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger, apiRouters: [systemTestRouter({ authService: auth, service, secureCookie: false })] });
+  const base = createHostCapabilities('SYSTEM_TEST', {
+    db: NO_DB, access, authService: auth, logger, secureCookie: false, resultsFile: join(tmpdir(), `st-missing-${process.pid}.json`),
+    navigation: { menu: async () => { if (nav.fail) throw pgError('57014'); return menuOf(nav.routes); } },
+  });
+  const host: HostCapabilities = { ...base, lifecycle: async (key) => { repo.calls.push(`moduleState:${key}`); return repo.state; } };
+  const { service, router } = createModule(host, { repository: repo });
+  const app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger, apiRouters: [router] });
   const allowAll = () => {
     for (const p of [SYSTEM_TEST_BINDING.diagnosticsRead, SYSTEM_TEST_BINDING.dataViewerRead, SYSTEM_TEST_BINDING.testRunnerExecute]) access.allowed.add(p.permissionCode);
   };
@@ -182,7 +192,7 @@ describe('Data Viewer allowlist and SQL (ST-06 / ST-07, source level)', () => {
   });
 
   it('every statement is a SELECT / SET (no write, no DDL); paging is bound as $1 / $2', () => {
-    for (const sql of Object.values(SYSTEM_TEST_SQL)) {
+    for (const sql of [...Object.values(SYSTEM_TEST_SQL), ...Object.values(HOST_SQL)]) {
       expect(sql.trim()).toMatch(/^(SELECT|SET)\b/);
       expect(sql).not.toMatch(WRITE);
     }
@@ -194,7 +204,7 @@ describe('Data Viewer allowlist and SQL (ST-06 / ST-07, source level)', () => {
       expect(rows).toContain(`FROM "foundation"."${t.table}" ORDER BY `);
       expect(countSql(t)).toBe(`SELECT count(*)::int AS n FROM "foundation"."${t.table}"`);
     }
-    expect(SYSTEM_TEST_SQL.readOnly).toBe('SET TRANSACTION READ ONLY');
+    expect(HOST_SQL.readOnly).toBe('SET TRANSACTION READ ONLY');
   });
 });
 
@@ -205,9 +215,10 @@ describe('quick checks (ST-09, evaluation level)', () => {
   });
   const facts = (overrides: Partial<CheckFacts> = {}): CheckFacts => ({
     moduleKey: 'SYSTEM_TEST', assuranceLevel: 1, snapshot: snapshotFor('SYSTEM_TEST'),
-    iam: [allow('DIAGNOSTICS'), allow('DATA_VIEWER'), allow('TEST_RUNNER')], menuRoutes: ['/system-test', '/system-test/data', '/system-test/runner'], ...overrides,
+    iam: [allow('DIAGNOSTICS'), allow('DATA_VIEWER'), allow('TEST_RUNNER')], menuRoutes: ['/system-test', '/system-test/data', '/system-test/runner'],
+    manifest: { intact: true, micValid: true }, ...overrides,
   });
-  const statusOf = (f: CheckFacts) => Object.fromEntries(evaluateChecks(f).map((r) => [r.key, r.status]));
+  const statusOf = (f: CheckFacts) => Object.fromEntries(evaluateChecks(f, sqlstateOf).map((r) => [r.key, r.status]));
 
   it('all twelve components PASS only when every fact is consistent', () => {
     const results = evaluateChecks(facts());
@@ -218,8 +229,9 @@ describe('quick checks (ST-09, evaluation level)', () => {
 
   it('defects are FAIL, unreadable sources UNAVAILABLE, missing prerequisites NOT_TESTED — never PASS', () => {
     const base = snapshotFor('SYSTEM_TEST');
-    const [v] = base.activeVersions;
-    expect(statusOf(facts({ snapshot: { ...base, activeVersions: v ? [{ ...v, manifestHash: 'f'.repeat(64) }] : [] } }))).toMatchObject({
+    expect(statusOf(facts({ manifest: { intact: true, micValid: false } }))).toMatchObject({ VERSION_MIC: 'FAIL', FUNCTION_ACTION: 'NOT_TESTED' });
+    expect(statusOf(facts({ manifest: null }))).toMatchObject({ VERSION_MIC: 'FAIL' });
+    expect(statusOf(facts({ manifest: { intact: false, micValid: true } }))).toMatchObject({
       VERSION_MIC: 'FAIL', FUNCTION_ACTION: 'NOT_TESTED', DATA_CONTRACTS: 'NOT_TESTED', COMPATIBILITY: 'NOT_TESTED', NAVIGATION: 'NOT_TESTED',
     });
     expect(statusOf(facts({ snapshot: { ...base, functions: ['DIAGNOSTICS'] } }))).toMatchObject({ FUNCTION_ACTION: 'FAIL' });
@@ -317,8 +329,12 @@ describe('SystemTestService (mock) — IAM first, then module lifecycle, then th
 });
 
 // ------------------------------------------------------------------------------------------------- results file
-describe('Full Regression results file (ST-10, reader)', () => {
+describe('Full Regression results file (ST-10, Host reader + module parser)', () => {
   let dir = '';
+  const readRegressionResults = async (file: string) => parseRegressionResults(await createHostCapabilities('SYSTEM_TEST', {
+    db: NO_DB, access: new FakeAccess(), authService: new FakeAuth(), navigation: { menu: async () => [] }, logger: createLogger({ level: 'error' }),
+    secureCookie: false, resultsFile: file,
+  }).regressionResults());
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), 'st-results-'));
   });

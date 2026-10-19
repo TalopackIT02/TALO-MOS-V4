@@ -1,20 +1,15 @@
 import { z } from 'zod';
-import type { FoundationDb, SqlExecutor } from '../foundation/foundation.repository.js';
+import type { ModuleHost, ReadOnlyQuery as SqlExecutor } from './host.js';
 import { countSql, rowsSql } from './system-test.tables.js';
 import type { ViewerTable } from './system-test.tables.js';
 
 // MOD-TEST-01 — every statement of the SYSTEM_TEST module. SELECT only: the module never writes Foundation, IAM or any
 // other table (its only write path is the shared AccessGuard DENIED audit). Values travel as bind parameters; SQL
 // identifiers come from the server allowlist (system-test.tables.ts). Diagnostics and Data Viewer reads run in a
-// READ ONLY transaction with a statement timeout; the READ ONLY state is re-read from PostgreSQL before any data query.
-
-export const STATEMENT_TIMEOUT_MS = 5_000;
+// READ ONLY transaction with a statement timeout, provided by the Host (MOD-TEST-02 capability `readOnly`).
 
 export const SYSTEM_TEST_SQL = {
-  readOnly: 'SET TRANSACTION READ ONLY',
-  timeout: `SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`,
-  readOnlyState: `SELECT current_setting('transaction_read_only') AS read_only`,
-  // Lifecycle gate of every module API request: module row + number of ACTIVE versions.
+  // Diagnostics (Registry / Lifecycle components): module row + number of ACTIVE versions.
   moduleState: `
     SELECT m.module_id::text AS module_id, m.is_enabled,
            (SELECT count(*)::int FROM foundation.fnd_module_versions AS v WHERE v.module_id = m.module_id AND v.status = 'ACTIVE') AS active_versions
@@ -92,7 +87,6 @@ export class TableNotReadableError extends Error {
 }
 
 export interface SystemTestRepository {
-  moduleState(moduleKey: string): Promise<ModuleState | null>;
   readableTables(tables: readonly ViewerTable[]): Promise<ReadonlyMap<string, boolean>>;
   // Throws TableNotReadableError when a listed column is not readable (checked before the data query).
   tablePage(table: ViewerTable, limit: number, offset: number): Promise<TablePage>;
@@ -102,7 +96,6 @@ export interface SystemTestRepository {
 const moduleRow = z.object({ module_id: z.string(), is_enabled: z.boolean(), active_versions: z.number().int() });
 const privilegeRow = z.object({ table_key: z.string(), readable: z.boolean() });
 const countRow = z.object({ n: z.number().int() });
-const readOnlyRow = z.object({ read_only: z.string() });
 const identityRow = z.object({ database_name: z.string(), role_name: z.string(), server_version: z.string() });
 const versionRow = z.object({ version_id: z.string(), module_version: z.string(), manifest_json: z.unknown(), manifest_hash: z.string().nullable() });
 const functionRow = z.object({ function_key: z.string() });
@@ -117,26 +110,14 @@ function toModuleState(row: unknown): ModuleState {
 }
 
 export class SqlSystemTestRepository implements SystemTestRepository {
-  private readonly db: FoundationDb;
+  private readonly host: Pick<ModuleHost, 'readOnly'>;
 
-  constructor(db: FoundationDb) {
-    this.db = db;
+  constructor(host: Pick<ModuleHost, 'readOnly'>) {
+    this.host = host;
   }
 
-  // READ ONLY + statement timeout, verified inside the same transaction before `fn` runs.
   private readOnly<R>(fn: (tx: SqlExecutor) => Promise<R>): Promise<R> {
-    return this.db.transaction(async (tx) => {
-      await tx.execute(SYSTEM_TEST_SQL.readOnly, []);
-      await tx.execute(SYSTEM_TEST_SQL.timeout, []);
-      const [state] = await tx.query(SYSTEM_TEST_SQL.readOnlyState, []);
-      if (readOnlyRow.parse(state).read_only !== 'on') throw new Error('transaction is not READ ONLY');
-      return fn(tx);
-    });
-  }
-
-  async moduleState(moduleKey: string): Promise<ModuleState | null> {
-    const [row] = await this.db.query(SYSTEM_TEST_SQL.moduleState, [moduleKey]);
-    return row === undefined ? null : toModuleState(row);
+    return this.host.readOnly(fn);
   }
 
   async readableTables(tables: readonly ViewerTable[]): Promise<ReadonlyMap<string, boolean>> {

@@ -1,22 +1,11 @@
-import { readFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { z } from 'zod';
 
 // MOD-TEST-01 — Full Regression results (TAB 3). The API never starts a process: Full Regression is run by the local CLI
-// runner (backend/test/system-test/regression.cli.ts, fixed suite list, TEST database on localhost only), which writes
-// one redacted JSON file. The API only reads that file from a fixed server-side location (never a path from a request)
-// and returns it after schema validation. A missing file means "not run yet"; an invalid file is reported as such.
+// runner of the Host (backend/test/system-test/regression.cli.ts, fixed suite list, TEST database on localhost only),
+// which writes one redacted JSON file in this format. MOD-TEST-02: the file location belongs to the Host; the module
+// receives its text through the `regressionResults` capability (never a path from a request) and validates it here. A missing file means "not run yet"; an invalid file is reported as such.
 
 export const REGRESSION_FORMAT = 'TALO-SYSTEM-TEST-REGRESSION-1';
-
-export function regressionResultsDir(): string {
-  return join(tmpdir(), 'talo-mos-v4-system-test');
-}
-
-export function regressionResultsFile(): string {
-  return join(regressionResultsDir(), 'regression-latest.json');
-}
 
 export const SUITE_STATUSES = ['PASS', 'FAIL', 'TIMEOUT', 'NOT_RUN'] as const;
 
@@ -46,14 +35,9 @@ export type RegressionRun = z.infer<typeof regressionRunSchema>;
 
 export type RegressionRead = { readonly state: 'NOT_RUN' } | { readonly state: 'INVALID' } | { readonly state: 'AVAILABLE'; readonly run: RegressionRun };
 
-export async function readRegressionResults(file: string): Promise<RegressionRead> {
-  let text: string;
-  try {
-    text = await readFile(file, 'utf8');
-  } catch (error) {
-    if (error instanceof Error && Reflect.get(error, 'code') === 'ENOENT') return { state: 'NOT_RUN' };
-    return { state: 'INVALID' };
-  }
+// text = null: no result written yet.
+export function parseRegressionResults(text: string | null): RegressionRead {
+  if (text === null) return { state: 'NOT_RUN' };
   if (text.length > 512 * 1024) return { state: 'INVALID' };
   let json: unknown;
   try {

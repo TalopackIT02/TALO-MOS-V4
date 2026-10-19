@@ -1,4 +1,4 @@
-import type { RegressionSuite } from '../../src/modules/system-test/system-test.results.js';
+import type { RegressionSuite } from '../../src/installed-modules/SYSTEM_TEST/backend/system-test.results.js';
 
 // MOD-TEST-01 — fixed suite list and output redaction of the local Full Regression runner (regression.cli.ts).
 
