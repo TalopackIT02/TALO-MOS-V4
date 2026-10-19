@@ -174,6 +174,11 @@ export class IamAdminRepository {
     if (!manifest.success) throw new IamError(422, 'BINDING_INVALID');
     const matches = manifest.data.mic07IamMapping.filter(m => m.moduleCode === data.moduleCode && m.resourceCode === data.resourceCode && m.operation === data.operation && m.minimumAssuranceLevel === data.minimumAssuranceLevel && m.functionKey === data.resourceCode && m.actionKey === data.operation);
     if (matches.length !== 1) throw new IamError(422, 'BINDING_INVALID');
+    // A duplicate K05 triple would make Foundation navigation fail closed (PERMISSION_AMBIGUOUS).
+    const existing = rows(await this.db.query(
+      'SELECT permission_id FROM iam.iam_permissions WHERE module_code=$1 AND resource_code=$2 AND operation=$3',
+      [data.moduleCode,data.resourceCode,data.operation]));
+    if (existing.length > 0) throw new IamError(409, 'PERMISSION_TRIPLE_EXISTS');
     return this.mutation(actor, 'IAM.PERMISSION.CREATE', 'PERMISSION', async tx =>
       one(await tx.query('INSERT INTO iam.iam_permissions(permission_code,module_code,resource_code,operation,minimum_assurance_level,permission_description) VALUES($1,$2,$3,$4,$5,$6) RETURNING permission_id::text AS id,permission_code AS "permissionCode"', [data.permissionCode,data.moduleCode,data.resourceCode,data.operation,data.minimumAssuranceLevel,data.description ?? null])));
   }
