@@ -40,6 +40,24 @@ function micTemplate(moduleKey: string, moduleVersion: string, moduleName: strin
   };
 }
 
+// FIX-FE-MIC-SAVE-01: text shown for a version. The template is ONLY for a DRAFT that has no stored manifest yet; a
+// stored manifest is always shown as stored; a locked version without manifest shows nothing.
+function micText(version: VersionRecord, moduleKey: string, moduleName: string): string {
+  if (version.manifestJson !== null) return JSON.stringify(version.manifestJson, null, 2);
+  return version.status === 'DRAFT' ? JSON.stringify(micTemplate(moduleKey, version.moduleVersion, moduleName), null, 2) : '';
+}
+
+// Key-order independent JSON equality (PostgreSQL jsonb does not keep the key order of the request).
+function sameJson(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => sameJson(x, b[i]));
+  if (isJsonObject(a) && isJsonObject(b)) {
+    const ka = Object.keys(a).sort();
+    const kb = Object.keys(b).sort();
+    return ka.length === kb.length && ka.every((k, i) => k === kb[i] && sameJson(a[k], b[k]));
+  }
+  return a === b;
+}
+
 export interface VersionPanelProps {
   readonly module: ModuleRecord;
   readonly onSessionLost: () => void;
@@ -51,16 +69,22 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
   const [selected, setSelected] = useState<VersionRecord | null>(null);
   const [newVersion, setNewVersion] = useState('1.0.0');
   const [mic, setMic] = useState('');
+  // True while the textarea holds edits that are not confirmed as stored: no reload may overwrite them.
+  const [dirty, setDirty] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async (keepId?: string) => {
+  // `keepEdits`: a reload after another action keeps unsaved edits of the textarea (never replaced by stored / template).
+  const load = useCallback(async (keepId?: string, keepEdits = false) => {
     const data = settle(await foundationApi.listVersions(module.moduleId), onSessionLost, setFeedback);
     setVersions(data ?? []);
     if (keepId && data) {
       const found = data.find((x) => x.versionId === keepId) ?? null;
       setSelected(found);
-      if (found) setMic(found.manifestJson === null ? JSON.stringify(micTemplate(module.moduleKey, found.moduleVersion, module.moduleName), null, 2) : JSON.stringify(found.manifestJson, null, 2));
+      if (found && !keepEdits) {
+        setMic(micText(found, module.moduleKey, module.moduleName));
+        setDirty(false);
+      }
     }
   }, [module, onSessionLost]);
 
@@ -68,10 +92,16 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
     void load();
   }, [load]);
 
+  function discardOk(): boolean {
+    return !dirty || window.confirm('Hồ sơ MIC đang sửa chưa được lưu. Bỏ các thay đổi này?');
+  }
+
   function choose(version: VersionRecord) {
+    if (!discardOk()) return;
     setFeedback(null);
     setSelected(version);
-    setMic(version.manifestJson === null ? JSON.stringify(micTemplate(module.moduleKey, version.moduleVersion, module.moduleName), null, 2) : JSON.stringify(version.manifestJson, null, 2));
+    setMic(micText(version, module.moduleKey, module.moduleName));
+    setDirty(false);
   }
 
   async function run(work: () => Promise<void>) {
@@ -112,16 +142,32 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
     const manifest = parsedMic();
     if (!manifest) return;
     await run(async () => {
-      const data = settle(await foundationApi.putManifest(module.moduleId, selected.versionId, manifest), onSessionLost, setFeedback);
-      if (data) {
-        setFeedback({ tone: 'success', text: 'Đã lưu hồ sơ MIC (bản nháp). Nộp xét duyệt để hệ thống kiểm tra đầy đủ.' });
-        await load(data.versionId);
+      // "Đã lưu" only when the PUT answer AND a fresh GET of the version both hold exactly the manifest sent; otherwise
+      // the textarea keeps the user's text and an error is shown (no template, no stale content).
+      const put = settle(await foundationApi.putManifest(module.moduleId, selected.versionId, manifest), onSessionLost, setFeedback);
+      if (!put) return;
+      if (!sameJson(put.manifestJson, manifest)) {
+        setFeedback({ tone: 'error', text: 'Máy chủ trả về hồ sơ MIC khác với nội dung đã gửi; chưa xác nhận đã lưu. Nội dung đang sửa được giữ nguyên.' });
+        return;
       }
+      const stored = settle(await foundationApi.getVersion(module.moduleId, selected.versionId), onSessionLost, setFeedback);
+      if (!stored) return;
+      if (!sameJson(stored.manifestJson, manifest)) {
+        setFeedback({ tone: 'error', text: 'Đọc lại phiên bản không thấy hồ sơ MIC vừa lưu; chưa xác nhận đã lưu. Nội dung đang sửa được giữ nguyên.' });
+        return;
+      }
+      setSelected(stored);
+      setMic(micText(stored, module.moduleKey, module.moduleName));
+      setDirty(false);
+      setFeedback({ tone: 'success', text: 'Đã lưu hồ sơ MIC (bản nháp) và đọc lại xác nhận khớp. Nộp xét duyệt để hệ thống kiểm tra đầy đủ.' });
+      await load(stored.versionId, true);
     });
   }
 
   async function act(action: Action, confirmText?: string) {
     if (!selected) return;
+    // SUBMIT uses the STORED manifest: unsaved edits must be saved first (they are never discarded silently).
+    if (dirty) return setFeedback({ tone: 'error', text: 'Hồ sơ MIC có thay đổi chưa lưu. Nhấn “Lưu MIC” trước khi nộp xét duyệt.' });
     if (confirmText && !window.confirm(confirmText)) return;
     await run(async () => {
       const data = settle(await foundationApi.lifecycle(module.moduleId, selected.versionId, action), onSessionLost, setFeedback);
@@ -142,7 +188,7 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
         <label className="muted" htmlFor="fx-new-version">Phiên bản mới (SemVer)</label>
         <input id="fx-new-version" className="search" style={{ width: 140 }} value={newVersion} onChange={(e) => setNewVersion(e.target.value)} />
         <button type="submit" className="fx-btn primary" disabled={busy}>Tạo phiên bản nháp</button>
-        <button type="button" className="fx-btn" onClick={() => void load(selected?.versionId)}>Tải lại</button>
+        <button type="button" className="fx-btn" onClick={() => { if (discardOk()) void load(selected?.versionId); }}>Tải lại</button>
       </form>
       {versions === null ? <p className="info">Đang tải…</p> : versions.length === 0 ? <p className="info">Module chưa có phiên bản nào.</p> : (
         <div className="tablewrap">
@@ -181,7 +227,8 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
             ))}
           </div>
           <label className="muted" htmlFor="fx-mic">{isDraft ? 'Hồ sơ MIC (JSON) — chỉ sửa được khi phiên bản là bản nháp' : 'Hồ sơ MIC đã khóa (chỉ xem)'}</label>
-          <textarea id="fx-mic" className="fx-mic" spellCheck={false} readOnly={!isDraft} value={mic} onChange={(e) => setMic(e.target.value)} />
+          <textarea id="fx-mic" className="fx-mic" spellCheck={false} readOnly={!isDraft} value={mic} onChange={(e) => { setMic(e.target.value); setDirty(true); }} />
+          {isDraft && dirty && <p className="muted">Có thay đổi chưa lưu.</p>}
         </div>
       )}
     </div>
