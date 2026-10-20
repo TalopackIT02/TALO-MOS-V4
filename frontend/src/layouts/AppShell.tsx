@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminTabs, canOpenAdmin, groupOf, MODULE_SCREENS, pathOfTab, screenById, screenOfPath, SCREENS, tabOfPath, visibleGroups } from '../routes/shellScreens';
 import type { ScreenId, SearchTarget, ShellPath } from '../routes/shellScreens';
-import { businessEntries, menuPaths, menuTrail, ShellDataContext, useShellDataSource } from '../contexts/ShellData';
-import type { BusinessEntry } from '../contexts/ShellData';
+import { businessTree, menuAncestors, menuPaths, menuTrail, ShellDataContext, treeFunctions, useShellDataSource } from '../contexts/ShellData';
+import type { NavTreeNode } from '../contexts/ShellData';
+import { DEFAULT_MENU_ICON } from '../components/icons/NavIcon';
 import { authApi } from '../services/auth/authApi';
 import type { AccountSummary } from '../services/auth/authApi';
 import type { UiMessage } from '../services/auth/errorMessages';
@@ -23,17 +24,15 @@ function isMobile(): boolean {
   return window.matchMedia(MOBILE_QUERY).matches;
 }
 
-// Key of the sidebar group that contains the screen / path (admin group, or the B09 business group of a module route).
-function parentKey(id: ScreenId, path: string, business: readonly BusinessEntry[]): string | undefined {
+// Menus to open so that the screen / path is visible: its admin menu, or every B09 menu above the Function of the path.
+function parentKeys(id: ScreenId, path: string, business: readonly NavTreeNode[]): string[] {
   const admin = groupOf(id);
-  if (admin) return admin.id;
-  for (const e of business) if (e.kind === 'group' && e.links.some((l) => l.path === path)) return e.id;
-  return undefined;
+  return admin ? [admin.id] : menuAncestors(business, path);
 }
 
-function withParent(expanded: ReadonlySet<string>, key: string | undefined): ReadonlySet<string> {
-  if (!key || expanded.has(key)) return expanded;
-  return new Set(expanded).add(key);
+function withParents(expanded: ReadonlySet<string>, keys: readonly string[]): ReadonlySet<string> {
+  if (keys.every((k) => expanded.has(k))) return expanded;
+  return new Set([...expanded, ...keys]);
 }
 
 export type ScreenAccess = 'checking' | 'allowed' | 'denied';
@@ -51,7 +50,7 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => withParent(new Set<string>(), groupOf(screen.id)?.id));
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => withParents(new Set<string>(), parentKeys(screen.id, path, [])));
   const [pinnedFlyout, setPinnedFlyout] = useState<string | null>(null);
   const [tab, setTab] = useState<{ screen: ScreenId; index: number }>({ screen: screen.id, index: tabOfPath(path) });
   const [loggingOut, setLoggingOut] = useState(false);
@@ -64,8 +63,12 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   // WS01 / WS06: one business menu + the session's admin capabilities for the sidebar, home, search, crumb and guard.
   const shellData = useShellDataSource(onSessionLost);
   const { menu, capabilities, can } = shellData;
-  const business = useMemo(() => (menu === null ? null : businessEntries(menu)), [menu]);
+  const business = useMemo(() => (menu === null ? null : businessTree(menu, DEFAULT_MENU_ICON)), [menu]);
   const groups = useMemo(() => (capabilities === null ? [] : visibleGroups(can)), [capabilities, can]);
+  // Admin menus as sidebar menus (icon key of the library) with their screens as Functions.
+  const admin = useMemo<NavTreeNode[]>(() => groups.map((g) => ({
+    kind: 'menu', id: g.id, title: g.name, icon: g.icon, children: g.children.map((id) => ({ kind: 'function', id, title: SCREENS[id].name, path: SCREENS[id].path })),
+  })), [groups]);
   const routes = useMemo(() => menuPaths(menu ?? []), [menu]);
   const moduleScreen = MODULE_SCREENS.find((m) => m.id === screen.id);
 
@@ -84,12 +87,12 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   const targets = useMemo<SearchTarget[]>(() => [
     SCREENS.home,
     ...groups.flatMap((g) => g.children.map((id) => SCREENS[id])),
-    ...(business ?? []).flatMap((e) => (e.kind === 'link' ? [e.link] : e.links)).flatMap((l) => (l.path ? [{ name: l.title, path: l.path }] : [])),
+    ...treeFunctions(business ?? []).flatMap((f) => (f.path ? [{ name: f.title, path: f.path }] : [])),
   ], [groups, business]);
 
   // Back/forward, a reload on a sub-screen or the menu arriving: open the parent group as a menu click would.
   useEffect(() => {
-    setExpanded((current) => withParent(current, parentKey(screen.id, path, business ?? [])));
+    setExpanded((current) => withParents(current, parentKeys(screen.id, path, business ?? [])));
   }, [screen.id, path, business]);
 
   // MOD-TEST-01/02: a module tab route (declared by its package) opens that tab, also on back/forward.
@@ -213,14 +216,14 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
         />
         <div className={compact ? 'layout compact' : 'layout'}>
           <ShellSidebar
-            selected={screen.id}
+            homeActive={screen.id === 'home'}
             path={path}
             compact={compact}
             expanded={expanded}
             pinnedFlyout={pinnedFlyout}
             business={business}
-            groups={groups}
-            onSelect={navigate}
+            admin={admin}
+            onHome={() => navigate('home')}
             onOpenPath={openPath}
             onToggleGroup={toggleGroup}
             onToggleCompact={toggleCompact}

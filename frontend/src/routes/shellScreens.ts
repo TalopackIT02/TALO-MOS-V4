@@ -23,7 +23,7 @@ export interface ShellScreen {
 export interface NavGroup {
   readonly id: GroupId;
   readonly name: string;
-  readonly icon: string;
+  readonly icon: string; // key of the navigation icon library (public/assets/icons/navigation/<key>.svg)
   readonly children: readonly AdminScreenId[];
 }
 
@@ -45,8 +45,8 @@ const SUB_ROUTES = MODULE_SCREENS.flatMap((m) => m.tabPaths.map((path, tab) => (
 export type ShellPath = string;
 
 export const NAV_GROUPS: readonly NavGroup[] = [
-  { id: 'foundation', name: 'Foundation', icon: '⚙', children: ['module', 'navigation'] },
-  { id: 'iam', name: 'IAM · Tài khoản và quyền', icon: '♙', children: ['accounts', 'roles'] },
+  { id: 'foundation', name: 'Foundation', icon: 'settings', children: ['module', 'navigation'] },
+  { id: 'iam', name: 'IAM · Tài khoản và quyền', icon: 'shield-lock', children: ['accounts', 'roles'] },
 ];
 
 const SCREEN_LIST: readonly ShellScreen[] = [...ADMIN_LIST, ...MODULE_SCREENS];

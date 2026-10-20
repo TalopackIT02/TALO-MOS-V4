@@ -11,6 +11,8 @@ import { DataTable, NameCode } from '../../components/DataTable';
 import type { Column } from '../../components/DataTable';
 import { byFunction, isTestModuleKey, moduleLabel, useModuleFunctions, useSettle } from '../iam/iamShared';
 import { FeedbackLine } from './common';
+import { DEFAULT_MENU_ICON, NavIcon } from '../../components/icons/NavIcon';
+import { IconPicker } from '../../components/icons/IconPicker';
 import type { Feedback, ScreenProps } from './common';
 
 // FE-06 / WS02 — Navigation, the ONLY manager of the menu items (B09). Tab 0: the menu of the signed-in account (the same
@@ -76,6 +78,8 @@ function ManageMenu({ onSessionLost, onChanged }: { onSessionLost: () => void; o
   const [editOrder, setEditOrder] = useState('0');
   const [editVisible, setEditVisible] = useState(true);
   const [showTest, setShowTest] = useState(false);
+  // Icon of a MENU item: chosen from the library for preview only — B09 has no icon column, nothing is sent or stored.
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
@@ -135,7 +139,7 @@ function ManageMenu({ onSessionLost, onChanged }: { onSessionLost: () => void; o
   }
 
   const columns: Column<MenuItem>[] = [
-    { key: 'menuTitle', label: 'Tiêu đề', value: (i) => i.menuTitle, render: (i) => <b>{i.menuTitle}</b> },
+    { key: 'menuTitle', label: 'Tiêu đề', value: (i) => i.menuTitle, render: (i) => (i.functionId ? i.menuTitle : <span className="nav-item-title"><NavIcon name={DEFAULT_MENU_ICON} size={16} /><b>{i.menuTitle}</b></span>) },
     { key: 'kind', label: 'Loại', value: (i) => (i.functionId ? 'Chức năng' : 'Nhóm') },
     { key: 'parent', label: 'Menu cha', value: (i) => i.parentTitle ?? '— Gốc —' },
     { key: 'module', label: 'Module', value: (i) => `${i.moduleName ?? ''} ${i.moduleKey ?? ''}`.trim() || '—', render: (i) => (i.moduleKey ? <NameCode name={i.moduleName} code={i.moduleKey} /> : '— (chung)') },
@@ -180,6 +184,7 @@ function ManageMenu({ onSessionLost, onChanged }: { onSessionLost: () => void; o
         </label>
         <div><button type="submit" className="fx-btn primary" disabled={busy || !title.trim() || (kind === 'function' && (!moduleId || !functionId || hasItem(functionId)))}>{kind === 'function' ? 'Tạo mục chức năng' : 'Tạo nhóm menu'}</button></div>
       </form>
+      {kind === 'group' && <IconPreviewOnly value={iconPreview} onChange={setIconPreview} />}
       {kind === 'group' && fns.some((f) => f.displayName.trim().toLowerCase() === title.trim().toLowerCase()) && (
         <p className="fx-msg error">Tiêu đề trùng tên một Chức năng: nhóm menu không mở chức năng. Chọn “Mục chức năng” để tạo mục mở màn hình.</p>
       )}
@@ -194,6 +199,7 @@ function ManageMenu({ onSessionLost, onChanged }: { onSessionLost: () => void; o
             <label>Hiển thị<select value={editVisible ? 'true' : 'false'} onChange={(e) => setEditVisible(e.target.value === 'true')}><option value="true">Có</option><option value="false">Không</option></select></label>
           </div>
           <p className="muted">Menu cha: {editing.parentTitle ?? '— Gốc —'} (API Foundation không đổi menu cha của mục đã tạo).</p>
+          {!editing.functionId && <IconPreviewOnly value={iconPreview} onChange={setIconPreview} />}
           <div className="fx-toolbar" style={{ marginBottom: 0 }}>
             <button type="submit" className="fx-btn primary" disabled={busy || !editTitle.trim()}>Lưu mục menu</button>
             <button type="button" className="fx-btn" onClick={() => setEditing(null)}>Hủy</button>
@@ -217,5 +223,20 @@ function ManageMenu({ onSessionLost, onChanged }: { onSessionLost: () => void; o
         />
       </div>
     </>
+  );
+}
+
+// MENU icon (owner rule): chosen by name from the fixed SVG library. Foundation B09 has no field for an icon key yet, so
+// the choice is a PREVIEW only — it is not sent to the API and not stored; the sidebar keeps the default menu icon until
+// the database change is approved. Function items never get an icon (this block is not shown for them).
+function IconPreviewOnly({ value, onChange }: { value: string | null; onChange: (key: string | null) => void }) {
+  return (
+    <div className="icon-preview-only">
+      <p className="fx-msg info" role="note">
+        <b>Icon của menu — chỉ xem trước, CHƯA lưu.</b> Bảng menu (B09) hiện chưa có trường lưu icon; mọi menu đang dùng icon
+        mặc định “{DEFAULT_MENU_ICON}”. Lưu icon cần thay đổi cơ sở dữ liệu và đang chờ chủ dự án phê duyệt.
+      </p>
+      <IconPicker value={value} onChange={onChange} label="Icon của menu (xem trước)" />
+    </div>
   );
 }

@@ -1,74 +1,63 @@
 import { SCREENS } from '../routes/shellScreens';
-import type { NavGroup as NavGroupData, ScreenId, ShellPath } from '../routes/shellScreens';
-import type { BusinessEntry } from '../contexts/ShellData';
+import type { ShellPath } from '../routes/shellScreens';
+import type { NavTreeNode } from '../contexts/ShellData';
+import { NavIcon } from '../components/icons/NavIcon';
 
-// Sidebar (WS01): Trang chủ, then the BUSINESS menu of the account (GET /api/foundation/navigation — B09 filtered by the
-// backend; nothing hard-coded here), then the ADMIN groups the session may open (capabilities, WS06). Expanded sidebar: a
-// group click opens / closes its sub-menu. Compact sidebar: a group click pins its flyout (click again, Escape, a click
-// outside or choosing an item closes it; one flyout at a time). On mobile the same sidebar is the drawer.
+// Sidebar (WS01 + owner rule "MENU vs FUNCTION"): Trang chủ, then the BUSINESS tree of the account (GET
+// /api/foundation/navigation — B09 filtered by the backend; nothing hard-coded here), then the ADMIN menus the session may
+// open (capabilities, WS06).
+//   MENU     = icon (navigation SVG library) + bold title + chevron; contains menus / functions; any depth.
+//   FUNCTION = NO icon (no placeholder either) + normal title, indented under its menu with a tree line; active state.
+// Expanded sidebar: a menu click opens / closes it. Compact sidebar: top-level menus show their icon; a click pins a
+// flyout with the same tree (functions still without icon). On mobile the same sidebar is the drawer.
 
 export interface ShellSidebarProps {
-  readonly selected: ScreenId;
   readonly path: string;
+  readonly homeActive: boolean;
   readonly compact: boolean;
   readonly expanded: ReadonlySet<string>;
   readonly pinnedFlyout: string | null;
-  readonly business: readonly BusinessEntry[] | null;
-  readonly groups: readonly NavGroupData[];
-  readonly onSelect: (id: ScreenId) => void;
+  readonly business: readonly NavTreeNode[] | null;
+  readonly admin: readonly NavTreeNode[];
+  readonly onHome: () => void;
   readonly onOpenPath: (path: ShellPath) => void;
   readonly onToggleGroup: (id: string) => void;
   readonly onToggleCompact: () => void;
 }
 
-interface Item {
-  readonly key: string;
-  readonly label: string;
-  readonly active: boolean;
-  readonly disabled?: boolean;
-  readonly onClick: () => void;
+interface TreeProps {
+  readonly path: string;
+  readonly expanded: ReadonlySet<string>;
+  readonly onOpenPath: (path: ShellPath) => void;
+  readonly onToggle: (id: string) => void;
 }
 
+const containsActive = (n: NavTreeNode, path: string): boolean =>
+  n.kind === 'function' ? n.path !== null && n.path === path : n.children.some((c) => containsActive(c, path));
+
+// Two letters of a top-level Function, shown only in the compact sidebar (text, not an icon).
+const abbreviation = (title: string) => title.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0)).join('').toLocaleUpperCase('vi');
+
 export function ShellSidebar(props: ShellSidebarProps) {
-  const { selected, path, compact, expanded, pinnedFlyout, business, groups, onSelect, onOpenPath, onToggleGroup, onToggleCompact } = props;
-  const homeActive = selected === 'home';
+  const { path, homeActive, compact, expanded, pinnedFlyout, business, admin, onHome, onOpenPath, onToggleGroup, onToggleCompact } = props;
+  const tree = { path, expanded, onOpenPath, onToggle: onToggleGroup };
+  const top = (n: NavTreeNode) => (n.kind === 'menu'
+    ? <TopMenu key={n.id} node={n} flyoutOpen={pinnedFlyout === n.id} {...tree} />
+    : <TopFunction key={n.id} node={n} {...tree} />);
   return (
     <aside className="sidebar">
       <nav className="nav" id="nav" aria-label="Điều hướng">
         <div className="menu-entry">
-          <button type="button" className={homeActive ? 'nav-btn active' : 'nav-btn'} title={SCREENS.home.name} aria-label={SCREENS.home.name} aria-current={homeActive ? 'page' : undefined} onClick={() => onSelect('home')}>
-            <span className="icon">⌂</span>
+          <button type="button" className={homeActive ? 'nav-btn nav-menu active' : 'nav-btn nav-menu'} title={SCREENS.home.name} aria-label={SCREENS.home.name}
+            aria-current={homeActive ? 'page' : undefined} onClick={onHome}>
+            <span className="icon"><NavIcon name="home" /></span>
             <span className="nav-label">{SCREENS.home.name}</span>
           </button>
         </div>
         {business === null && <p className="nav-note">Đang tải menu…</p>}
-        {(business ?? []).map((entry) => {
-          if (entry.kind === 'link') {
-            const { link } = entry;
-            const active = link.path !== null && link.path === path;
-            return (
-              <div className="menu-entry" key={link.id}>
-                <button type="button" className={active ? 'nav-btn active' : 'nav-btn'} title={link.path ? link.title : `${link.title} (màn hình chưa được cài đặt)`}
-                  aria-label={link.title} disabled={link.path === null} aria-current={active ? 'page' : undefined} onClick={() => { if (link.path) onOpenPath(link.path); }}>
-                  <span className="icon">▣</span>
-                  <span className="nav-label">{link.title}</span>
-                </button>
-              </div>
-            );
-          }
-          return (
-            <Group key={entry.id} id={entry.id} name={entry.title} icon="▤" expanded={expanded.has(entry.id)} flyoutOpen={pinnedFlyout === entry.id} onToggle={onToggleGroup}
-              items={entry.links.map((l) => ({
-                key: l.id, label: l.title, active: l.path !== null && l.path === path, disabled: l.path === null,
-                onClick: () => { if (l.path) onOpenPath(l.path); },
-              }))} />
-          );
-        })}
-        {groups.length > 0 && <p className="nav-section">Quản trị</p>}
-        {groups.map((g) => (
-          <Group key={g.id} id={g.id} name={g.name} icon={g.icon} expanded={expanded.has(g.id)} flyoutOpen={pinnedFlyout === g.id} onToggle={onToggleGroup}
-            items={g.children.map((id) => ({ key: id, label: SCREENS[id].name, active: selected === id, onClick: () => onSelect(id) }))} />
-        ))}
+        {(business ?? []).map(top)}
+        {admin.length > 0 && <p className="nav-section">Quản trị</p>}
+        {admin.map(top)}
       </nav>
       <div className="foot">
         <button type="button" id="collapse-button" onClick={onToggleCompact}>
@@ -79,39 +68,83 @@ export function ShellSidebar(props: ShellSidebarProps) {
   );
 }
 
-interface GroupProps {
-  readonly id: string;
-  readonly name: string;
-  readonly icon: string;
-  readonly items: readonly Item[];
-  readonly expanded: boolean;
-  readonly flyoutOpen: boolean;
-  readonly onToggle: (id: string) => void;
-}
+type MenuNodeT = Extract<NavTreeNode, { kind: 'menu' }>;
+type FunctionNodeT = Extract<NavTreeNode, { kind: 'function' }>;
 
-function Group({ id, name, icon, items, expanded, flyoutOpen, onToggle }: GroupProps) {
-  const entryClass = ['menu-entry', expanded && 'expanded', flyoutOpen && 'flyout-open'].filter(Boolean).join(' ');
+function TopMenu({ node, flyoutOpen, ...tree }: TreeProps & { node: MenuNodeT; flyoutOpen: boolean }) {
+  const open = tree.expanded.has(node.id);
+  const entryClass = ['menu-entry', open && 'expanded', flyoutOpen && 'flyout-open'].filter(Boolean).join(' ');
   return (
-    <div className={entryClass} data-group={id}>
-      <button type="button" className={items.some((i) => i.active) ? 'nav-btn parent-active' : 'nav-btn'} aria-expanded={expanded} title={name} aria-label={name} onClick={() => onToggle(id)}>
-        <span className="icon">{icon}</span>
-        <span className="nav-label">{name}</span>
-        <span className="chevron">›</span>
+    <div className={entryClass} data-group={node.id}>
+      <button type="button" className={containsActive(node, tree.path) ? 'nav-btn nav-menu parent-active' : 'nav-btn nav-menu'} aria-expanded={open}
+        title={node.title} aria-label={node.title} onClick={() => tree.onToggle(node.id)}>
+        <span className="icon"><NavIcon name={node.icon} /></span>
+        <span className="nav-label">{node.title}</span>
+        <span className="chevron" aria-hidden="true">›</span>
       </button>
-      <div className="sub">
-        {items.map((i) => (
-          <button type="button" key={i.key} className={i.active ? 'active' : undefined} aria-current={i.active ? 'page' : undefined} disabled={i.disabled}
-            title={i.disabled ? 'Màn hình chưa được cài đặt' : undefined} onClick={i.onClick}>
-            {i.label}
-          </button>
-        ))}
+      <div className="sub" role="group" aria-label={node.title}>
+        {node.children.map((c) => <TreeItem key={c.id} node={c} {...tree} />)}
       </div>
-      <div className="flyout">
-        <strong>{name}</strong>
-        {items.map((i) => (
-          <button type="button" key={i.key} className={i.active ? 'active' : undefined} disabled={i.disabled} onClick={i.onClick}>{i.label}</button>
-        ))}
+      <div className="flyout" role="group" aria-label={node.title}>
+        <strong>{node.title}</strong>
+        <FlyoutTree nodes={node.children} {...tree} />
       </div>
     </div>
+  );
+}
+
+function TopFunction({ node, ...tree }: TreeProps & { node: FunctionNodeT }) {
+  const active = node.path !== null && node.path === tree.path;
+  return (
+    <div className="menu-entry">
+      <button type="button" className={active ? 'nav-btn nav-fn-top active' : 'nav-btn nav-fn-top'} title={node.path ? node.title : `${node.title} (màn hình chưa được cài đặt)`}
+        aria-label={node.title} disabled={node.path === null} aria-current={active ? 'page' : undefined} onClick={() => { if (node.path) tree.onOpenPath(node.path); }}>
+        <span className="nav-abbr" aria-hidden="true">{abbreviation(node.title)}</span>
+        <span className="nav-label">{node.title}</span>
+      </button>
+    </div>
+  );
+}
+
+// Inside an expanded menu: nested menus keep icon + bold title + chevron; functions have no icon.
+function TreeItem({ node, ...tree }: TreeProps & { node: NavTreeNode }) {
+  if (node.kind === 'function') return <FunctionButton node={node} {...tree} />;
+  const open = tree.expanded.has(node.id);
+  return (
+    <div className={open ? 'nav-nested expanded' : 'nav-nested'}>
+      <button type="button" className={containsActive(node, tree.path) ? 'nav-menu-nested parent-active' : 'nav-menu-nested'} aria-expanded={open}
+        aria-label={node.title} title={node.title} onClick={() => tree.onToggle(node.id)}>
+        <NavIcon name={node.icon} size={17} />
+        <span className="nav-label">{node.title}</span>
+        <span className="chevron" aria-hidden="true">›</span>
+      </button>
+      <div className="sub" role="group" aria-label={node.title}>
+        {node.children.map((c) => <TreeItem key={c.id} node={c} {...tree} />)}
+      </div>
+    </div>
+  );
+}
+
+function FunctionButton({ node, path, onOpenPath }: TreeProps & { node: FunctionNodeT }) {
+  const active = node.path !== null && node.path === path;
+  return (
+    <button type="button" className={active ? 'nav-fn active' : 'nav-fn'} aria-current={active ? 'page' : undefined} disabled={node.path === null}
+      title={node.path ? node.title : 'Màn hình chưa được cài đặt'} onClick={() => { if (node.path) onOpenPath(node.path); }}>
+      {node.title}
+    </button>
+  );
+}
+
+// Compact flyout: the whole sub-tree at once (nested menu titles with icon, functions without icon).
+function FlyoutTree({ nodes, ...tree }: TreeProps & { nodes: readonly NavTreeNode[] }) {
+  return (
+    <>
+      {nodes.map((n) => (n.kind === 'function' ? <FunctionButton key={n.id} node={n} {...tree} /> : (
+        <div key={n.id} className="flyout-menu">
+          <span className="flyout-menu-title"><NavIcon name={n.icon} size={16} /><b>{n.title}</b></span>
+          <div className="flyout-children"><FlyoutTree nodes={n.children} {...tree} /></div>
+        </div>
+      )))}
+    </>
   );
 }

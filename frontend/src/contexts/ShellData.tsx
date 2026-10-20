@@ -59,33 +59,41 @@ export function useShellDataSource(onSessionLost: () => void): ShellData {
   return useMemo(() => ({ menu, menuFeedback, reloadMenu, capabilities, capabilitiesFailed, can }), [menu, menuFeedback, reloadMenu, capabilities, capabilitiesFailed, can]);
 }
 
-// ------------------------------------------------------------------------------------------------- business menu helpers
-export interface MenuLink {
-  readonly id: string;
-  readonly title: string;
-  readonly path: ShellPath | null; // null = the route has no installed screen in this shell
-}
+// ------------------------------------------------------------------------------------------------- sidebar tree
+// Sidebar model (owner rule): a MENU has an icon, a bold title and children; a FUNCTION has no icon, a normal title and
+// opens a screen. Built from the B09 tree as returned by the backend (any depth, no limit added here).
+export type NavTreeNode =
+  | { readonly kind: 'menu'; readonly id: string; readonly title: string; readonly icon: string; readonly children: readonly NavTreeNode[] }
+  | { readonly kind: 'function'; readonly id: string; readonly title: string; readonly path: ShellPath | null }; // null = no installed screen
 
-export type BusinessEntry =
-  | { readonly kind: 'link'; readonly link: MenuLink }
-  | { readonly kind: 'group'; readonly id: string; readonly title: string; readonly links: readonly MenuLink[] };
+const pathOf = (n: MenuNode): ShellPath | null => (n.routePath ? shellPathOf(n.routePath) ?? null : null);
 
-const linkOf = (n: MenuNode): MenuLink => ({ id: n.navigationId, title: n.menuTitle, path: n.routePath ? shellPathOf(n.routePath) ?? null : null });
-
-// Leaves of a subtree that open something (a group's own route, if any, comes first).
-function leaves(n: MenuNode, prefix: readonly string[]): MenuLink[] {
-  const own = n.routePath ? [{ ...linkOf(n), title: [...prefix, n.menuTitle].join(' › ') }] : [];
-  return [...own, ...n.children.flatMap((c) => leaves(c, [...prefix, n.menuTitle]))];
-}
-
-// Sidebar entries: a root item with a route is a link; a root group lists the routed items below it (nested groups are
-// flattened with their title as prefix). A group without any routed item is not shown (nothing to open).
-export function businessEntries(menu: readonly MenuNode[]): BusinessEntry[] {
-  return menu.flatMap((n): BusinessEntry[] => {
-    if (n.children.length === 0) return n.routePath ? [{ kind: 'link', link: linkOf(n) }] : [];
-    const links = n.children.flatMap((c) => leaves(c, []));
-    return links.length > 0 ? [{ kind: 'group', id: `b09:${n.navigationId}`, title: n.menuTitle, links }] : [];
+// B09 → sidebar tree. A node with children is a MENU (its own route, if any, becomes its first Function); a leaf with a
+// route is a FUNCTION; a menu with nothing to open below it is not shown. B09 stores no icon yet: every B09 menu uses the
+// default menu icon until an icon key can be stored (pending database approval).
+export function businessTree(menu: readonly MenuNode[], icon: string): NavTreeNode[] {
+  return menu.flatMap((n): NavTreeNode[] => {
+    if (n.children.length === 0) return n.routePath ? [{ kind: 'function', id: n.navigationId, title: n.menuTitle, path: pathOf(n) }] : [];
+    const own: NavTreeNode[] = n.routePath ? [{ kind: 'function', id: `${n.navigationId}:self`, title: n.menuTitle, path: pathOf(n) }] : [];
+    const children = [...own, ...businessTree(n.children, icon)];
+    return children.length > 0 ? [{ kind: 'menu', id: `b09:${n.navigationId}`, title: n.menuTitle, icon, children }] : [];
   });
+}
+
+// Every Function of a tree (search targets).
+export function treeFunctions(nodes: readonly NavTreeNode[]): { title: string; path: ShellPath | null }[] {
+  return nodes.flatMap((n) => (n.kind === 'function' ? [{ title: n.title, path: n.path }] : treeFunctions(n.children)));
+}
+
+// Ids of the menus that contain the Function opening `path` (outermost first), or [] when none does.
+export function menuAncestors(nodes: readonly NavTreeNode[], path: string): string[] {
+  for (const n of nodes) {
+    if (n.kind === 'function') continue;
+    if (n.children.some((c) => c.kind === 'function' && c.path === path)) return [n.id];
+    const below = menuAncestors(n.children, path);
+    if (below.length > 0) return [n.id, ...below];
+  }
+  return [];
 }
 
 // Every shell path the menu opens (module screens may be opened only through these).
