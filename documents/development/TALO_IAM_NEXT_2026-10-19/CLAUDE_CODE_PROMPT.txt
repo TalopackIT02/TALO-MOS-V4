@@ -1,0 +1,4 @@
+Hãy đọc và thực hiện nguyên văn yêu cầu tại:
+D:\Documents\ClaudeProject\TALO-MOS-V4\documents\development\TALO_IAM_NEXT_2026-10-19\06_CLAUDE_CODE_PROMPT.md
+
+Bắt buộc đọc thêm 00_START_HERE.md đến 07_REFERENCE_FOUNDATION_FREEZE_CONTRACT.md trong cùng thư mục, đối chiếu Git HEAD/PR #1 với source local, ghi nhận trạng thái thực tế trước rồi triển khai ngay những hạng mục P0 không bị DB approval chặn. Không tự GRANT, bootstrap, migration, reset DB, sửa core Foundation, push/merge/deploy. Báo test PASS/FAIL/SKIPPED/NOT_TESTED theo thực tế.
