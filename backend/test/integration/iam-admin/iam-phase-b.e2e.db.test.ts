@@ -12,6 +12,7 @@ import type { PrismaClient } from '../../../src/infrastructure/prisma/generated/
 import { createAuthModule } from '../../../src/modules/auth/index.js';
 import { PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
+import { createFoundationModule } from '../../../src/modules/foundation/index.js';
 import { prismaFoundationDb } from '../../../src/modules/foundation/foundation.repository.js';
 import { probeIamAdmin } from '../../../src/modules/iam-admin/iam.admin.connection.js';
 import { connectProvisioner } from '../../../src/modules/iam-admin/iam.admin.provisioner.js';
@@ -65,11 +66,11 @@ describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / creden
     expect(res.status).toBe(200);
     return cookieOf(res);
   }
-  async function withRole(accountId: string, name: string, codes: readonly string[]) {
+  async function withRole(accountId: string, name: string, codes: readonly string[], system = false) {
     const roleId = randomUUID();
     created.roles.push(roleId);
     await h.ok('BEGIN');
-    await h.ok(`INSERT INTO iam.iam_roles (role_id, role_code, role_name, is_active, is_system) VALUES (${lit(roleId)}, ${lit(`${tag}-${name}`)}, ${lit(`FBET ${name}`)}, true, false)`);
+    await h.ok(`INSERT INTO iam.iam_roles (role_id, role_code, role_name, is_active, is_system) VALUES (${lit(roleId)}, ${lit(`${tag}-${name}`)}, ${lit(`FBET ${name}`)}, true, ${system ? 'true' : 'false'})`);
     for (const code of codes) await h.ok(`INSERT INTO iam.iam_role_permissions (role_id, permission_id) VALUES (${lit(roleId)}, ${lit(perm[code] ?? NIL)})`);
     await h.ok(`INSERT INTO iam.iam_user_roles (user_role_id, user_account_id, role_id) VALUES (${lit(randomUUID())}, ${lit(accountId)}, ${lit(roleId)})`);
     await h.ok('COMMIT');
@@ -98,7 +99,7 @@ describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / creden
     const hasher = new PasswordHasher();
     fx = new AuthFixtures(h, hasher);
     await fx.assertNoLeftovers();
-    for (const code of [...ADMIN_PERMS, 'system_test.diagnostics.read']) {
+    for (const code of [...ADMIN_PERMS, 'system_test.diagnostics.read', 'system_test.data_viewer.read']) {
       const [row] = await h.ok(`SELECT permission_id FROM iam.iam_permissions WHERE permission_code = ${lit(code)}`);
       if (!row?.[0]) throw new Error(`permission ${code} not registered`);
       perm[code] = row[0];
@@ -108,7 +109,7 @@ describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / creden
     const auth = await createAuthModule({ prisma: api, logger, production: false, hasher, loginLimiter: new SlidingWindowRateLimiter({ limit: 10_000, windowMs: 15 * 60_000 }) });
     app = createApp({
       config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger,
-      apiRouters: [auth.router, iamAdminRouter({ db: prismaFoundationDb(iam), authService: auth.service, secureCookie: false, rootAccountId: rootId, provisioner, hasher: auth.hasher })],
+      apiRouters: [auth.router, createFoundationModule({ prisma: api, authService: auth.service, logger, secureCookie: false, environment: 'TEST' }).router, iamAdminRouter({ db: prismaFoundationDb(iam), authService: auth.service, secureCookie: false, rootAccountId: rootId, provisioner, hasher: auth.hasher })],
     });
   });
 
@@ -146,6 +147,14 @@ describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / creden
     const reader = await signIn(readerFx.username, readerFx.password);
     const platformFx = await fx.create();
     await withRole(platformFx.accountId, 'PLATFORM', PLATFORM_ONE);
+    // A SYSTEM role without any permission: the reissue rule must refuse it for being a system role alone.
+    const systemFx = await fx.create();
+    await withRole(systemFx.accountId, 'SYSTEMROLE', [], true);
+    const exitedFx = await fx.create({ membershipStatus: 'EXITED' });
+    type Node = { routePath: string | null; children: Node[] };
+    const flat = (nodes: Node[]): Node[] => nodes.flatMap((n) => [n, ...flat(n.children)]);
+    const routes = async (as: string) => flat((await get('/foundation/navigation', as)).body.navigation)
+      .map((n) => n.routePath).filter((r): r is string => r !== null && r.startsWith('/system-test')).sort();
 
     // capabilities: the administrator sees the Phase B permissions and the credential feature.
     const caps = await get('/iam/admin/me/capabilities', admin);
@@ -169,13 +178,26 @@ describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / creden
     expect(changed.status).toBe(200);
     expect(await statusOf(userId)).toBe('ACTIVE');
     let user = await signIn(username, newPassword);
+    // creation refusals (P-4e service rules, nothing created): duplicate username, membership not active, membership with a current account.
+    const dup = await post('/iam/admin/accounts', admin, { employeeCode: `${fx.runId}-API2`, fullName: 'Trùng', username, joinedAt: '2026-10-01' });
+    const exited = await post('/iam/admin/accounts', admin, { employeeCode: exitedFx.employeeCode, fullName: 'Đã nghỉ', username: `${fx.runId}-api3`.toLowerCase(), joinedAt: '2026-10-01' });
+    const taken = await post('/iam/admin/accounts', admin, { employeeCode: readerFx.employeeCode, fullName: 'Có tài khoản', username: `${fx.runId}-api4`.toLowerCase(), joinedAt: '2026-10-01' });
+    expect([dup.status, dup.body.error.code, exited.status, exited.body.error.code, taken.status, taken.body.error.code])
+      .toEqual([409, 'USERNAME_TAKEN', 422, 'MEMBERSHIP_NOT_ACTIVE', 409, 'MEMBERSHIP_HAS_ACCOUNT']);
+    expect((await h.ok(`SELECT count(*) FROM iam.iam_user_accounts WHERE lower(username) IN (${lit(`${fx.runId}-api3`.toLowerCase())}, ${lit(`${fx.runId}-api4`.toLowerCase())})`))[0]?.[0]).toBe('0');
 
     // 2. lock → session invalid now, login refused; unlock → login works. Invalid transition → 409.
     const lock = await post(`/iam/admin/accounts/${userId}/status`, admin, { action: 'LOCK', reason: 'Kiểm thử khóa' });
     expect([lock.status, lock.body.result.status, lock.body.result.revokedSessions >= 1]).toEqual([200, 'LOCKED', true]);
     expect((await get('/auth/session', user)).status).toBe(401);
     expect((await login(username, newPassword)).status).toBe(403);
-    expect((await post(`/iam/admin/accounts/${userId}/status`, admin, { action: 'DISABLE', reason: 'x' })).status).toBe(200); // LOCKED → DISABLED
+    const unlock = await post(`/iam/admin/accounts/${userId}/status`, admin, { action: 'UNLOCK', reason: 'Mở khóa' });
+    expect([unlock.status, unlock.body.result.status]).toEqual([200, 'ACTIVE']);
+    user = await signIn(username, newPassword);
+    const disable = await post(`/iam/admin/accounts/${userId}/status`, admin, { action: 'DISABLE', reason: 'x' });
+    expect([disable.status, disable.body.result.status]).toEqual([200, 'DISABLED']);
+    expect((await get('/auth/session', user)).status).toBe(401);
+    expect((await login(username, newPassword)).status).toBe(403);
     const bad = await post(`/iam/admin/accounts/${userId}/status`, admin, { action: 'UNLOCK', reason: 'x' });
     expect([bad.status, bad.body.error.code]).toEqual([409, 'STATUS_TRANSITION_INVALID']);
     expect((await post(`/iam/admin/accounts/${userId}/status`, admin, { action: 'REACTIVATE', reason: 'Quay lại làm việc' })).body.result.status).toBe('ACTIVE');
@@ -202,11 +224,27 @@ describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / creden
     expect(clear.body.result.cleared).toBe(true);
     user = await signIn(username, newPassword);
 
-    // 5. reissue for an account with only a BUSINESS role (narrower P-4e rule) → sessions revoked, old password refused.
+    // 5. business role → effective permission + navigation follow IAM; Direct DENY wins; then reissue (narrower P-4e rule).
+    expect(await routes(user)).toEqual([]);
     const roleRes = await post('/iam/admin/roles', admin, { roleCode: `${tag}-BIZ`, roleName: 'FBET business' });
     created.roles.push(String(roleRes.body.role.id));
-    expect((await post(`/iam/admin/roles/${String(roleRes.body.role.id)}/permissions`, admin, { permissionId: perm['system_test.diagnostics.read'] })).status).toBe(201);
+    for (const code of ['system_test.diagnostics.read', 'system_test.data_viewer.read']) {
+      expect((await post(`/iam/admin/roles/${String(roleRes.body.role.id)}/permissions`, admin, { permissionId: perm[code] })).status).toBe(201);
+    }
     expect((await post(`/iam/admin/accounts/${userId}/roles`, admin, { roleId: roleRes.body.role.id })).status).toBe(201);
+    const [b09] = await h.ok(`SELECT count(*) FROM foundation.fnd_navigation_items n JOIN foundation.fnd_modules m ON m.module_id = n.module_id WHERE m.module_key = 'SYSTEM_TEST' AND n.function_id IS NOT NULL AND n.is_visible`);
+    const menuChecked = Number(b09?.[0]) >= 3;
+    evidence['menuChecked'] = menuChecked;
+    if (menuChecked) expect(await routes(user)).toEqual(['/system-test', '/system-test/data']);
+    const deny = await post(`/iam/admin/accounts/${userId}/permissions`, admin, { permissionId: perm['system_test.data_viewer.read'], effect: 'DENY', reason: 'Nghiệm thu DENY' });
+    expect(deny.status).toBe(201);
+    if (menuChecked) expect(await routes(user)).toEqual(['/system-test']);
+    const eff = (await get(`/iam/admin/accounts/${userId}/permissions`, admin)).body.effective
+      .filter((e: { permissionCode: string }) => e.permissionCode.startsWith('system_test.'))
+      .map((e: { permissionCode: string; allowed: boolean; sources: string[] }) => [e.permissionCode, e.allowed, e.sources.join('+')]).sort();
+    expect(eff).toEqual([
+      ['system_test.data_viewer.read', false, 'ROLE+DIRECT_DENY'], ['system_test.diagnostics.read', true, 'ROLE'], ['system_test.test_runner.execute', false, ''],
+    ]);
     const reissue = await post(`/iam/admin/accounts/${userId}/credential/reissue`, admin, { reason: 'Quên mật khẩu' });
     expect([reissue.status, reissue.headers['cache-control'], reissue.body.credential.revokedSessions]).toEqual([200, 'no-store', 1]);
     expect((await get('/auth/session', user)).status).toBe(401);
@@ -216,6 +254,8 @@ describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / creden
     // 6. refusals, nothing changed: platform-privileged reissue, root lock / disable / reissue, self, READ only.
     const priv = await post(`/iam/admin/accounts/${platformFx.accountId}/credential/reissue`, admin, { reason: 'x' });
     expect([priv.status, priv.body.error.code]).toEqual([422, 'PRIVILEGED_ACCOUNT_PROTECTED']);
+    const sys = await post(`/iam/admin/accounts/${systemFx.accountId}/credential/reissue`, admin, { reason: 'x' });
+    expect([sys.status, sys.body.error.code]).toEqual([422, 'PRIVILEGED_ACCOUNT_PROTECTED']);
     for (const action of ['LOCK', 'DISABLE']) {
       const r = await post(`/iam/admin/accounts/${rootId}/status`, admin, { action, reason: 'x' });
       expect([r.status, r.body.error.code]).toEqual([422, 'ROOT_ADMIN_PROTECTED']);
@@ -242,7 +282,8 @@ describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / creden
     // 8. IAM audit: every action by the administrator, failures recorded, metadata without ip / user agent / password.
     const page = await get(`/iam/admin/audit?accountId=${userId}&pageSize=100`, admin);
     const actions = page.body.events.map((e: { action: string }) => e.action);
-    for (const a of ['ACCOUNT_PROVISIONED', 'IAM.ACCOUNT.LOCK', 'IAM.ACCOUNT.DISABLE', 'IAM.ACCOUNT.REACTIVATE', 'IAM.SESSION.REVOKE', 'IAM.CREDENTIAL.LOGIN_LOCK_CLEAR', 'IAM.CREDENTIAL.REISSUE']) {
+    for (const a of ['ACCOUNT_PROVISIONED', 'IAM.ACCOUNT.LOCK', 'IAM.ACCOUNT.UNLOCK', 'IAM.ACCOUNT.DISABLE', 'IAM.ACCOUNT.REACTIVATE', 'IAM.SESSION.REVOKE',
+      'IAM.CREDENTIAL.LOGIN_LOCK_CLEAR', 'IAM.CREDENTIAL.REISSUE', 'CREDENTIAL_REISSUED', 'IAM.ACCOUNT.ROLE.ASSIGN', 'IAM.ACCOUNT.PERMISSION.ASSIGN']) {
       expect(actions).toContain(a);
     }
     // No ip / user-agent key, and none of the real secret values (action names such as CHANGE_PASSWORD are legitimate).
@@ -250,7 +291,10 @@ describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / creden
     expect(pageText).not.toMatch(/"ip"|"ua"/);
     for (const secret of [temporary, newPassword, String(reissue.body.credential.temporaryPassword)]) expect(pageText).not.toContain(secret);
     const failures = await h.ok(`SELECT metadata->>'reason' FROM iam.iam_audit_logs WHERE actor_account_id = ${lit(adminFx.accountId)} AND outcome = 'FAILURE' ORDER BY occurred_at`);
-    expect(failures.map((r) => r[0])).toEqual(['PRIVILEGED_ACCOUNT_PROTECTED', 'ROOT_ADMIN_PROTECTED', 'ROOT_ADMIN_PROTECTED', 'ROOT_ADMIN_PROTECTED', 'SELF_ACTION_FORBIDDEN']);
+    expect(failures.map((r) => r[0])).toEqual(['PRIVILEGED_ACCOUNT_PROTECTED', 'PRIVILEGED_ACCOUNT_PROTECTED', 'ROOT_ADMIN_PROTECTED', 'ROOT_ADMIN_PROTECTED', 'ROOT_ADMIN_PROTECTED', 'SELF_ACTION_FORBIDDEN']);
+    // PERMISSION DENIED is audited too (the READ-only administrator's refused calls).
+    const [denied] = await h.ok(`SELECT count(*) FROM iam.iam_audit_logs WHERE actor_account_id = ${lit(readerFx.accountId)} AND action_code = 'IAM.ACCESS' AND outcome = 'DENIED'`);
+    expect(Number(denied?.[0])).toBe(4);
     expect([await audits(adminFx.accountId, 'IAM.ACCOUNT.LOCK'), await audits(adminFx.accountId, 'IAM.CREDENTIAL.REISSUE')]).toEqual([1, 1]);
     evidence['actions'] = [...new Set(actions)].sort();
     evidence['failures'] = failures.length;

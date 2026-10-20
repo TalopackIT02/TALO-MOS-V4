@@ -189,7 +189,8 @@ export class IamAccountLifecycle {
   // IAM audit page (newest first). Filters are bound values; the action is a prefix; metadata is reduced to safe keys.
   async audit(q: AuditQuery) {
     return this.guarded(async () => {
-      const where = `($1::uuid IS NULL OR l.actor_account_id = $1::uuid OR l.target_id = $1::uuid)
+      // Assignment mutations record target_id = the assignment row and the account in metadata.accountId: both are matched.
+      const where = `($1::uuid IS NULL OR l.actor_account_id = $1::uuid OR l.target_id = $1::uuid OR l.metadata->>'accountId' = $1::text)
         AND ($2 = '' OR l.action_code LIKE $3 ESCAPE '\\') AND ($4::text IS NULL OR l.outcome = $4)
         AND ($5::timestamptz IS NULL OR l.occurred_at >= $5::timestamptz) AND ($6::timestamptz IS NULL OR l.occurred_at < $6::timestamptz)`;
       const params = [q.accountId, q.action, likePrefix(q.action), q.outcome, q.from, q.to];
@@ -200,7 +201,7 @@ export class IamAccountLifecycle {
                 l.target_type AS "targetType", l.target_id::text AS "targetId", tgt.username AS "targetUsername", l.metadata
            FROM iam.iam_audit_logs l
            LEFT JOIN iam.iam_user_accounts act ON act.user_account_id = l.actor_account_id
-           LEFT JOIN iam.iam_user_accounts tgt ON l.target_type = 'USER_ACCOUNT' AND tgt.user_account_id = l.target_id
+           LEFT JOIN iam.iam_user_accounts tgt ON l.target_type = 'USER_ACCOUNT' AND tgt.user_account_id::text = coalesce(l.metadata->>'accountId', l.target_id::text)
           WHERE ${where} ORDER BY l.occurred_at DESC, l.audit_id DESC LIMIT $7 OFFSET $8`,
         [...params, q.pageSize, (q.page - 1) * q.pageSize])).map((e): Record<string, unknown> => ({ ...e, metadata: safeMetadata(e.metadata) }));
       return { events, total: total?.total ?? 0, page: q.page, pageSize: q.pageSize };

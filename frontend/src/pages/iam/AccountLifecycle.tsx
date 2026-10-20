@@ -128,7 +128,7 @@ export function CreateAccountPanel({ onSessionLost, onCreated, onClose }: { onSe
         <label>Họ tên<input required maxLength={200} value={fullName} onChange={(e) => setFullName(e.target.value)} /></label>
         <label>Tên đăng nhập<input required maxLength={80} pattern="\S+" autoComplete="off" value={username} onChange={(e) => setUsername(e.target.value)} /></label>
         <label>Ngày vào làm<input required type="date" value={joinedAt} onChange={(e) => setJoinedAt(e.target.value)} /></label>
-        <div><button type="submit" className="fx-btn primary" disabled={busy || feature !== 'READY'}>Tạo tài khoản</button></div>
+        <div><button type="submit" className="fx-btn primary" disabled={busy || feature !== 'READY'} aria-busy={busy}>{busy ? 'Đang tạo…' : 'Tạo tài khoản'}</button></div>
       </form>
       {issued && <OneTimeSecret credential={issued} title="Đã tạo tài khoản" onClose={() => setIssued(null)} />}
     </div>
