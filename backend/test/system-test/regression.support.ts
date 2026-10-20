@@ -40,6 +40,13 @@ export const SUITES: readonly SuiteDef[] = [
     key: 'AUTH_DB', label: 'Auth DB', cwd: 'backend', command: 'npx',
     args: ['vitest', 'run', 'test/integration/auth/auth.db.test.ts', 'test/integration/auth/provisioning.db.test.ts', '--no-file-parallelism'], env: { TALO_AUTH_DB: '1' },
   },
+  // IAM Phase B: read-only catalog check (pg_catalog, READ ONLY transaction) and the IAM Management end-to-end acceptance
+  // on the dedicated role talo_iam_admin (fixtures FBET-*, removed by UUID; needs IAM_ADMIN_DATABASE_URL in .env).
+  { key: 'IAM_SCHEMA', label: 'IAM v0.3 catalog (read-only)', cwd: 'backend', command: 'npx', args: ['vitest', 'run', 'test/integration/iam-schema.readonly.test.ts'], env: { TALO_IAM_SCHEMA_CHECK: '1' } },
+  {
+    key: 'IAM_ADMIN_E2E', label: 'IAM Management E2E (talo_iam_admin)', cwd: 'backend', command: 'npx',
+    args: ['vitest', 'run', 'test/integration/iam-admin/iam-admin.e2e.db.test.ts'], env: { TALO_IAM_ADMIN_DB: '1' },
+  },
   { key: 'AUTH_PRIVILEGES', label: 'Auth privileges', cwd: 'backend', command: 'npx', args: ['vitest', 'run', 'test/integration/auth/auth.privileges.test.ts'], env: { TALO_AUTH_PRIV: '1' } },
   { key: 'DB_SMOKE', label: 'DB smoke', cwd: 'backend', command: 'npm', args: ['run', 'smoke:db'] },
   { key: 'FRONTEND_BUILD', label: 'Frontend typecheck + build', cwd: 'frontend', command: 'npm', args: ['run', 'build'] },

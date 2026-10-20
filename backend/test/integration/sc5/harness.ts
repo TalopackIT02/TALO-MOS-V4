@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto';
 // Each PsqlSession is ONE real PostgreSQL connection, so harness transactions (writer simulation) genuinely interleave
 // with the talo_app connections used by the protocol under test.
 
-export const CONTAINER = 'talo-mos-v4-postgres';
+// TALO_PG_CONTAINER: a disposable clone of the test database (IAM Phase B dry run); default = the development container.
+export const CONTAINER = process.env['TALO_PG_CONTAINER'] ?? 'talo-mos-v4-postgres';
 export const TEST_DB = 'talo_mos_v4_test';
 export const HARNESS_ROLE = 'talo_test_harness';
 

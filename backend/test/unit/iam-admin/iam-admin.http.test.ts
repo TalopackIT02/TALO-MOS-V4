@@ -353,7 +353,8 @@ describe('IAM admin — capabilities of the session (admin menu / screen visibil
       'foundation.module_registry.read': true, 'iam.accounts.read': true, 'foundation.navigation.manage': false,
       'foundation.module_version.approve': false, 'iam.roles.manage': false, 'iam.assignments.manage': false,
     });
-    expect(Object.keys(res.body.permissions)).toHaveLength(17); // 13 FOUNDATION + 4 IAM
+    expect(Object.keys(res.body.permissions)).toHaveLength(22); // 13 FOUNDATION + 4 IAM + 5 IAM Phase B
+    expect(res.body.features).toEqual({ temporaryCredentials: 'DISABLED' });
     expect(h.audits()).toEqual([]);
     const none = harness([]);
     expect(Object.values((await none.get('/iam/admin/me/capabilities')).body.permissions).every((v) => v === false)).toBe(true);

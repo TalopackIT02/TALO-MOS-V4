@@ -55,8 +55,12 @@ npm run provision:account -- --employee-code NV0001 --full-name "Nguyễn Văn A
   Argon2id hash is stored; account `PROVISIONED`, `must_change_password = true`; audit `ACCOUNT_PROVISIONED`.
 - Hand it over through a separate channel after verifying the recipient; never in the same message as the username.
 - The first login opens an Activation Session (15 min); the new password must differ from the temporary one.
-- **Re-issue after loss or suspected exposure is NOT available yet:** `talo_provisioner` has no UPDATE on
-  `iam_credentials`, no account lock (`FOR NO KEY UPDATE`) and no session revocation (needs a grant decision).
+- **Re-issue after loss or suspected exposure:** `npm run provision:account -- --reissue --username <login>`.
+  `talo_provisioner` has no direct UPDATE on IAM; the work is done by the SECURITY DEFINER function
+  `iam.reissue_temporary_credential` (`database/scripts/auth-p4e-recovery`) — account row locked, credential replaced
+  with `must_change_password`, every session revoked, audit `CREDENTIAL_REISSUED`. Installed and accepted on
+  `talo_mos_v4_test` only. The function refuses accounts that hold any active role or direct permission
+  ("privileged account"); a narrower rule is proposed for approval in IAM Phase B.
 
 ## Tests
 

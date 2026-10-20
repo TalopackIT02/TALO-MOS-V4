@@ -46,7 +46,7 @@ export function ScreenBody({ screen, tab, onSessionLost, onOpenPath }: { screen:
     case 'navigation':
       return <NavigationScreen tab={tab} onSessionLost={onSessionLost} />;
     case 'accounts':
-      return <AccountsScreen onSessionLost={onSessionLost} />;
+      return <AccountsScreen tab={tab} onSessionLost={onSessionLost} />;
     case 'roles':
       return <RolesScreen tab={tab} onSessionLost={onSessionLost} />;
     default: {

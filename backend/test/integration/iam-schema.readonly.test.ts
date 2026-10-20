@@ -39,9 +39,12 @@ describe.skipIf(!enabled)('IAM v0.3 catalog (read-only)', () => {
     });
   }
 
+  // pg_catalog, not information_schema: information_schema only lists objects the CONNECTED role holds a privilege on, and
+  // the least-privilege API role (talo_app) has none on iam_account_verifications — the catalog check must not depend on
+  // runtime grants (verified 2026-10-20: pg_tables shows 11 tables, information_schema 10 under talo_app).
   it('has exactly the 11 IAM tables', async () => {
     const rows = await readOnly((db) => db.$queryRaw<{ table_name: string }[]>`
-      select table_name from information_schema.tables where table_schema = 'iam' order by table_name`);
+      select tablename as table_name from pg_catalog.pg_tables where schemaname = 'iam' order by tablename`);
     expect(rows.map((row) => row.table_name)).toEqual(EXPECTED_TABLES);
   });
 
@@ -65,7 +68,8 @@ describe.skipIf(!enabled)('IAM v0.3 catalog (read-only)', () => {
 
   it('has no active_role_id column (v0.3)', async () => {
     const rows = await readOnly((db) => db.$queryRaw<{ n: number }[]>`
-      select count(*)::int as n from information_schema.columns where table_schema = 'iam' and column_name = 'active_role_id'`);
+      select count(*)::int as n from pg_catalog.pg_attribute a join pg_catalog.pg_class c on c.oid = a.attrelid
+       where c.relnamespace = 'iam'::regnamespace and a.attname = 'active_role_id' and a.attnum > 0 and not a.attisdropped`);
     expect(rows[0]?.n).toBe(0);
   });
 });

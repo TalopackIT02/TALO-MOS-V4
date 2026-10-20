@@ -19,6 +19,12 @@ export const IAM_ADMIN_PERMISSIONS = {
   permissions: { permissionCode: 'iam.permissions.manage', moduleCode: 'IAM', resourceCode: 'PERMISSIONS', operation: 'MANAGE' },
   assignments: { permissionCode: 'iam.assignments.manage', moduleCode: 'IAM', resourceCode: 'ASSIGNMENTS', operation: 'MANAGE' },
   navigation: { permissionCode: 'foundation.navigation.manage', moduleCode: 'FOUNDATION', resourceCode: 'NAVIGATION', operation: 'MANAGE' },
+  // IAM Phase B (bootstrap of the Phase B database package; until then they exist in no role and evaluate to false).
+  accountsCreate: { permissionCode: 'iam.accounts.create', moduleCode: 'IAM', resourceCode: 'ACCOUNTS', operation: 'CREATE' },
+  accountsManage: { permissionCode: 'iam.accounts.manage', moduleCode: 'IAM', resourceCode: 'ACCOUNTS', operation: 'MANAGE' },
+  credentialsReissue: { permissionCode: 'iam.credentials.reissue', moduleCode: 'IAM', resourceCode: 'CREDENTIALS', operation: 'REISSUE' },
+  sessionsManage: { permissionCode: 'iam.sessions.manage', moduleCode: 'IAM', resourceCode: 'SESSIONS', operation: 'MANAGE' },
+  auditRead: { permissionCode: 'iam.audit.read', moduleCode: 'IAM', resourceCode: 'AUDIT', operation: 'READ' },
 } as const satisfies Record<string, PermissionRef>;
 
 // Fixed texts: never SQL, driver messages, usernames or request values.
@@ -38,6 +44,19 @@ export const IAM_MESSAGES: Record<string, string> = {
   PERMISSION_TRIPLE_EXISTS: 'Bộ ba Module / Resource / Operation (K05) đã có permission.',
   IAM_DB_PRIVILEGE_MISSING: 'Vai trò cơ sở dữ liệu của hệ thống chưa được cấp quyền cho thao tác IAM này (chờ phê duyệt). Không có thay đổi nào được lưu.',
   SERVICE_BUSY: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
+  // IAM Phase B
+  SELF_ACTION_FORBIDDEN: 'Không được khóa, vô hiệu hóa hoặc cấp lại mật khẩu cho chính tài khoản của mình.',
+  ROOT_NOT_CONFIGURED: 'Chưa cấu hình tài khoản Admin gốc: không khóa / vô hiệu hóa tài khoản quản trị nền tảng qua giao diện.',
+  STATUS_TRANSITION_INVALID: 'Trạng thái hiện tại của tài khoản không cho phép thao tác này.',
+  ACCOUNT_RETIRED: 'Tài khoản đã kết thúc vòng đời; trạng thái không thay đổi qua giao diện.',
+  IAM_DB_FEATURE_MISSING: 'Chức năng cơ sở dữ liệu cho thao tác này chưa được cài đặt (gói IAM Phase B chờ phê duyệt). Không có thay đổi nào được lưu.',
+  CREDENTIAL_UI_DISABLED: 'Cấp mật khẩu tạm trên giao diện chưa được bật (quyết định P-4e hiện hành: chỉ qua công cụ CLI của IT).',
+  CREDENTIAL_UI_UNAVAILABLE: 'Kết nối cấp tài khoản (talo_provisioner) chưa sẵn sàng. Không có thay đổi nào được lưu.',
+  USERNAME_TAKEN: 'Tên đăng nhập đã tồn tại.',
+  MEMBERSHIP_HAS_ACCOUNT: 'Nhân viên này đã có một tài khoản đang hiện hành.',
+  MEMBERSHIP_NOT_ACTIVE: 'Hồ sơ nhân viên (membership) không ở trạng thái được cấp tài khoản.',
+  PRIVILEGED_ACCOUNT_PROTECTED: 'Tài khoản thuộc diện được bảo vệ theo luật của hàm phục hồi: không cấp lại mật khẩu qua giao diện. Dùng thủ tục quản trị đã phê duyệt.',
+  ACCOUNT_NOT_ELIGIBLE: 'Tài khoản hoặc hồ sơ nhân viên không đủ điều kiện cấp lại mật khẩu (bị khóa, vô hiệu hóa hoặc đã nghỉ).',
 };
 
 export class IamError extends Error {
@@ -107,6 +126,8 @@ const isPermissionRef = (v: unknown): v is PermissionRef =>
 export const ADMIN_CAPABILITY_REFS: readonly PermissionRef[] = [
   ...Object.values(FOUNDATION_PERMISSIONS).filter(isPermissionRef),
   IAM_ADMIN_PERMISSIONS.accounts, IAM_ADMIN_PERMISSIONS.roles, IAM_ADMIN_PERMISSIONS.permissions, IAM_ADMIN_PERMISSIONS.assignments,
+  IAM_ADMIN_PERMISSIONS.accountsCreate, IAM_ADMIN_PERMISSIONS.accountsManage, IAM_ADMIN_PERMISSIONS.credentialsReissue,
+  IAM_ADMIN_PERMISSIONS.sessionsManage, IAM_ADMIN_PERMISSIONS.auditRead,
 ];
 
 // Refusals by a protection rule: recorded as an IAM audit FAILURE row (outside the rolled-back transaction).

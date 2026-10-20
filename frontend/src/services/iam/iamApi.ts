@@ -164,6 +164,86 @@ export const iamApi = {
   functions: (moduleId: string) => request('GET', `/foundation/modules/${e(moduleId)}/functions`, list('functions', toFunction)),
 };
 
+// ------------------------------------------------------------------------------------------------------- IAM Phase B
+export type StatusAction = 'LOCK' | 'UNLOCK' | 'DISABLE' | 'REACTIVATE';
+export type CredentialFeature = 'DISABLED' | 'UNAVAILABLE' | 'READY';
+export type AccountDetails = {
+  createdAt: string | null; activatedAt: string | null; disabledAt: string | null; createdByUsername: string | null;
+  joinedAt: string | null; leftAt: string | null; mustChangePassword: boolean | null; failedAttempts: number | null; loginLockedUntil: string | null;
+};
+export type SessionRow = {
+  sessionId: string; assuranceLevel: number; createdAt: string; expiresAt: string; lastSeenAt: string | null; revokedAt: string | null;
+  status: 'ACTIVE' | 'IDLE' | 'ACTIVATION' | 'EXPIRED' | 'REVOKED';
+};
+export type AuditEvent = {
+  auditId: string; occurredAt: string; action: string; outcome: string; actorId: string | null; actorUsername: string | null;
+  targetType: string | null; targetId: string | null; targetUsername: string | null; metadata: Record<string, string>;
+};
+export type AuditQuery = { accountId: string | null; action: string; outcome: string | null; from: string | null; to: string | null; page: number; pageSize: number };
+// A temporary password lives only in the value returned to the caller (shown once, then dropped). Never stored.
+export type IssuedCredential = { accountId: string; username: string; temporaryPassword: string; revokedSessions: number | null; membershipCreated: boolean | null };
+
+const SESSION_STATUSES: readonly SessionRow['status'][] = ['ACTIVE', 'IDLE', 'ACTIVATION', 'EXPIRED', 'REVOKED'];
+const optNum = (o: Json, k: string): number | null => { const v = o[k]; return typeof v === 'number' ? v : null; };
+const optBool = (o: Json, k: string): boolean | null => { const v = o[k]; return typeof v === 'boolean' ? v : null; };
+const toDetails = (payload: unknown): AccountDetails | null => {
+  const d = obj(payload)['details'];
+  if (d === null) return null;
+  const o = obj(d);
+  return {
+    createdAt: optStr(o, 'createdAt'), activatedAt: optStr(o, 'activatedAt'), disabledAt: optStr(o, 'disabledAt'), createdByUsername: optStr(o, 'createdByUsername'),
+    joinedAt: optStr(o, 'joinedAt'), leftAt: optStr(o, 'leftAt'), mustChangePassword: optBool(o, 'mustChangePassword'),
+    failedAttempts: optNum(o, 'failedAttempts'), loginLockedUntil: optStr(o, 'loginLockedUntil'),
+  };
+};
+const toSession = (o: Json): SessionRow => {
+  const status = SESSION_STATUSES.find((s) => s === o['status']) ?? fail('status');
+  return {
+    sessionId: str(o, 'sessionId'), assuranceLevel: num(o, 'assuranceLevel'), createdAt: str(o, 'createdAt'), expiresAt: str(o, 'expiresAt'),
+    lastSeenAt: optStr(o, 'lastSeenAt'), revokedAt: optStr(o, 'revokedAt'), status,
+  };
+};
+const toAuditEvent = (o: Json): AuditEvent => {
+  const m = isObject(o['metadata']) ? o['metadata'] : {};
+  return {
+    auditId: str(o, 'auditId'), occurredAt: str(o, 'occurredAt'), action: str(o, 'action'), outcome: str(o, 'outcome'),
+    actorId: optStr(o, 'actorId'), actorUsername: optStr(o, 'actorUsername'), targetType: optStr(o, 'targetType'), targetId: optStr(o, 'targetId'),
+    targetUsername: optStr(o, 'targetUsername'),
+    metadata: Object.fromEntries(Object.entries(m).filter((entry): entry is [string, string] => typeof entry[1] === 'string')),
+  };
+};
+const toIssued = (key: 'account' | 'credential') => (payload: unknown): IssuedCredential => {
+  const o = obj(obj(payload)[key]);
+  return {
+    accountId: str(o, 'accountId'), username: str(o, 'username'), temporaryPassword: str(o, 'temporaryPassword'),
+    revokedSessions: optNum(o, 'revokedSessions'), membershipCreated: optBool(o, 'membershipCreated'),
+  };
+};
+const toFeature = (payload: unknown): CredentialFeature => {
+  const f = obj(payload)['features'];
+  const v = isObject(f) ? f['temporaryCredentials'] : undefined;
+  return v === 'READY' || v === 'UNAVAILABLE' ? v : 'DISABLED';
+};
+
+export const iamLifecycleApi = {
+  features: () => request('GET', '/me/capabilities', toFeature),
+  details: (id: string) => request('GET', `/accounts/${e(id)}/details`, toDetails),
+  setStatus: (id: string, action: StatusAction, reason: string) => request('POST', `/accounts/${e(id)}/status`, ok(), { action, reason }),
+  clearLoginLock: (id: string, reason: string) => request('POST', `/accounts/${e(id)}/login-lock/clear`, (p) => obj(obj(p)['result'])['cleared'] === true, { reason }),
+  sessions: (id: string) => request('GET', `/accounts/${e(id)}/sessions`, list('sessions', toSession)),
+  revokeSessions: (id: string, sessionId: string | null, reason: string) =>
+    request('POST', `/accounts/${e(id)}/sessions/revoke`, (p) => num(obj(obj(p)['result']), 'revokedSessions'), { sessionId, reason }),
+  audit: (q: AuditQuery) => request('GET', `/audit?${new URLSearchParams({
+    page: String(q.page), pageSize: String(q.pageSize), ...(q.accountId ? { accountId: q.accountId } : {}), ...(q.action ? { action: q.action } : {}),
+    ...(q.outcome ? { outcome: q.outcome } : {}), ...(q.from ? { from: q.from } : {}), ...(q.to ? { to: q.to } : {}),
+  }).toString()}`, (p) => {
+    const o = obj(p);
+    return { events: list('events', toAuditEvent)(o), total: num(o, 'total') };
+  }),
+  createAccount: (data: { employeeCode: string; fullName: string; username: string; joinedAt: string }) => request('POST', '/accounts', toIssued('account'), data),
+  reissue: (id: string, reason: string) => request('POST', `/accounts/${e(id)}/credential/reissue`, toIssued('credential'), { reason }),
+};
+
 // Vietnamese texts of the IAM error codes (the Foundation texts cover the shared ones).
 export const IAM_TEXT: Record<string, string> = {
   DUPLICATE: 'Dữ liệu đã tồn tại hoặc đang có hiệu lực (trùng lặp).',
@@ -178,6 +258,18 @@ export const IAM_TEXT: Record<string, string> = {
   ROOT_ADMIN_PROTECTED: 'Tài khoản quản trị gốc được bảo vệ: không thu hồi vai trò hệ thống hoặc quyền quản trị nền tảng của tài khoản này qua giao diện. Thao tác đã bị chặn và ghi audit.',
   SELF_ASSIGNMENT_FORBIDDEN:'Không được tự cấp, thu hồi hoặc mở rộng quyền cho chính tài khoản của mình.',
   IAM_DB_PRIVILEGE_MISSING: 'Cơ sở dữ liệu chưa cấp quyền cho thao tác IAM này (chờ chủ dự án phê duyệt GRANT). Không có thay đổi nào được lưu.',
+  SELF_ACTION_FORBIDDEN: 'Không được khóa, vô hiệu hóa hoặc cấp lại mật khẩu cho chính tài khoản của mình.',
+  ROOT_NOT_CONFIGURED: 'Chưa cấu hình tài khoản Admin gốc: không khóa / vô hiệu hóa tài khoản quản trị nền tảng qua giao diện.',
+  STATUS_TRANSITION_INVALID: 'Trạng thái hiện tại của tài khoản không cho phép thao tác này.',
+  ACCOUNT_RETIRED: 'Tài khoản đã kết thúc vòng đời; trạng thái không thay đổi qua giao diện.',
+  IAM_DB_FEATURE_MISSING: 'Chức năng cơ sở dữ liệu cho thao tác này chưa được cài đặt (gói IAM Phase B chờ phê duyệt). Không có thay đổi nào được lưu.',
+  CREDENTIAL_UI_DISABLED: 'Cấp mật khẩu tạm trên giao diện chưa được bật (quyết định P-4e hiện hành: chỉ qua công cụ CLI của IT).',
+  CREDENTIAL_UI_UNAVAILABLE: 'Kết nối cấp tài khoản (talo_provisioner) chưa sẵn sàng. Không có thay đổi nào được lưu.',
+  USERNAME_TAKEN: 'Tên đăng nhập đã tồn tại.',
+  MEMBERSHIP_HAS_ACCOUNT: 'Nhân viên này đã có một tài khoản đang hiện hành.',
+  MEMBERSHIP_NOT_ACTIVE: 'Hồ sơ nhân viên không ở trạng thái được cấp tài khoản.',
+  PRIVILEGED_ACCOUNT_PROTECTED: 'Tài khoản thuộc diện được bảo vệ theo luật của hàm phục hồi: không cấp lại mật khẩu qua giao diện.',
+  ACCOUNT_NOT_ELIGIBLE: 'Tài khoản hoặc hồ sơ nhân viên không đủ điều kiện cấp lại mật khẩu.',
 };
 
 // Permissions of platform administration (bootstrap-only on the server): not offered for grants in the UI.

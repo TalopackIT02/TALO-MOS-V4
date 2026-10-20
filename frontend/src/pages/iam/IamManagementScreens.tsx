@@ -9,6 +9,7 @@ import type { Column, TableQuery } from '../../components/DataTable';
 import { FeedbackLine, formatTime } from '../foundation/common';
 import type { Feedback } from '../foundation/common';
 import { isTestModuleKey, moduleLabel, statusTag, useModuleFunctions, useSettle } from './iamShared';
+import { AccountLifecyclePanel, CreateAccountPanel, IamAuditViewer, accountStatusText } from './AccountLifecycle';
 
 // IAM Management screens (/iam/accounts, /iam/roles). Every list comes from the IAM API (reload / F5 shows the stored
 // data); every change goes through the API, which authorises it (IAM permission + one transaction + IAM audit). The UI
@@ -61,10 +62,18 @@ const ACCOUNT_COLUMNS: Column<Account>[] = [
   { key: 'username', label: 'Tài khoản', value: (a) => a.username, render: (a) => <><b>{a.username}</b> {a.isRoot && <RootBadge />}</> },
   { key: 'fullName', label: 'Họ tên', value: (a) => a.fullName },
   { key: 'employeeCode', label: 'Mã nhân viên', value: (a) => a.employeeCode },
-  { key: 'accountStatus', label: 'Trạng thái', value: (a) => a.accountStatus, render: (a) => statusTag(a.accountStatus === 'ACTIVE' && !a.disabled, a.disabled ? `${a.accountStatus} · vô hiệu` : a.accountStatus) },
+  { key: 'accountStatus', label: 'Trạng thái', value: (a) => a.accountStatus, render: (a) => statusTag(a.accountStatus === 'ACTIVE' && !a.disabled, a.disabled ? `${accountStatusText(a.accountStatus)} · kết thúc vòng đời` : accountStatusText(a.accountStatus)) },
 ];
 
-export function AccountsScreen({ onSessionLost }: { onSessionLost: () => void }) {
+// Tab 0: accounts (list, detail, lifecycle); tab 1: IAM audit (iam.audit.read).
+export function AccountsScreen({ tab, onSessionLost }: { tab: number; onSessionLost: () => void }) {
+  if (tab === 1) return <IamAuditViewer onSessionLost={onSessionLost} />;
+  return <AccountList onSessionLost={onSessionLost} />;
+}
+
+function AccountList({ onSessionLost }: { onSessionLost: () => void }) {
+  const { can } = useShellData();
+  const [creating, setCreating] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const settle = useSettle(onSessionLost, setFeedback);
   const [query, setQuery] = useState<TableQuery>({ ...FIRST_QUERY, sort: 'username' });
@@ -86,7 +95,8 @@ export function AccountsScreen({ onSessionLost }: { onSessionLost: () => void })
   return (
     <>
       <FeedbackLine feedback={feedback} />
-      {selected && <AccountDetail key={selected} accountId={selected} onSessionLost={onSessionLost} onClose={() => setSelected(null)} />}
+      {creating && <CreateAccountPanel onSessionLost={onSessionLost} onCreated={() => void load()} onClose={() => setCreating(false)} />}
+      {selected && <AccountDetail key={selected} accountId={selected} onSessionLost={onSessionLost} onClose={() => setSelected(null)} onChanged={() => void load()} />}
       <DataTable
         label="tài khoản"
         columns={ACCOUNT_COLUMNS}
@@ -98,10 +108,13 @@ export function AccountsScreen({ onSessionLost }: { onSessionLost: () => void })
         onRefresh={() => void load()}
         server={{ total: result?.total ?? 0, query, onQuery: setQuery }}
         toolbar={(
-          <select aria-label="Lọc trạng thái" value={status} onChange={(e) => { setStatus(e.target.value); setQuery((q) => ({ ...q, page: 1 })); }}>
-            <option value="">Mọi trạng thái</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <>
+            <select aria-label="Lọc trạng thái" value={status} onChange={(e) => { setStatus(e.target.value); setQuery((q) => ({ ...q, page: 1 })); }}>
+              <option value="">Mọi trạng thái</option>
+              {STATUSES.map((s) => <option key={s} value={s}>{accountStatusText(s)}</option>)}
+            </select>
+            {can('iam.accounts.create') && <button type="button" className="fx-btn primary" onClick={() => setCreating(true)}>Tạo tài khoản</button>}
+          </>
         )}
         actions={(a) => <button type="button" className="fx-btn" onClick={() => setSelected(a.accountId)}>Chi tiết</button>}
       />
@@ -109,7 +122,7 @@ export function AccountsScreen({ onSessionLost }: { onSessionLost: () => void })
   );
 }
 
-function AccountDetail({ accountId, onSessionLost, onClose }: { accountId: string; onSessionLost: () => void; onClose: () => void }) {
+function AccountDetail({ accountId, onSessionLost, onClose, onChanged }: { accountId: string; onSessionLost: () => void; onClose: () => void; onChanged: () => void }) {
   const { can } = useShellData();
   const manage = can('iam.assignments.manage');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -183,11 +196,13 @@ function AccountDetail({ accountId, onSessionLost, onClose }: { accountId: strin
       {account && (
         <div className="fx-meta">
           <span><b>Mã nhân viên:</b> {account.employeeCode}</span>
-          <span><b>Tài khoản:</b> {account.accountStatus}{account.disabled ? ' (vô hiệu)' : ''}</span>
+          <span><b>Tài khoản:</b> {accountStatusText(account.accountStatus)}{account.disabled ? ' (kết thúc vòng đời)' : ''}</span>
           <span><b>Membership:</b> {account.membershipStatus}</span>
         </div>
       )}
       {account?.isRoot && <p className="muted">Tài khoản quản trị gốc: máy chủ chặn thu hồi vai trò hệ thống và chặn Direct DENY / thu hồi quyền quản trị nền tảng của tài khoản này (ghi audit). Bộ đánh giá quyền không có ngoại lệ.</p>}
+
+      {account && <AccountLifecyclePanel account={account} onSessionLost={onSessionLost} onChanged={() => { onChanged(); void reload(); }} />}
 
       <h4>Vai trò được gán (lịch sử)</h4>
       {assignments.length === 0 ? <p className="muted">Chưa có vai trò.</p> : (

@@ -10,8 +10,10 @@ import { generateTemporaryPassword } from './temporaryPassword.js';
 // of a CSPRNG temporary password, and audits ACCOUNT_PROVISIONED. The first login opens an Activation Session; the new
 // password must differ from the temporary one (SAME_AS_CURRENT).
 //
-// NOT covered (needs grants that talo_provisioner does not have — reported, not added): re-issuing a temporary password
-// for an existing account (UPDATE iam_credentials, account lock FOR NO KEY UPDATE, session revocation).
+// Re-issue of a temporary password is a separate path: reissueTemporaryPassword.ts → SECURITY DEFINER function
+// iam.reissue_temporary_credential (database/scripts/auth-p4e-recovery, installed on talo_mos_v4_test).
+// IAM Phase B: the same service is called by the IAM Management API (AppShell) with a ProvisionContext, so the audit row
+// names the administrator (actor_account_id, created_by_account_id); the CLI passes no context (actor NULL, as before).
 
 export interface SqlExecutor {
   // Rows with text values (every selected column is cast to text in the SQL below).
@@ -35,11 +37,23 @@ export interface ProvisionResult {
   readonly temporaryPassword: string; // show once to the operator; never log or store
 }
 
+// Stable refusal classes for callers that must not parse messages (IAM Management API); the CLI prints the message.
+export type ProvisioningCode =
+  | 'INVALID_INPUT' | 'USERNAME_TAKEN' | 'MEMBERSHIP_NOT_ACTIVE' | 'MEMBERSHIP_HAS_ACCOUNT' | 'NO_ROW'
+  | 'REISSUE_REFUSED' | 'REISSUE_NOT_FOUND' | 'REISSUE_NOT_ELIGIBLE' | 'REISSUE_UNAVAILABLE' | 'REISSUE_BUSY' | 'CONFIGURATION';
+
 export class ProvisioningError extends Error {
-  constructor(message: string) {
+  constructor(message: string, readonly code: ProvisioningCode = 'INVALID_INPUT') {
     super(message);
     this.name = 'ProvisioningError';
   }
+}
+
+// Who asked for the provisioning (IAM Management API). Absent for the IT CLI.
+export interface ProvisionContext {
+  readonly actorAccountId: string;
+  readonly requestId: string;
+  readonly ua: string;
 }
 
 export const PROVISIONING_SQL = {
@@ -50,13 +64,13 @@ export const PROVISIONING_SQL = {
     INSERT INTO iam.iam_memberships (employee_id, employee_code, full_name, membership_status, joined_at)
     VALUES ($1::uuid, $2, $3, 'ACTIVE', $4::date) RETURNING membership_id::text AS membership_id`,
   insertAccount: `
-    INSERT INTO iam.iam_user_accounts (membership_id, username, account_status)
-    VALUES ($1::uuid, $2, 'PROVISIONED') RETURNING user_account_id::text AS user_account_id`,
+    INSERT INTO iam.iam_user_accounts (membership_id, username, account_status, created_by_account_id)
+    VALUES ($1::uuid, $2, 'PROVISIONED', $3::uuid) RETURNING user_account_id::text AS user_account_id`,
   insertCredential: `
     INSERT INTO iam.iam_credentials (user_account_id, password_hash, must_change_password) VALUES ($1::uuid, $2, true)`,
   audit: `
     INSERT INTO iam.iam_audit_logs (actor_account_id, membership_id, session_id, action_code, target_type, target_id, outcome, occurred_at, metadata)
-    VALUES (NULL, $1::uuid, NULL, 'ACCOUNT_PROVISIONED', 'USER_ACCOUNT', $2::uuid, 'SUCCESS', statement_timestamp(), $3::jsonb)`,
+    VALUES ($4::uuid, $1::uuid, NULL, 'ACCOUNT_PROVISIONED', 'USER_ACCOUNT', $2::uuid, 'SUCCESS', statement_timestamp(), $3::jsonb)`,
 } as const;
 
 function validate(input: ProvisionInput): ProvisionInput {
@@ -75,32 +89,32 @@ function validate(input: ProvisionInput): ProvisionInput {
   return { ...input, username, employeeCode, fullName };
 }
 
-export async function provisionAccount(db: SqlExecutor, hasher: PasswordHasher, raw: ProvisionInput): Promise<ProvisionResult> {
+export async function provisionAccount(db: SqlExecutor, hasher: PasswordHasher, raw: ProvisionInput, context?: ProvisionContext): Promise<ProvisionResult> {
   const input = validate(raw);
   const temporaryPassword = generateTemporaryPassword();
   const passwordHash = await hasher.hashPassword(temporaryPassword); // Argon2id, outside the transaction
   return db.transaction(async (tx) => {
     const [taken] = await tx.query(PROVISIONING_SQL.usernameTaken, [input.username]);
-    if (taken?.n !== '0') throw new ProvisioningError('username already exists');
+    if (taken?.n !== '0') throw new ProvisioningError('username already exists', 'USERNAME_TAKEN');
     const [existing] = await tx.query(PROVISIONING_SQL.membershipByCode, [input.employeeCode]);
     let membershipId: string;
     let membershipCreated = false;
     if (existing?.membership_id) {
-      if (existing.membership_status !== 'ACTIVE' && existing.membership_status !== 'ON_LEAVE') throw new ProvisioningError('membership is not active');
+      if (existing.membership_status !== 'ACTIVE' && existing.membership_status !== 'ON_LEAVE') throw new ProvisioningError('membership is not active', 'MEMBERSHIP_NOT_ACTIVE');
       const [current] = await tx.query(PROVISIONING_SQL.currentAccounts, [existing.membership_id]);
-      if (current?.n !== '0') throw new ProvisioningError('membership already has a current account');
+      if (current?.n !== '0') throw new ProvisioningError('membership already has a current account', 'MEMBERSHIP_HAS_ACCOUNT');
       membershipId = existing.membership_id;
     } else {
       const [created] = await tx.query(PROVISIONING_SQL.insertMembership, [input.employeeId ?? randomUUID(), input.employeeCode, input.fullName, input.joinedAt]);
-      if (!created?.membership_id) throw new ProvisioningError('membership insert returned no id');
+      if (!created?.membership_id) throw new ProvisioningError('membership insert returned no id', 'NO_ROW');
       membershipId = created.membership_id;
       membershipCreated = true;
     }
-    const [account] = await tx.query(PROVISIONING_SQL.insertAccount, [membershipId, input.username]);
-    if (!account?.user_account_id) throw new ProvisioningError('account insert returned no id');
+    const [account] = await tx.query(PROVISIONING_SQL.insertAccount, [membershipId, input.username, context?.actorAccountId ?? null]);
+    if (!account?.user_account_id) throw new ProvisioningError('account insert returned no id', 'NO_ROW');
     await tx.query(PROVISIONING_SQL.insertCredential, [account.user_account_id, passwordHash]);
-    const metadata = JSON.stringify({ v: 1, reason: 'OK', requestId: randomUUID(), ip: null, ua: 'talo-provision-cli' });
-    await tx.query(PROVISIONING_SQL.audit, [membershipId, account.user_account_id, metadata]);
+    const metadata = JSON.stringify({ v: 1, reason: 'OK', requestId: context?.requestId ?? randomUUID(), ip: null, ua: context?.ua ?? 'talo-provision-cli' });
+    await tx.query(PROVISIONING_SQL.audit, [membershipId, account.user_account_id, metadata, context?.actorAccountId ?? null]);
     return { membershipId, userAccountId: account.user_account_id, username: input.username, membershipCreated, temporaryPassword };
   });
 }

@@ -10,6 +10,8 @@ import { createFoundationModule } from './modules/foundation/index.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { connectIamAdmin } from './modules/iam-admin/iam.admin.connection.js';
 import type { IamAdminConnection } from './modules/iam-admin/iam.admin.connection.js';
+import { connectProvisioner } from './modules/iam-admin/iam.admin.provisioner.js';
+import type { ProvisionerConnection } from './modules/iam-admin/iam.admin.provisioner.js';
 import { iamAdminRouter } from './modules/iam-admin/iam.admin.routes.js';
 import { INSTALLED_MODULES } from './installed-modules/registry.js';
 import { mountModules } from './module-host/loader.js';
@@ -30,6 +32,7 @@ async function main(): Promise<void> {
   const logger = createLogger({ level: config.logLevel });
   const apiRouters: Router[] = [healthRouter()];
   let iamAdmin: IamAdminConnection | undefined;
+  let provisioner: ProvisionerConnection | undefined;
   if (config.databaseUrl) {
     // Prepares the dummy Argon2id hash before the first request (P-5).
     const auth = await createAuthModule({
@@ -47,8 +50,14 @@ async function main(): Promise<void> {
     iamAdmin = await connectIamAdmin({
       iamUrl: config.iamAdminDatabaseUrl, apiClient: getPrismaClient(config.databaseUrl), createClient: createPrismaClient, logger,
     });
+    // IAM Phase B: account creation / re-issue from the AppShell only when the owner enabled it AND talo_provisioner checks out.
+    provisioner = await connectProvisioner({
+      enabled: config.iamUiTemporaryCredentials, url: config.provisionerDatabaseUrl, apiClient: getPrismaClient(config.databaseUrl),
+      createClient: createPrismaClient, logger,
+    });
     apiRouters.push(iamAdminRouter({
       db: iamAdmin.db, authService: auth.service, secureCookie: config.nodeEnv === 'production', rootAccountId: config.iamRootAdminAccountId ?? null,
+      provisioner, hasher: auth.hasher,
     }));
     logger.info('IAM Management: root administrator protection', { configured: config.iamRootAdminAccountId !== undefined });
     // MOD-TEST-02: module packages of modules/ (generated registry), mounted through the Host capabilities; every module
@@ -78,7 +87,7 @@ async function main(): Promise<void> {
   const shutdown = (signal: string) => {
     logger.info('shutdown requested', { signal });
     server.close(() => {
-      Promise.all([disconnectPrismaClient(), iamAdmin?.close()]).then(
+      Promise.all([disconnectPrismaClient(), iamAdmin?.close(), provisioner?.close()]).then(
         () => process.exit(0),
         () => process.exit(1),
       );

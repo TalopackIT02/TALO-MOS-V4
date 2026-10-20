@@ -45,13 +45,14 @@ export interface DataTableProps<T> {
   readonly pageSizes?: readonly number[];
   readonly initial?: Partial<TableQuery>;
   readonly compact?: boolean;
+  readonly searchable?: boolean; // false = no quick / field search bar (filters supplied by the screen)
   readonly server?: { readonly total: number; readonly query: TableQuery; readonly onQuery: (q: TableQuery) => void };
 }
 
 const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
 
 export function DataTable<T>(props: DataTableProps<T>) {
-  const { label, columns, rows, rowKey, loading = false, error = null, emptyText = 'Không có dữ liệu.', selectedKey = null, actions, toolbar, onRefresh, server, compact } = props;
+  const { label, columns, rows, rowKey, loading = false, error = null, emptyText = 'Không có dữ liệu.', selectedKey = null, actions, toolbar, onRefresh, server, compact, searchable: withSearch = true } = props;
   const pageSizes = props.pageSizes ?? [10, 25, 50, 100];
   const [local, setLocal] = useState<TableQuery>({ ...FIRST_QUERY, ...props.initial });
   const query = server ? server.query : local;
@@ -105,6 +106,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
   return (
     <div className={compact ? 'dt dt-compact' : 'dt'}>
       <form className="dt-bar" role="search" aria-label={`Tìm trong ${label}`} onSubmit={submit}>
+        {withSearch && <>
         <select aria-label="Trường tìm kiếm" value={draftField ?? ''} onChange={(e) => {
           const f = e.target.value === '' ? null : e.target.value;
           setDraftField(f);
@@ -119,6 +121,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
         }} />
         {server && <button type="submit" className="fx-btn">Tìm</button>}
         {filtered && <button type="button" className="fx-btn" onClick={() => { setDraft(''); change({ search: '', field: null, page: 1 }); setDraftField(null); }}>Bỏ lọc</button>}
+        </>}
         {onRefresh && <button type="button" className="fx-btn" disabled={loading} onClick={onRefresh}>Tải lại</button>}
         {toolbar}
         <span className="dt-total muted">{rows === null ? '' : `${view.total} dòng${filtered ? ' (đã lọc)' : ''}`}</span>

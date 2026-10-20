@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { sqlstateOf } from '../sqlstate.js';
 import type { PasswordHasher } from '../passwordHasher.js';
 import { ProvisioningError } from './provisionAccount.js';
+import type { ProvisioningCode } from './provisionAccount.js';
 import type { SqlExecutor } from './provisionAccount.js';
 import { generateTemporaryPassword } from './temporaryPassword.js';
 
 // P-4e recovery — re-issue a temporary password after loss or suspected exposure.
 // talo_provisioner has NO direct UPDATE on IAM (decision). The work is done by the SECURITY DEFINER function
-// iam.reissue_temporary_credential (database/scripts/auth-p4e-recovery/, approved with changes — not installed yet):
+// iam.reissue_temporary_credential (database/scripts/auth-p4e-recovery/; installed and accepted on talo_mos_v4_test only):
 // target row locked FOR UPDATE, credential replaced with must_change_password, every session revoked, audit
 // CREDENTIAL_REISSUED — atomically. This client generates the CSPRNG temporary password, hashes it with Argon2id (the
 // database never sees plaintext), checks the PHC string against the same rule as the function, and calls it.
@@ -33,6 +34,10 @@ export function isAcceptableReissueHash(phc: string): boolean {
 }
 
 // Custom SQLSTATEs raised by the function → operator messages (no detail beyond the refusal class).
+const CODES: Record<string, ProvisioningCode> = {
+  TA403: 'REISSUE_REFUSED', TA404: 'REISSUE_NOT_FOUND', TA409: 'REISSUE_NOT_ELIGIBLE', TA422: 'INVALID_INPUT',
+  '42883': 'REISSUE_UNAVAILABLE', '42501': 'REISSUE_UNAVAILABLE', '55P03': 'REISSUE_BUSY',
+};
 const REFUSALS: Record<string, string> = {
   TA403: 'refused (caller not allowed or privileged account)',
   TA404: 'account not found',
@@ -51,12 +56,12 @@ export interface ReissueResult {
   readonly temporaryPassword: string; // show once to the operator; never log or store
 }
 
-export async function reissueTemporaryPassword(db: SqlExecutor, hasher: PasswordHasher, rawUsername: string): Promise<ReissueResult> {
+export async function reissueTemporaryPassword(db: SqlExecutor, hasher: PasswordHasher, rawUsername: string, requestIdOverride?: string): Promise<ReissueResult> {
   const username = rawUsername.trim();
   if (username.length < 1 || username.length > 80 || /[\u0000-\u001F\u007F]/.test(username)) {
     throw new ProvisioningError('username must be 1-80 characters without control characters');
   }
-  const requestId = randomUUID();
+  const requestId = requestIdOverride ?? randomUUID();
   const temporaryPassword = generateTemporaryPassword();
   const passwordHash = await hasher.hashPassword(temporaryPassword); // Argon2id, outside the transaction
   if (!isAcceptableReissueHash(passwordHash)) throw new ProvisioningError('hash does not match the accepted Argon2id PHC rule');
@@ -66,9 +71,9 @@ export async function reissueTemporaryPassword(db: SqlExecutor, hasher: Password
   } catch (error) {
     const code = sqlstateOf(error);
     const refusal = code ? REFUSALS[code] : undefined;
-    throw new ProvisioningError(`re-issue failed: ${refusal ?? 'database error'} (requestId ${requestId}${code ? `, ${code}` : ''})`);
+    throw new ProvisioningError(`re-issue failed: ${refusal ?? 'database error'} (requestId ${requestId}${code ? `, ${code}` : ''})`, (code ? CODES[code] : undefined) ?? 'REISSUE_UNAVAILABLE');
   }
   const [row] = rows;
-  if (!row?.user_account_id) throw new ProvisioningError(`re-issue returned no row (requestId ${requestId})`);
+  if (!row?.user_account_id) throw new ProvisioningError(`re-issue returned no row (requestId ${requestId})`, 'NO_ROW');
   return { userAccountId: row.user_account_id, username, revokedSessions: Number(row.revoked_sessions ?? 0), requestId, temporaryPassword };
 }
