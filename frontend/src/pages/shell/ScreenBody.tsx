@@ -1,6 +1,7 @@
 import { AccountsScreen, RolesScreen } from '../iam/IamManagementScreens';
 import { MODULE_SCREENS, SCREENS, visibleGroups } from '../../routes/shellScreens';
 import type { ScreenId, ShellPath } from '../../routes/shellScreens';
+import type { OpenPath } from '../../routes/navigation';
 import { useShellData } from '../../contexts/ShellData';
 import { FeedbackLine } from '../foundation/common';
 import { ModuleScreen } from '../foundation/ModuleScreen';
@@ -37,7 +38,7 @@ function Home({ onOpenPath }: { onOpenPath: (path: ShellPath) => void }) {
   );
 }
 
-export function ScreenBody({ screen, tab, onSessionLost, onOpenPath }: { screen: ScreenId; tab: number; onSessionLost: () => void; onOpenPath: (path: ShellPath) => void }) {
+export function ScreenBody({ screen, path, tab, onSessionLost, onOpenPath }: { screen: ScreenId; path: ShellPath; tab: number; onSessionLost: () => void; onOpenPath: OpenPath }) {
   switch (screen) {
     case 'home':
       return <Home onOpenPath={onOpenPath} />;
@@ -46,7 +47,7 @@ export function ScreenBody({ screen, tab, onSessionLost, onOpenPath }: { screen:
     case 'navigation':
       return <NavigationScreen tab={tab} onSessionLost={onSessionLost} />;
     case 'accounts':
-      return <AccountsScreen tab={tab} onSessionLost={onSessionLost} />;
+      return <AccountsScreen tab={tab} path={path} onSessionLost={onSessionLost} onOpenPath={onOpenPath} />;
     case 'roles':
       return <RolesScreen tab={tab} onSessionLost={onSessionLost} />;
     default: {

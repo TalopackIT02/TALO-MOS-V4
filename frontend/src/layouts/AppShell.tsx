@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { adminTabs, canOpenAdmin, groupOf, MODULE_SCREENS, pathOfTab, screenById, screenOfPath, SCREENS, tabOfPath, visibleGroups } from '../routes/shellScreens';
+import { accountIdOfPath, adminTabs, canOpenAdmin, groupOf, MODULE_SCREENS, pathOfTab, screenById, screenOfPath, SCREENS, tabOfPath, visibleGroups } from '../routes/shellScreens';
+import type { NavState, OpenPath } from '../routes/navigation';
 import type { ScreenId, SearchTarget, ShellPath } from '../routes/shellScreens';
 import { businessTree, menuAncestors, menuPaths, menuTrail, ShellDataContext, treeFunctions, useShellDataSource } from '../contexts/ShellData';
 import type { NavTreeNode } from '../contexts/ShellData';
@@ -40,7 +41,7 @@ export type ScreenAccess = 'checking' | 'allowed' | 'denied';
 export interface AppShellProps {
   readonly account: AccountSummary;
   readonly path: ShellPath;
-  readonly onNavigate: (path: ShellPath) => void;
+  readonly onNavigate: OpenPath;
   readonly onLoggedOut: (flash: UiMessage) => void;
 }
 
@@ -77,10 +78,15 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   const access: ScreenAccess = screen.id === 'home' ? 'allowed'
     : moduleScreen ? (menu === null ? 'checking' : routes.has(path) ? 'allowed' : 'denied')
       : capabilities === null ? 'checking' : canOpenAdmin(screen.id, can) ? 'allowed' : 'denied';
-  const tabs = moduleScreen ? moduleScreen.tabPaths.flatMap((p, i) => (routes.has(p) ? [i] : [])) : adminTabs(screen.id, can);
+  // IAM-B-UI-01: the account workspace (/iam/accounts/:id) is a page of the accounts screen without the screen tabs;
+  // the sidebar keeps "Quản lý tài khoản" active.
+  const workspace = accountIdOfPath(path) !== null;
+  const menuPath = workspace ? screen.path : path;
+  const tabs = workspace ? [] : moduleScreen ? moduleScreen.tabPaths.flatMap((p, i) => (routes.has(p) ? [i] : [])) : adminTabs(screen.id, can);
   const wanted = tab.screen === screen.id ? tab.index : 0;
   const activeTab = tabs.includes(wanted) ? wanted : tabs[0] ?? 0;
-  const crumb = groupOf(screen.id) ? [groupOf(screen.id)?.name ?? '', screen.name]
+  const pageTitle = workspace ? 'Quản trị tài khoản' : undefined;
+  const crumb = groupOf(screen.id) ? [groupOf(screen.id)?.name ?? '', screen.name, ...(pageTitle ? [pageTitle] : [])]
     : moduleScreen ? (menuTrail(menu ?? [], path).length > 0 ? menuTrail(menu ?? [], path) : [screen.name]) : [screen.name];
 
   // Search only offers what the session may open (allowed admin screens + business menu entries).
@@ -101,12 +107,12 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   }, [path, screen.id]);
 
   // A route of the business menu (module screen) or an admin screen path.
-  const openPath = useCallback((target: ShellPath) => {
+  const openPath = useCallback((target: ShellPath, state?: NavState) => {
     setMobileOpen(false);
     setAccountPanelOpen(false);
     setAccountMenuOpen(false);
     setPinnedFlyout(null);
-    onNavigate(target);
+    onNavigate(target, state);
   }, [onNavigate]);
 
   // Tabs of a module screen with sub-routes keep the path in step; other screens keep their path.
@@ -217,7 +223,7 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
         <div className={compact ? 'layout compact' : 'layout'}>
           <ShellSidebar
             homeActive={screen.id === 'home'}
-            path={path}
+            path={menuPath}
             compact={compact}
             expanded={expanded}
             pinnedFlyout={pinnedFlyout}
@@ -232,6 +238,8 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
             screen={screen}
             crumb={crumb}
             access={access}
+            path={path}
+            title={pageTitle}
             tabs={tabs}
             activeTab={activeTab}
             onTab={selectTab}

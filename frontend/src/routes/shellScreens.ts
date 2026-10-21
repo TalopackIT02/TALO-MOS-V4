@@ -55,7 +55,21 @@ export function screenById(id: ScreenId): ShellScreen {
   return SCREEN_LIST.find((s) => s.id === id) ?? SCREENS.home;
 }
 
+// IAM-B-UI-01: account management workspace /iam/accounts/:accountId — a page of the "accounts" screen (same access
+// rule), opened from the account list. Only a UUID is accepted; anything else is not a shell path (→ home).
+const ACCOUNT_WORKSPACE = /^\/iam\/accounts\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+export function accountWorkspacePath(accountId: string): ShellPath {
+  return `${SCREENS.accounts.path}/${accountId.toLowerCase()}`;
+}
+
+// The account of a workspace path, or null.
+export function accountIdOfPath(path: string): string | null {
+  return ACCOUNT_WORKSPACE.exec(path)?.[1]?.toLowerCase() ?? null;
+}
+
 export function screenOfPath(path: string): ShellScreen | undefined {
+  if (accountIdOfPath(path) !== null) return SCREENS.accounts;
   const sub = SUB_ROUTES.find((r) => r.path === path);
   return sub ? screenById(sub.screen) : SCREEN_LIST.find((screen) => screen.path === path);
 }
@@ -77,6 +91,8 @@ export function shellPathOf(path: string): ShellPath | undefined {
 
 // Any path that is not a shell screen (including /login and /first-change for an authenticated session) opens home.
 export function toShellPath(path: string): ShellPath {
+  const accountId = accountIdOfPath(path);
+  if (accountId !== null) return accountWorkspacePath(accountId);
   return SUB_ROUTES.find((r) => r.path === path)?.path ?? SCREEN_LIST.find((screen) => screen.path === path)?.path ?? SCREENS.home.path;
 }
 

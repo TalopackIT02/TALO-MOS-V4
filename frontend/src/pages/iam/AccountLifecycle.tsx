@@ -135,35 +135,44 @@ export function CreateAccountPanel({ onSessionLost, onCreated, onClose }: { onSe
   );
 }
 
-// --------------------------------------------------------------------------------------------- lifecycle panel
-export function AccountLifecyclePanel({ account, onSessionLost, onChanged }: { account: Account; onSessionLost: () => void; onChanged: () => void }) {
+// ------------------------------------------------------------------------------------------- account facts (details)
+// GET /details of one account (created / activated / lifecycle end / password state). null = not readable.
+export function useAccountDetails(accountId: string, settle: <T>(r: ApiResult<T>) => T | null) {
+  const [details, setDetails] = useState<AccountDetails | null | undefined>(undefined);
+  const reload = useCallback(async () => setDetails(settle(await iamLifecycleApi.details(accountId)) ?? null), [accountId, settle]);
+  useEffect(() => { void reload(); }, [reload]);
+  return { details, reload };
+}
+
+export function AccountFacts({ account, details }: { account: Account; details: AccountDetails | null | undefined }) {
+  if (details === undefined) return <p className="muted">Đang tải…</p>;
+  if (details === null) return <p className="muted">Ngày tạo / kích hoạt và trạng thái mật khẩu hiện không đọc được.</p>;
+  return (
+    <div className="fx-meta">
+      <span><b>Trạng thái:</b> {accountStatusText(account.accountStatus)}{account.disabled ? ' · đã kết thúc vòng đời' : ''}</span>
+      <span><b>Tạo lúc:</b> {formatTime(details.createdAt)}{details.createdByUsername ? ` bởi ${details.createdByUsername}` : ''}</span>
+      <span><b>Kích hoạt lúc:</b> {formatTime(details.activatedAt)}</span>
+      <span><b>Kết thúc vòng đời:</b> {formatTime(details.disabledAt)}</span>
+      <span><b>Ngày vào / rời:</b> {details.joinedAt ?? '—'} / {details.leftAt ?? '—'}</span>
+      <span><b>Mật khẩu:</b> {details.mustChangePassword ? 'mật khẩu tạm — phải đổi khi đăng nhập' : 'đã đặt bởi người dùng'}</span>
+      <span><b>Đăng nhập sai:</b> {details.failedAttempts ?? 0} lần{details.loginLockedUntil ? ` · khóa tạm đến ${formatTime(details.loginLockedUntil)}` : ''}</span>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------------------------- status & credential section
+// Lock / unlock / disable / reactivate, failed-login lock, temporary password re-issue (P-4e feature gate unchanged).
+export function AccountStatusSection({ account, onSessionLost, onChanged }: { account: Account; onSessionLost: () => void; onChanged: () => void }) {
   const { can } = useShellData();
   const feature = useCredentialFeature();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const settle = useSettle(onSessionLost, setFeedback);
-  const [details, setDetails] = useState<AccountDetails | null | undefined>(undefined);
-  const [sessions, setSessions] = useState<SessionRow[] | null>(null);
-  const [sessionsError, setSessionsError] = useState<string | null>(null);
-  const [history, setHistory] = useState<AuditEvent[] | null>(null);
+  const { details, reload } = useAccountDetails(account.accountId, settle);
   const [action, setAction] = useState<StatusAction | ''>('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [issued, setIssued] = useState<IssuedCredential | null>(null);
   const id = account.accountId;
-
-  const reload = useCallback(async () => {
-    const d = await iamLifecycleApi.details(id);
-    setDetails(settle(d) ?? null);
-    if (can('iam.sessions.manage')) {
-      const s = await iamLifecycleApi.sessions(id);
-      if (s.ok) { setSessions(s.data); setSessionsError(null); } else if (s.status === 401) onSessionLost(); else { setSessions([]); setSessionsError(s.code); }
-    }
-    if (can('iam.audit.read')) {
-      const h = await iamLifecycleApi.audit({ accountId: id, action: '', outcome: null, from: null, to: null, page: 1, pageSize: 10 });
-      setHistory(h.ok ? h.data.events : []);
-    }
-  }, [id, settle, can, onSessionLost]);
-  useEffect(() => { void reload(); }, [reload]);
 
   async function act<T>(work: Promise<ApiResult<T>>, done: (data: T) => string) {
     setBusy(true);
@@ -198,40 +207,12 @@ export function AccountLifecyclePanel({ account, onSessionLost, onChanged }: { a
     await act(iamLifecycleApi.clearLoginLock(id, why.trim()), (cleared) => (cleared ? 'Đã xóa khóa tạm do đăng nhập sai.' : 'Tài khoản không có khóa tạm do đăng nhập sai.'));
   }
 
-  async function revoke(sessionId: string | null) {
-    const why = window.prompt(sessionId ? 'Lý do thu hồi phiên này (bắt buộc):' : 'Lý do thu hồi TẤT CẢ phiên của tài khoản (bắt buộc):');
-    if (!why?.trim() || busy) return;
-    await act(iamLifecycleApi.revokeSessions(id, sessionId, why.trim()), (n) => `Đã thu hồi ${n} phiên đăng nhập.`);
-  }
-
-  const retired = account.disabled;
-  const options = allowedActions(account.accountStatus, retired).filter((a) => !(account.isRoot && (a === 'LOCK' || a === 'DISABLE')));
-  const sessionColumns: Column<SessionRow>[] = [
-    { key: 'status', label: 'Trạng thái', value: (s) => s.status, render: (s) => statusTag(s.status === 'ACTIVE', s.status) },
-    { key: 'createdAt', label: 'Đăng nhập lúc', value: (s) => s.createdAt, render: (s) => formatTime(s.createdAt), searchable: false },
-    { key: 'lastSeenAt', label: 'Hoạt động gần nhất', value: (s) => s.lastSeenAt ?? '', render: (s) => formatTime(s.lastSeenAt), searchable: false },
-    { key: 'expiresAt', label: 'Hết hạn', value: (s) => s.expiresAt, render: (s) => formatTime(s.expiresAt), searchable: false },
-    { key: 'revokedAt', label: 'Thu hồi lúc', value: (s) => s.revokedAt ?? '', render: (s) => formatTime(s.revokedAt), searchable: false },
-  ];
-  const liveSessions = (sessions ?? []).filter((s) => s.status === 'ACTIVE' || s.status === 'IDLE' || s.status === 'ACTIVATION').length;
+  const options = allowedActions(account.accountStatus, account.disabled).filter((a) => !(account.isRoot && (a === 'LOCK' || a === 'DISABLE')));
 
   return (
-    <div className="lc-panel">
+    <div className="acc-section lc-panel">
       <FeedbackLine feedback={feedback} />
-      <h4>Thông tin tài khoản</h4>
-      {details === undefined ? <p className="muted">Đang tải…</p> : details === null ? (
-        <p className="muted">Ngày tạo / kích hoạt và trạng thái mật khẩu sẽ hiển thị khi gói cơ sở dữ liệu IAM Phase B được phê duyệt (quyền đọc theo cột).</p>
-      ) : (
-        <div className="fx-meta">
-          <span><b>Trạng thái:</b> {accountStatusText(account.accountStatus)}{retired ? ' · đã kết thúc vòng đời' : ''}</span>
-          <span><b>Tạo lúc:</b> {formatTime(details.createdAt)}{details.createdByUsername ? ` bởi ${details.createdByUsername}` : ''}</span>
-          <span><b>Kích hoạt lúc:</b> {formatTime(details.activatedAt)}</span>
-          <span><b>Kết thúc vòng đời:</b> {formatTime(details.disabledAt)}</span>
-          <span><b>Ngày vào / rời:</b> {details.joinedAt ?? '—'} / {details.leftAt ?? '—'}</span>
-          <span><b>Mật khẩu:</b> {details.mustChangePassword ? 'mật khẩu tạm — phải đổi khi đăng nhập' : 'đã đặt bởi người dùng'}</span>
-          <span><b>Đăng nhập sai:</b> {details.failedAttempts ?? 0} lần{details.loginLockedUntil ? ` · khóa tạm đến ${formatTime(details.loginLockedUntil)}` : ''}</span>
-        </div>
-      )}
+      <AccountFacts account={account} details={details} />
 
       {can('iam.accounts.manage') && (
         <>
@@ -264,30 +245,56 @@ export function AccountLifecyclePanel({ account, onSessionLost, onChanged }: { a
           </div>
         </>
       )}
-
-      {can('iam.sessions.manage') && (
-        <>
-          <div className="fx-toolbar"><h4 style={{ margin: 0 }}>Phiên đăng nhập</h4>
-            <button type="button" className="fx-btn danger" disabled={busy || liveSessions === 0} onClick={() => void revoke(null)}>Thu hồi tất cả ({liveSessions})</button></div>
-          {sessionsError ? <p className="muted">{sessionsError === 'IAM_DB_PRIVILEGE_MISSING' ? 'Danh sách phiên hiển thị khi gói cơ sở dữ liệu IAM Phase B được phê duyệt.' : `Không tải được danh sách phiên (${sessionsError}).`}</p> : (
-            <DataTable label="phiên đăng nhập" compact columns={sessionColumns} rows={sessions} rowKey={(s) => s.sessionId} emptyText="Tài khoản chưa có phiên nào."
-              initial={{ sort: 'createdAt', dir: 'desc', pageSize: 10 }}
-              actions={(s) => (s.status === 'REVOKED' || s.status === 'EXPIRED' ? null : <button type="button" className="fx-btn danger" disabled={busy} onClick={() => void revoke(s.sessionId)}>Thu hồi</button>)} />
-          )}
-        </>
-      )}
-
-      {can('iam.audit.read') && (
-        <>
-          <h4>Lịch sử gần đây (nhật ký IAM)</h4>
-          {history === null ? <p className="muted">Đang tải…</p> : history.length === 0 ? <p className="muted">Chưa có sự kiện hoặc nhật ký chưa đọc được.</p> : (
-            <ul className="lc-history">
-              {history.map((h) => <li key={h.auditId}><b>{formatTime(h.occurredAt)}</b> · {h.action} · {statusTag(h.outcome === 'SUCCESS', h.outcome)}{h.actorUsername ? ` · bởi ${h.actorUsername}` : ''}{h.metadata['reason'] ? ` · ${h.metadata['reason']}` : ''}</li>)}
-            </ul>
-          )}
-        </>
-      )}
       {issued && <OneTimeSecret credential={issued} title="Đã cấp lại mật khẩu tạm" onClose={() => setIssued(null)} />}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------------------------------------- sessions section
+export function AccountSessionsSection({ account, onSessionLost }: { account: Account; onSessionLost: () => void }) {
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const settle = useSettle(onSessionLost, setFeedback);
+  const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const id = account.accountId;
+
+  const reload = useCallback(async () => {
+    const s = await iamLifecycleApi.sessions(id);
+    if (s.ok) { setSessions(s.data); setSessionsError(null); } else if (s.status === 401) onSessionLost(); else { setSessions([]); setSessionsError(s.code); }
+  }, [id, onSessionLost]);
+  useEffect(() => { void reload(); }, [reload]);
+
+  async function revoke(sessionId: string | null) {
+    const why = window.prompt(sessionId ? 'Lý do thu hồi phiên này (bắt buộc):' : 'Lý do thu hồi TẤT CẢ phiên của tài khoản (bắt buộc):');
+    if (!why?.trim() || busy) return;
+    setBusy(true);
+    setFeedback(null);
+    const n = settle(await iamLifecycleApi.revokeSessions(id, sessionId, why.trim()));
+    if (n !== null) setFeedback({ tone: 'success', text: `Đã thu hồi ${n} phiên đăng nhập.` });
+    setBusy(false);
+    await reload();
+  }
+
+  const sessionColumns: Column<SessionRow>[] = [
+    { key: 'status', label: 'Trạng thái', value: (s) => s.status, render: (s) => statusTag(s.status === 'ACTIVE', s.status) },
+    { key: 'createdAt', label: 'Đăng nhập lúc', value: (s) => s.createdAt, render: (s) => formatTime(s.createdAt), searchable: false },
+    { key: 'lastSeenAt', label: 'Hoạt động gần nhất', value: (s) => s.lastSeenAt ?? '', render: (s) => formatTime(s.lastSeenAt), searchable: false },
+    { key: 'expiresAt', label: 'Hết hạn', value: (s) => s.expiresAt, render: (s) => formatTime(s.expiresAt), searchable: false },
+    { key: 'revokedAt', label: 'Thu hồi lúc', value: (s) => s.revokedAt ?? '', render: (s) => formatTime(s.revokedAt), searchable: false },
+  ];
+  const liveSessions = (sessions ?? []).filter((s) => s.status === 'ACTIVE' || s.status === 'IDLE' || s.status === 'ACTIVATION').length;
+
+  return (
+    <div className="acc-section lc-panel">
+      <FeedbackLine feedback={feedback} />
+      <div className="fx-toolbar"><h4 style={{ margin: 0 }}>Phiên đăng nhập</h4>
+        <button type="button" className="fx-btn danger" disabled={busy || liveSessions === 0} onClick={() => void revoke(null)}>Thu hồi tất cả ({liveSessions})</button></div>
+      {sessionsError ? <p className="muted">{sessionsError === 'IAM_DB_PRIVILEGE_MISSING' ? 'Danh sách phiên chưa đọc được (thiếu quyền cơ sở dữ liệu IAM Phase B).' : `Không tải được danh sách phiên (${sessionsError}).`}</p> : (
+        <DataTable label="phiên đăng nhập" compact columns={sessionColumns} rows={sessions} rowKey={(s) => s.sessionId} emptyText="Tài khoản chưa có phiên nào."
+          initial={{ sort: 'createdAt', dir: 'desc', pageSize: 10 }}
+          actions={(s) => (s.status === 'REVOKED' || s.status === 'EXPIRED' ? null : <button type="button" className="fx-btn danger" disabled={busy} onClick={() => void revoke(s.sessionId)}>Thu hồi</button>)} />
+      )}
     </div>
   );
 }
@@ -295,7 +302,8 @@ export function AccountLifecyclePanel({ account, onSessionLost, onChanged }: { a
 // ------------------------------------------------------------------------------------------------ IAM audit viewer
 const OUTCOMES = ['SUCCESS', 'FAILURE', 'DENIED'] as const;
 
-export function IamAuditViewer({ onSessionLost }: { onSessionLost: () => void }) {
+// `account` fixes the account filter (account workspace: the IAM audit of that account only).
+export function IamAuditViewer({ onSessionLost, account }: { onSessionLost: () => void; account?: string }) {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const settle = useSettle(onSessionLost, setFeedback);
   const [query, setQuery] = useState<TableQuery>({ ...FIRST_QUERY, sort: 'occurredAt', dir: 'desc' });
@@ -303,7 +311,8 @@ export function IamAuditViewer({ onSessionLost }: { onSessionLost: () => void })
   const [outcome, setOutcome] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [accountId, setAccountId] = useState<string | null>(null);
+  const [picked, setAccountId] = useState<string | null>(null);
+  const accountId = account ?? picked;
   const [result, setResult] = useState<{ events: AuditEvent[]; total: number } | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -325,7 +334,7 @@ export function IamAuditViewer({ onSessionLost }: { onSessionLost: () => void })
     { key: 'occurredAt', label: 'Thời gian', value: (e) => e.occurredAt, render: (e) => formatTime(e.occurredAt), sortable: false, searchable: false },
     { key: 'actor', label: 'Người thực hiện', value: (e) => e.actorUsername ?? '', render: (e) => (e.actorUsername ?? (e.actorId ? '(tài khoản khác)' : 'hệ thống / CLI')), sortable: false, searchable: false },
     { key: 'action', label: 'Thao tác', value: (e) => e.action, render: (e) => <code>{e.action}</code>, sortable: false, searchable: false },
-    { key: 'target', label: 'Đối tượng', value: (e) => e.targetUsername ?? e.targetType ?? '', render: (e) => (e.targetUsername ? <button type="button" className="fx-link" onClick={() => { setAccountId(e.targetId); setQuery((q) => ({ ...q, page: 1 })); }}>{e.targetUsername}</button> : (e.targetType ?? '—')), sortable: false, searchable: false },
+    { key: 'target', label: 'Đối tượng', value: (e) => e.targetUsername ?? e.targetType ?? '', render: (e) => (e.targetUsername && !account ? <button type="button" className="fx-link" onClick={() => { setAccountId(e.targetId); setQuery((q) => ({ ...q, page: 1 })); }}>{e.targetUsername}</button> : (e.targetUsername ?? e.targetType ?? '—')), sortable: false, searchable: false },
     { key: 'outcome', label: 'Kết quả', value: (e) => e.outcome, render: (e) => statusTag(e.outcome === 'SUCCESS', e.outcome), sortable: false, searchable: false },
     { key: 'metadata', label: 'Chi tiết', value: (e) => Object.entries(e.metadata).map(([k, v]) => `${k}=${v}`).join(' '), render: (e) => <span className="lc-meta">{Object.entries(e.metadata).filter(([k]) => k !== 'requestId').map(([k, v]) => `${k}: ${v}`).join(' · ') || '—'}</span>, sortable: false, searchable: false },
   ];
@@ -341,7 +350,7 @@ export function IamAuditViewer({ onSessionLost }: { onSessionLost: () => void })
         </select>
         <label className="muted">Từ <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label className="muted">Đến <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-        {accountId && <button type="button" className="fx-btn" onClick={() => setAccountId(null)}>Bỏ lọc tài khoản</button>}
+        {picked && !account && <button type="button" className="fx-btn" onClick={() => setAccountId(null)}>Bỏ lọc tài khoản</button>}
       </form>
       <p className="muted">Nhật ký chỉ đọc (không sửa / xóa). Chi tiết chỉ gồm các trường an toàn; không hiển thị địa chỉ IP, trình duyệt hay dữ liệu xác thực.</p>
       <DataTable

@@ -3,7 +3,7 @@ import { AppShell } from './layouts/AppShell';
 import { FirstChangePage } from './pages/auth/FirstChangePage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { currentPath, pushPath, replacePath, usePopState } from './routes/navigation';
-import type { AppPath } from './routes/navigation';
+import type { AppPath, NavState } from './routes/navigation';
 import { toShellPath } from './routes/shellScreens';
 import type { ShellPath } from './routes/shellScreens';
 import { authApi } from './services/auth/authApi';
@@ -66,8 +66,9 @@ export function App() {
 
   // Menu navigation inside the AppShell. The session is re-checked as on back/forward; only an invalid session (401)
   // leaves the shell — a transient failure keeps the current screen, since no shell screen depends on the API yet.
-  const navigate = useCallback((path: ShellPath) => {
-    pushPath(path);
+  // `state` marks the new entry (e.g. the account workspace remembers the list it was opened from).
+  const navigate = useCallback((path: ShellPath, state?: NavState) => {
+    pushPath(path, state);
     setShellPath(path);
     void authApi.session().then((result) => {
       if (result.ok) setView(viewOf(result.data));

@@ -129,9 +129,13 @@ test('P4 IAM READ only: accounts with server Field Search / sort; roles refused;
   await page.getByRole('button', { name: /^Mã nhân viên/ }).click();
   await expect.poll(() => calls.some((c) => c.includes('sort=employeeCode') && c.includes('dir=asc'))).toBe(true);
   await page.getByRole('button', { name: 'Chi tiết' }).click();
-  await expect(page.getByRole('heading', { name: /Nguyễn An/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Gán vai trò' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Cấp quyền trực tiếp' })).toHaveCount(0);
+  await expect(page.locator('.acc-drawer')).toContainText('Nguyễn An');
+  await page.locator('.acc-drawer').getByRole('button', { name: 'Quản lý tài khoản' }).click();
+  for (const section of ['Vai trò', 'Chức năng & Quyền']) {
+    await page.getByRole('tab', { name: section }).click();
+    await expect(page.getByRole('button', { name: 'Gán vai trò' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Cấp quyền trực tiếp' })).toHaveCount(0);
+  }
   await sidebar(page).getByRole('button', { name: /IAM/ }).click();
   await expect(sidebar(page).locator('.sub button')).toHaveText(['Quản lý tài khoản']);
   await page.goto('/iam/roles');

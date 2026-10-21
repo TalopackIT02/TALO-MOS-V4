@@ -63,6 +63,14 @@ async function open(page: Page, setup: Setup) {
 }
 
 const tabs = (page: Page) => page.locator('#tabs button');
+const drawer = (page: Page) => page.locator('.acc-drawer');
+const sections = (page: Page) => page.getByRole('tablist', { name: 'Quản trị tài khoản' }).getByRole('tab');
+// IAM-B-UI-01: Chi tiết → drawer → Quản lý tài khoản → workspace of that account.
+async function manage(page: Page, username: RegExp) {
+  await page.getByRole('row', { name: username }).first().getByRole('button', { name: 'Chi tiết' }).click();
+  await drawer(page).getByRole('button', { name: 'Quản lý tài khoản' }).click();
+  await expect(page.getByRole('button', { name: '← Quay lại danh sách' })).toBeVisible();
+}
 const storageHas = (page: Page, secret: string) => page.evaluate((s) => [JSON.stringify({ ...localStorage }), JSON.stringify({ ...sessionStorage }), location.href].some((v) => v.includes(s)), secret);
 
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -73,8 +81,14 @@ test('READ only: list + detail info, no create / status / reissue / sessions con
   await expect(tabs(page)).toHaveText(['Danh sách tài khoản']);
   await expect(page.getByRole('button', { name: 'Tạo tài khoản' })).toHaveCount(0);
   await page.getByRole('row', { name: /nv0101/ }).getByRole('button', { name: 'Chi tiết' }).click();
+  await expect(drawer(page).getByText('Tạo lúc')).toBeVisible();
+  await drawer(page).getByRole('button', { name: 'Quản lý tài khoản' }).click();
+  await expect(sections(page)).toHaveText(['Tổng quan', 'Vai trò', 'Chức năng & Quyền']);
   await expect(page.getByText('Tạo lúc:')).toBeVisible();
-  for (const name of ['Thực hiện', 'Cấp lại mật khẩu tạm', 'Mở khóa đăng nhập sai', /Thu hồi tất cả/]) await expect(page.getByRole('button', { name })).toHaveCount(0);
+  for (const section of ['Tổng quan', 'Vai trò', 'Chức năng & Quyền']) {
+    await sections(page).filter({ hasText: section }).click();
+    for (const name of ['Thực hiện', 'Cấp lại mật khẩu tạm', 'Mở khóa đăng nhập sai', /Thu hồi tất cả/, 'Gán vai trò', 'Cấp quyền trực tiếp']) await expect(page.getByRole('button', { name })).toHaveCount(0);
+  }
   await page.goto('/iam/accounts');
 });
 
@@ -112,21 +126,26 @@ test('lifecycle: lock sends action + reason; root hides lock / disable and reiss
   const calls = await open(page, { caps: PHASE_B });
   page.on('dialog', (d) => void (d.type() === 'prompt' ? d.accept('Đã xác minh qua điện thoại') : d.accept()));
   await page.goto('/iam/accounts');
-  await page.getByRole('row', { name: /nv0101/ }).getByRole('button', { name: 'Chi tiết' }).click();
+  await manage(page, /nv0101/);
+  await sections(page).filter({ hasText: 'Trạng thái & Credential' }).click();
   await page.getByLabel('Thao tác trạng thái').selectOption('LOCK');
   await page.getByLabel('Lý do').fill('Nghỉ phép dài ngày');
   await page.getByRole('button', { name: 'Thực hiện' }).click();
   await expect(page.getByText('Đã thực hiện: Khóa tài khoản.')).toBeVisible();
   expect(calls.find((c) => c.path.endsWith('/status'))?.body).toEqual({ action: 'LOCK', reason: 'Nghỉ phép dài ngày' });
+  await sections(page).filter({ hasText: 'Phiên đăng nhập' }).click();
   await page.getByRole('button', { name: /Thu hồi tất cả/ }).click();
   await expect.poll(() => calls.find((c) => c.path.endsWith('/sessions/revoke'))?.body).toEqual({ sessionId: null, reason: 'Đã xác minh qua điện thoại' });
+  await sections(page).filter({ hasText: 'Trạng thái & Credential' }).click();
   await page.getByRole('button', { name: 'Cấp lại mật khẩu tạm' }).click();
   await expect(page.getByRole('dialog').getByTestId('temporary-password')).toHaveText(PASSWORD);
   expect(await storageHas(page, PASSWORD)).toBe(false);
   await page.getByRole('dialog').getByRole('button', { name: /Đóng/ }).click();
   await expect(page.locator('body')).not.toContainText(PASSWORD);
   // Root administrator
-  await page.getByRole('row', { name: /admin/ }).first().getByRole('button', { name: 'Chi tiết' }).click();
+  await page.getByRole('button', { name: '← Quay lại danh sách' }).click();
+  await manage(page, /admin/);
+  await sections(page).filter({ hasText: 'Trạng thái & Credential' }).click();
   await expect(page.getByText('Tài khoản Admin gốc: không khóa')).toBeVisible();
   await expect(page.getByLabel('Thao tác trạng thái')).toHaveCount(0); // ACTIVE root: only LOCK / DISABLE would apply
   await expect(page.getByRole('button', { name: 'Cấp lại mật khẩu tạm' })).toBeDisabled();

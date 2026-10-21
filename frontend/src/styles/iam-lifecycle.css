@@ -1,10 +1,8 @@
-/* IAM Phase B — account lifecycle panel, one-time temporary password dialog, IAM audit viewer. */
+/* IAM Phase B — account lifecycle sections, one-time temporary password dialog, IAM audit viewer. */
 .app-shell .lc-panel{border-top:1px solid #eef2f4;margin-top:14px;padding-top:6px}
 .app-shell .lc-panel h4{margin:16px 0 8px;font-size:13px;color:#1c2937}
 .app-shell .lc-panel .fx-toolbar input{border:1px solid #d1dbe5;border-radius:7px;padding:7px 10px;font-size:12px;min-width:220px;flex:1 1 220px;max-width:420px}
 .app-shell .lc-panel .fx-toolbar select,.app-shell .lc-filters select,.app-shell .lc-filters input{border:1px solid #d1dbe5;border-radius:7px;padding:7px 10px;font-size:12px;background:#fff}
-.app-shell .lc-history{list-style:none;margin:0;padding:0;font-size:12px;color:#506176}
-.app-shell .lc-history li{padding:6px 0;border-bottom:1px dashed #eef2f4}
 .app-shell .lc-meta{font-size:11.5px;color:#506176;word-break:break-word}
 .app-shell .fx-link{border:0;background:none;padding:0;font:inherit;color:var(--green);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 .app-shell .otp-backdrop{position:fixed;inset:0;background:#162a3290;z-index:200;display:grid;place-items:center;padding:16px}

@@ -1,86 +1,113 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { iamApi, isPlatformPermission } from '../../services/iam/iamApi';
-import type { Account, AccountField, DirectGrant, Effective, GrantSource, Permission, PermissionTree, Role, RoleAssignment, RolePermission } from '../../services/iam/iamApi';
 import type { ApiResult } from '../../services/foundation/foundationApi';
+import type { Account, AccountField, Permission, Role, RolePermission } from '../../services/iam/iamApi';
 import { useShellData } from '../../contexts/ShellData';
 import { DataTable, FIRST_QUERY, NameCode } from '../../components/DataTable';
 import type { Column, TableQuery } from '../../components/DataTable';
-import { FeedbackLine, formatTime } from '../foundation/common';
+import { replaceSearch } from '../../routes/navigation';
+import type { OpenPath } from '../../routes/navigation';
+import { accountIdOfPath, accountWorkspacePath } from '../../routes/shellScreens';
+import type { ShellPath } from '../../routes/shellScreens';
+import { FeedbackLine } from '../foundation/common';
 import type { Feedback } from '../foundation/common';
 import { isTestModuleKey, moduleLabel, statusTag, useModuleFunctions, useSettle } from './iamShared';
-import { AccountLifecyclePanel, CreateAccountPanel, IamAuditViewer, accountStatusText } from './AccountLifecycle';
+import { CreateAccountPanel, IamAuditViewer, accountStatusText } from './AccountLifecycle';
+import { RootBadge, usePermissionTree } from './AccountAccessSections';
+import { AccountDetailDrawer, AccountStatusTag, AccountWorkspace } from './AccountWorkspace';
 
 // IAM Management screens (/iam/accounts, /iam/roles). Every list comes from the IAM API (reload / F5 shows the stored
 // data); every change goes through the API, which authorises it (IAM permission + one transaction + IAM audit). The UI
 // decides nothing: a 403 / 409 / 422 / 503 is shown with its reference; controls the session may not use are hidden
 // (capabilities). Permissions are shown as Module → Function → Action (names of the ACTIVE version, MIC) → permission.
 // Menu items (B09) are managed only in Foundation › Điều hướng.
-
-// ---------------------------------------------------------------------------------------------- permission names (tree)
-interface PermissionName {
-  readonly moduleName: string;
-  readonly functionName: string;
-  readonly actionName: string;
-}
-
-// permissionId → names from the tree (platform / unbound permissions have no declared names).
-function namesOf(tree: PermissionTree | null): Map<string, PermissionName> {
-  const out = new Map<string, PermissionName>();
-  for (const m of tree?.modules ?? []) {
-    for (const f of m.functions) {
-      for (const a of f.actions) {
-        if (a.permission) out.set(a.permission.permissionId, { moduleName: m.moduleName || m.moduleKey, functionName: f.functionName || f.functionKey, actionName: a.actionName || a.actionKey });
-      }
-    }
-  }
-  return out;
-}
-
-function usePermissionTree(settle: <T>(r: ApiResult<T>) => T | null) {
-  const [tree, setTree] = useState<PermissionTree | null>(null);
-  const reload = useCallback(async () => setTree(settle(await iamApi.permissionTree())), [settle]);
-  useEffect(() => { void reload(); }, [reload]);
-  return { tree, names: useMemo(() => namesOf(tree), [tree]), reload };
-}
-
-const SOURCE_TEXT: Record<GrantSource, { text: string; tone: string }> = {
-  ROLE: { text: 'Vai trò', tone: 'role' },
-  DIRECT_ALLOW: { text: 'Direct ALLOW', tone: 'allow' },
-  DIRECT_DENY: { text: 'Direct DENY', tone: 'deny' },
-};
-
-const RootBadge = () => <span className="badge root" title="Tài khoản quản trị gốc: vai trò hệ thống và quyền quản trị nền tảng không thu hồi được qua giao diện">Quản trị gốc</span>;
+// IAM-B-UI-01: /iam/accounts = list (+ detail drawer); /iam/accounts/:accountId = account management workspace.
 
 // ============================================================================================================ Accounts
 const ACCOUNT_FIELDS: readonly AccountField[] = ['username', 'employeeCode', 'fullName', 'accountStatus'];
 const toField = (key: string | null): AccountField | null => ACCOUNT_FIELDS.find((f) => f === key) ?? null;
 const STATUSES = ['PROVISIONED', 'ACTIVE', 'LOCKED', 'DISABLED'] as const;
+const PAGE_SIZES = [10, 25, 50, 100] as const;
 
-// Server mode: search / field / status / sort / paging are sent to GET /iam/admin/accounts (column allowlist there).
-const ACCOUNT_COLUMNS: Column<Account>[] = [
-  { key: 'username', label: 'Tài khoản', value: (a) => a.username, render: (a) => <><b>{a.username}</b> {a.isRoot && <RootBadge />}</> },
-  { key: 'fullName', label: 'Họ tên', value: (a) => a.fullName },
-  { key: 'employeeCode', label: 'Mã nhân viên', value: (a) => a.employeeCode },
-  { key: 'accountStatus', label: 'Trạng thái', value: (a) => a.accountStatus, render: (a) => statusTag(a.accountStatus === 'ACTIVE' && !a.disabled, a.disabled ? `${accountStatusText(a.accountStatus)} · kết thúc vòng đời` : accountStatusText(a.accountStatus)) },
-];
-
-// Tab 0: accounts (list, detail, lifecycle); tab 1: IAM audit (iam.audit.read).
-export function AccountsScreen({ tab, onSessionLost }: { tab: number; onSessionLost: () => void }) {
-  if (tab === 1) return <IamAuditViewer onSessionLost={onSessionLost} />;
-  return <AccountList onSessionLost={onSessionLost} />;
+// ------------------------------------------------------------------------------------- list state ⇄ URL query string
+// The list state lives in the query of /iam/accounts (q, field, status, sort, dir, page, size; defaults omitted). It is
+// written with replaceState (no history entry per keystroke) and read when the list mounts — so browser Back from the
+// workspace, a reload or a shared link show the same table.
+interface ListState {
+  readonly query: TableQuery;
+  readonly status: string;
 }
 
-function AccountList({ onSessionLost }: { onSessionLost: () => void }) {
+const DEFAULT_LIST: ListState = { query: { ...FIRST_QUERY, sort: 'username' }, status: '' };
+
+function positive(raw: string | null, fallback: number): number {
+  const n = raw !== null && /^[0-9]{1,6}$/.test(raw) ? Number(raw) : NaN;
+  return Number.isInteger(n) && n >= 1 ? n : fallback;
+}
+
+export function listStateFromSearch(search: string): ListState {
+  const p = new URLSearchParams(search);
+  const size = positive(p.get('size'), DEFAULT_LIST.query.pageSize);
+  const status = p.get('status') ?? '';
+  return {
+    query: {
+      search: (p.get('q') ?? '').trim().slice(0, 100),
+      field: toField(p.get('field')),
+      sort: toField(p.get('sort')) ?? 'username',
+      dir: p.get('dir') === 'desc' ? 'desc' : 'asc',
+      page: positive(p.get('page'), 1),
+      pageSize: PAGE_SIZES.find((s) => s === size) ?? DEFAULT_LIST.query.pageSize,
+    },
+    status: STATUSES.find((s) => s === status) ?? '',
+  };
+}
+
+export function listStateToSearch({ query, status }: ListState): string {
+  const p = new URLSearchParams();
+  if (query.search) p.set('q', query.search);
+  if (query.field) p.set('field', query.field);
+  if (status) p.set('status', status);
+  if (query.sort && query.sort !== 'username') p.set('sort', query.sort);
+  if (query.dir === 'desc') p.set('dir', 'desc');
+  if (query.page > 1) p.set('page', String(query.page));
+  if (query.pageSize !== DEFAULT_LIST.query.pageSize) p.set('size', String(query.pageSize));
+  return p.toString();
+}
+
+// Server mode: search / field / status / sort / paging are sent to GET /iam/admin/accounts (column allowlist there).
+function accountColumns(onPick: (a: Account, opener: HTMLElement) => void): Column<Account>[] {
+  return [
+    { key: 'username', label: 'Tài khoản', value: (a) => a.username, render: (a) => (
+      <><button type="button" className="fx-link acc-pick" onClick={(e) => onPick(a, e.currentTarget)}><b>{a.username}</b></button> {a.isRoot && <RootBadge />}</>
+    ) },
+    { key: 'fullName', label: 'Họ tên', value: (a) => a.fullName },
+    { key: 'employeeCode', label: 'Mã nhân viên', value: (a) => a.employeeCode },
+    { key: 'accountStatus', label: 'Trạng thái', value: (a) => a.accountStatus, render: (a) => <AccountStatusTag account={a} /> },
+  ];
+}
+
+// Tab 0: accounts — list, or the workspace of one account (path /iam/accounts/:id); tab 1: IAM audit (iam.audit.read).
+export function AccountsScreen({ tab, path, onSessionLost, onOpenPath }: { tab: number; path: ShellPath; onSessionLost: () => void; onOpenPath: OpenPath }) {
+  const accountId = accountIdOfPath(path);
+  if (accountId !== null) return <AccountWorkspace key={accountId} accountId={accountId} onSessionLost={onSessionLost} onOpenPath={onOpenPath} />;
+  if (tab === 1) return <IamAuditViewer onSessionLost={onSessionLost} />;
+  return <AccountList onSessionLost={onSessionLost} onOpenPath={onOpenPath} />;
+}
+
+function AccountList({ onSessionLost, onOpenPath }: { onSessionLost: () => void; onOpenPath: OpenPath }) {
   const { can } = useShellData();
   const [creating, setCreating] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const settle = useSettle(onSessionLost, setFeedback);
-  const [query, setQuery] = useState<TableQuery>({ ...FIRST_QUERY, sort: 'username' });
-  const [status, setStatus] = useState('');
+  const [list, setList] = useState<ListState>(() => listStateFromSearch(window.location.search));
+  const { query, status } = list;
   const [result, setResult] = useState<{ accounts: Account[]; total: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
+
+  useEffect(() => { replaceSearch(listStateToSearch(list)); }, [list]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -92,211 +119,49 @@ function AccountList({ onSessionLost }: { onSessionLost: () => void }) {
   }, [settle, query, status]);
   useEffect(() => { void load(); }, [load]);
 
+  const pick = useCallback((accountId: string, from: HTMLElement) => {
+    opener.current = from;
+    setSelected(accountId);
+  }, []);
+  const closeDrawer = useCallback(() => {
+    setSelected(null);
+    opener.current?.focus();
+  }, []);
+  // Level 3: a new history entry that remembers this list (with its query) — browser Back and "← Quay lại danh sách" return here.
+  const manage = useCallback((accountId: string) => {
+    onOpenPath(accountWorkspacePath(accountId), { returnTo: `${window.location.pathname}${window.location.search}` });
+  }, [onOpenPath]);
+
   return (
     <>
       <FeedbackLine feedback={feedback} />
       {creating && <CreateAccountPanel onSessionLost={onSessionLost} onCreated={() => void load()} onClose={() => setCreating(false)} />}
-      {selected && <AccountDetail key={selected} accountId={selected} onSessionLost={onSessionLost} onClose={() => setSelected(null)} onChanged={() => void load()} />}
       <DataTable
         label="tài khoản"
-        columns={ACCOUNT_COLUMNS}
+        columns={accountColumns((a, el) => pick(a.accountId, el))}
         rows={result?.accounts ?? null}
         rowKey={(a) => a.accountId}
         loading={loading}
         selectedKey={selected}
         emptyText="Không có tài khoản phù hợp."
         onRefresh={() => void load()}
-        server={{ total: result?.total ?? 0, query, onQuery: setQuery }}
+        server={{ total: result?.total ?? 0, query, onQuery: (q) => setList((l) => ({ ...l, query: q })) }}
         toolbar={(
           <>
-            <select aria-label="Lọc trạng thái" value={status} onChange={(e) => { setStatus(e.target.value); setQuery((q) => ({ ...q, page: 1 })); }}>
+            <select aria-label="Lọc trạng thái" value={status} onChange={(e) => { const s = e.target.value; setList((l) => ({ status: s, query: { ...l.query, page: 1 } })); }}>
               <option value="">Mọi trạng thái</option>
               {STATUSES.map((s) => <option key={s} value={s}>{accountStatusText(s)}</option>)}
             </select>
             {can('iam.accounts.create') && <button type="button" className="fx-btn primary" onClick={() => setCreating(true)}>Tạo tài khoản</button>}
           </>
         )}
-        actions={(a) => <button type="button" className="fx-btn" onClick={() => setSelected(a.accountId)}>Chi tiết</button>}
+        actions={(a) => <button type="button" className="fx-btn" aria-expanded={selected === a.accountId} onClick={(e) => pick(a.accountId, e.currentTarget)}>Chi tiết</button>}
       />
+      {selected && <AccountDetailDrawer accountId={selected} onClose={closeDrawer} onManage={manage} onSessionLost={onSessionLost} />}
     </>
   );
 }
 
-function AccountDetail({ accountId, onSessionLost, onClose, onChanged }: { accountId: string; onSessionLost: () => void; onClose: () => void; onChanged: () => void }) {
-  const { can } = useShellData();
-  const manage = can('iam.assignments.manage');
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const settle = useSettle(onSessionLost, setFeedback);
-  const { tree, names } = usePermissionTree(settle);
-  const [account, setAccount] = useState<Account | null>(null);
-  const [assignments, setAssignments] = useState<RoleAssignment[]>([]);
-  const [direct, setDirect] = useState<DirectGrant[]>([]);
-  const [effective, setEffective] = useState<Effective[] | null>(null);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [roleId, setRoleId] = useState('');
-  const [permissionId, setPermissionId] = useState('');
-  const [effect, setEffect] = useState<'ALLOW' | 'DENY'>('ALLOW');
-  const [reason, setReason] = useState('');
-  const [expiresAt, setExpiresAt] = useState('');
-  const [onlyAllowed, setOnlyAllowed] = useState(true);
-  const [busy, setBusy] = useState(false);
-
-  const reload = useCallback(async () => {
-    const [a, r, p] = await Promise.all([iamApi.account(accountId), iamApi.accountRoles(accountId), iamApi.accountPermissions(accountId)]);
-    setAccount(settle(a));
-    setAssignments(settle(r) ?? []);
-    const perms = settle(p);
-    setDirect(perms?.direct ?? []);
-    setEffective(perms?.effective ?? []);
-  }, [accountId, settle]);
-  useEffect(() => { void reload(); }, [reload]);
-  useEffect(() => { void iamApi.roles().then((r) => setRoles(settle(r) ?? [])); }, [settle]);
-
-  async function act(work: Promise<ApiResult<true>>, done: string, confirmText?: string) {
-    if (busy || (confirmText && !window.confirm(confirmText))) return;
-    setBusy(true);
-    setFeedback(null);
-    if (settle(await work)) setFeedback({ tone: 'success', text: done });
-    await reload();
-    setBusy(false);
-  }
-
-  function grant(event: FormEvent) {
-    event.preventDefault();
-    const expiry = expiresAt ? new Date(expiresAt) : null;
-    if (expiry && Number.isNaN(expiry.getTime())) return setFeedback({ tone: 'error', text: 'Thời điểm hết hạn không hợp lệ.' });
-    void act(iamApi.assignDirect(accountId, { permissionId, effect, reason: reason.trim(), expiresAt: expiry ? expiry.toISOString() : null }),
-      `Đã cấp quyền trực tiếp ${effect}.`, effect === 'DENY' ? 'Direct DENY luôn thắng mọi ALLOW của permission này. Tiếp tục?' : undefined);
-  }
-
-  const isSystemRole = (id: string) => roles.some((r) => r.roleId === id && r.isSystem);
-  const label = (id: string, code: string) => {
-    const n = names.get(id);
-    return n ? `${n.moduleName} › ${n.functionName} › ${n.actionName}` : code;
-  };
-  const effectiveColumns: Column<Effective>[] = [
-    { key: 'module', label: 'Module', value: (x) => names.get(x.permissionId)?.moduleName ?? x.moduleCode, render: (x) => <NameCode name={names.get(x.permissionId)?.moduleName} code={x.moduleCode} /> },
-    { key: 'function', label: 'Chức năng › Thao tác', value: (x) => (names.has(x.permissionId) ? `${names.get(x.permissionId)?.functionName} › ${names.get(x.permissionId)?.actionName}` : `${x.resourceCode} › ${x.operation}`) },
-    { key: 'permissionCode', label: 'Permission', value: (x) => x.permissionCode, render: (x) => <code>{x.permissionCode}</code> },
-    { key: 'allowed', label: 'Kết quả', value: (x) => (x.allowed ? 'ALLOW' : 'DENY'), render: (x) => statusTag(x.allowed, x.allowed ? 'ALLOW' : 'DENY') },
-    { key: 'sources', label: 'Nguồn', value: (x) => x.sources.map((s) => SOURCE_TEXT[s].text).join(' '), render: (x) => (x.sources.length === 0 ? <span className="muted">—</span> : x.sources.map((s) => <span key={s} className={`badge ${SOURCE_TEXT[s].tone}`}>{SOURCE_TEXT[s].text}</span>)) },
-    { key: 'reason', label: 'Lý do (bộ đánh giá)', value: (x) => x.reason },
-  ];
-  const grantable = (tree?.modules ?? []).filter((m) => !isTestModuleKey(m.moduleKey));
-
-  return (
-    <div className="fx-version-area fx-section">
-      <div className="fx-toolbar">
-        <h3 style={{ margin: 0 }}>{account ? `${account.fullName || account.username} (${account.username})` : 'Tài khoản'}</h3>
-        {account?.isRoot && <RootBadge />}
-        <button type="button" className="fx-btn" onClick={() => void reload()}>Tải lại</button>
-        <button type="button" className="fx-btn" onClick={onClose}>Đóng</button>
-      </div>
-      <FeedbackLine feedback={feedback} />
-      {account && (
-        <div className="fx-meta">
-          <span><b>Mã nhân viên:</b> {account.employeeCode}</span>
-          <span><b>Tài khoản:</b> {accountStatusText(account.accountStatus)}{account.disabled ? ' (kết thúc vòng đời)' : ''}</span>
-          <span><b>Membership:</b> {account.membershipStatus}</span>
-        </div>
-      )}
-      {account?.isRoot && <p className="muted">Tài khoản quản trị gốc: máy chủ chặn thu hồi vai trò hệ thống và chặn Direct DENY / thu hồi quyền quản trị nền tảng của tài khoản này (ghi audit). Bộ đánh giá quyền không có ngoại lệ.</p>}
-
-      {account && <AccountLifecyclePanel account={account} onSessionLost={onSessionLost} onChanged={() => { onChanged(); void reload(); }} />}
-
-      <h4>Vai trò được gán (lịch sử)</h4>
-      {assignments.length === 0 ? <p className="muted">Chưa có vai trò.</p> : (
-        <div className="tablewrap"><table>
-          <thead><tr><th>Vai trò</th><th>Gán lúc</th><th>Trạng thái</th><th /></tr></thead>
-          <tbody>{assignments.map((a) => (
-            <tr key={a.userRoleId}>
-              <td><NameCode name={a.roleName} code={a.roleCode} />{a.roleActive ? '' : ' (vai trò không hoạt động)'}{isSystemRole(a.roleId) && <span className="badge">hệ thống</span>}</td>
-              <td>{formatTime(a.assignedAt)}</td>
-              <td>{a.revokedAt ? `Đã thu hồi ${formatTime(a.revokedAt)}` : statusTag(true, 'Hiệu lực')}</td>
-              <td>{manage && !a.revokedAt && !(isSystemRole(a.roleId) && account?.isRoot) && (
-                <button type="button" className="fx-btn danger" disabled={busy} onClick={() => void act(iamApi.revokeRole(accountId, a.userRoleId), `Đã thu hồi vai trò ${a.roleName}.`,
-                  isSystemRole(a.roleId) ? `Thu hồi VAI TRÒ HỆ THỐNG ${a.roleCode}? Tài khoản sẽ mất quyền quản trị của vai trò này.` : `Thu hồi vai trò ${a.roleName}?`)}>Thu hồi</button>
-              )}</td>
-            </tr>
-          ))}</tbody>
-        </table></div>
-      )}
-      {manage && (
-        <div className="fx-toolbar" style={{ marginTop: 10 }}>
-          <select aria-label="Vai trò" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-            <option value="">Chọn vai trò…</option>
-            {roles.filter((r) => r.isActive && !r.isSystem).map((r) => <option key={r.roleId} value={r.roleId}>{r.roleName} ({r.roleCode})</option>)}
-          </select>
-          <button type="button" className="fx-btn primary" disabled={!roleId || busy} onClick={() => void act(iamApi.assignRole(accountId, roleId), 'Đã gán vai trò.')}>Gán vai trò</button>
-        </div>
-      )}
-
-      <h4>Quyền trực tiếp (Direct ALLOW / DENY)</h4>
-      {direct.length === 0 ? <p className="muted">Chưa có quyền trực tiếp.</p> : (
-        <div className="tablewrap"><table>
-          <thead><tr><th>Quyền</th><th>Hiệu ứng</th><th>Lý do</th><th>Hết hạn</th><th>Trạng thái</th><th /></tr></thead>
-          <tbody>{direct.map((d) => (
-            <tr key={d.userPermissionId}>
-              <td><NameCode name={names.has(d.permissionId) ? label(d.permissionId, d.permissionCode) : null} code={d.permissionCode} /></td>
-              <td><span className={`badge ${d.effect === 'DENY' ? 'deny' : 'allow'}`}>{d.effect}</span></td>
-              <td>{d.reason ?? '—'}</td>
-              <td>{formatTime(d.expiresAt)}</td>
-              <td>{d.revokedAt ? `Đã thu hồi ${formatTime(d.revokedAt)}` : d.expired ? 'Hết hạn' : 'Hiệu lực'}</td>
-              <td>{manage && !d.revokedAt && <button type="button" className="fx-btn danger" disabled={busy} onClick={() => void act(iamApi.revokeDirect(accountId, d.userPermissionId), 'Đã thu hồi quyền trực tiếp.', `Thu hồi ${d.effect} ${d.permissionCode}?`)}>Thu hồi</button>}</td>
-            </tr>
-          ))}</tbody>
-        </table></div>
-      )}
-      {manage && (
-        <form className="fx-form" style={{ marginTop: 10 }} onSubmit={grant}>
-          <label>Quyền (Module › Chức năng › Thao tác)
-            <select value={permissionId} onChange={(e) => setPermissionId(e.target.value)}>
-              <option value="">Chọn quyền…</option>
-              {grantable.map((m) => (
-                <optgroup key={m.moduleKey} label={`${m.moduleName || m.moduleKey} (${m.moduleKey} ${m.moduleVersion})`}>
-                  {m.functions.flatMap((f) => f.actions.flatMap((a) => (a.permission && !isPlatformPermission(a.permission) ? [
-                    <option key={a.permission.permissionId} value={a.permission.permissionId}>{f.functionName || f.functionKey} › {a.actionName || a.actionKey} — {a.permission.permissionCode}</option>,
-                  ] : [])))}
-                </optgroup>
-              ))}
-              {(tree?.unbound.length ?? 0) > 0 && (
-                <optgroup label="Permission không gắn Thao tác đang khai báo">
-                  {tree?.unbound.map((p) => <option key={p.permissionId} value={p.permissionId}>{p.permissionCode}</option>)}
-                </optgroup>
-              )}
-            </select>
-          </label>
-          <label>Hiệu ứng
-            <select value={effect} onChange={(e) => setEffect(e.target.value === 'DENY' ? 'DENY' : 'ALLOW')}>
-              <option value="ALLOW">ALLOW</option>
-              <option value="DENY">DENY (thắng mọi ALLOW)</option>
-            </select>
-          </label>
-          <label>Lý do<input required maxLength={2000} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-          <label>Hết hạn (tùy chọn)<input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} /></label>
-          <div><button type="submit" className="fx-btn primary" disabled={!permissionId || !reason.trim() || busy}>Cấp quyền trực tiếp</button></div>
-        </form>
-      )}
-      <p className="muted">Vai trò hệ thống và permission quản trị nền tảng (IAM / FOUNDATION) chỉ được cấp qua quy trình khởi tạo đã phê duyệt; không tự cấp hoặc thu hồi quyền của chính mình.</p>
-
-      <h4>Quyền hiệu lực</h4>
-      <p className="muted">
-        Kết quả do bộ đánh giá IAM của máy chủ tính (Direct DENY thắng mọi ALLOW), giả định phiên của tài khoản này đạt mức assurance tối
-        thiểu của từng permission. “Nguồn” là các cấp quyền còn hiệu lực mà bộ đánh giá nhìn thấy.
-      </p>
-      <DataTable
-        label="quyền hiệu lực"
-        compact
-        columns={effectiveColumns}
-        rows={effective === null ? null : onlyAllowed ? effective.filter((x) => x.allowed || x.sources.length > 0) : effective}
-        rowKey={(x) => x.permissionId}
-        initial={{ sort: 'module' }}
-        emptyText="Tài khoản chưa có quyền nào."
-        toolbar={<label className="muted"><input type="checkbox" checked={onlyAllowed} onChange={(e) => setOnlyAllowed(e.target.checked)} /> Chỉ quyền có cấp phát</label>}
-      />
-    </div>
-  );
-}
 
 // =============================================================================================================== Roles
 export function RolesScreen({ tab, onSessionLost }: { tab: number; onSessionLost: () => void }) {
