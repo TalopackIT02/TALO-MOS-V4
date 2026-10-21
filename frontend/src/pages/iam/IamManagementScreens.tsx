@@ -13,9 +13,10 @@ import type { ShellPath } from '../../routes/shellScreens';
 import { FeedbackLine } from '../foundation/common';
 import type { Feedback } from '../foundation/common';
 import { isTestModuleKey, moduleLabel, statusTag, useModuleFunctions, useSettle } from './iamShared';
-import { CreateAccountPanel, IamAuditViewer, accountStatusText } from './AccountLifecycle';
+import { IamAuditViewer, accountStatusText } from './AccountLifecycle';
 import { RootBadge, usePermissionTree } from './AccountAccessSections';
-import { AccountDetailDrawer, AccountStatusTag, AccountWorkspace } from './AccountWorkspace';
+import { AccountDetailDrawer, AccountStatusTag, AccountWorkspace, CreateAccountDrawer } from './AccountWorkspace';
+import type { CreatedAccount } from './AccountWorkspace';
 
 // IAM Management screens (/iam/accounts, /iam/roles). Every list comes from the IAM API (reload / F5 shows the stored
 // data); every change goes through the API, which authorises it (IAM permission + one transaction + IAM audit). The UI
@@ -27,7 +28,7 @@ import { AccountDetailDrawer, AccountStatusTag, AccountWorkspace } from './Accou
 // ============================================================================================================ Accounts
 const ACCOUNT_FIELDS: readonly AccountField[] = ['username', 'employeeCode', 'fullName', 'accountStatus'];
 const toField = (key: string | null): AccountField | null => ACCOUNT_FIELDS.find((f) => f === key) ?? null;
-const STATUSES = ['PROVISIONED', 'ACTIVE', 'LOCKED', 'DISABLED'] as const;
+const STATUSES = ['PENDING_MEMBERSHIP', 'PROVISIONED', 'ACTIVE', 'LOCKED', 'DISABLED'] as const;
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
 // ------------------------------------------------------------------------------------- list state ⇄ URL query string
@@ -81,8 +82,9 @@ function accountColumns(onPick: (a: Account, opener: HTMLElement) => void): Colu
     { key: 'username', label: 'Tài khoản', value: (a) => a.username, render: (a) => (
       <><button type="button" className="fx-link acc-pick" onClick={(e) => onPick(a, e.currentTarget)}><b>{a.username}</b></button> {a.isRoot && <RootBadge />}</>
     ) },
-    { key: 'fullName', label: 'Họ tên', value: (a) => a.fullName },
-    { key: 'employeeCode', label: 'Mã nhân viên', value: (a) => a.employeeCode },
+    // No membership yet (PENDING_MEMBERSHIP): no employee data — shown as a dash.
+    { key: 'fullName', label: 'Họ tên', value: (a) => a.fullName ?? '', render: (a) => a.fullName ?? <span className="muted">—</span> },
+    { key: 'employeeCode', label: 'Mã nhân viên', value: (a) => a.employeeCode ?? '', render: (a) => a.employeeCode ?? <span className="muted">—</span> },
     { key: 'accountStatus', label: 'Trạng thái', value: (a) => a.accountStatus, render: (a) => <AccountStatusTag account={a} /> },
   ];
 }
@@ -105,7 +107,9 @@ function AccountList({ onSessionLost, onOpenPath }: { onSessionLost: () => void;
   const [result, setResult] = useState<{ accounts: Account[]; total: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [createdAccount, setCreatedAccount] = useState<CreatedAccount | null>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const createButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => { replaceSearch(listStateToSearch(list)); }, [list]);
 
@@ -119,10 +123,28 @@ function AccountList({ onSessionLost, onOpenPath }: { onSessionLost: () => void;
   }, [settle, query, status]);
   useEffect(() => { void load(); }, [load]);
 
+  // One drawer at a time: opening the detail closes the create drawer and the other way round.
   const pick = useCallback((accountId: string, from: HTMLElement) => {
     opener.current = from;
+    setCreating(false);
     setSelected(accountId);
   }, []);
+  const openCreate = () => {
+    setSelected(null);
+    setCreatedAccount(null);
+    setCreating(true);
+  };
+  const closeCreate = useCallback(() => {
+    setCreating(false);
+    createButton.current?.focus();
+  }, []);
+  // Saved by the server: close the drawer, say so, reload the list (its query unchanged); the new account opens from the message.
+  const created = useCallback((account: CreatedAccount) => {
+    setCreating(false);
+    setFeedback(null);
+    setCreatedAccount(account);
+    void load();
+  }, [load]);
   const closeDrawer = useCallback(() => {
     setSelected(null);
     opener.current?.focus();
@@ -135,7 +157,12 @@ function AccountList({ onSessionLost, onOpenPath }: { onSessionLost: () => void;
   return (
     <>
       <FeedbackLine feedback={feedback} />
-      {creating && <CreateAccountPanel onSessionLost={onSessionLost} onCreated={() => void load()} onClose={() => setCreating(false)} />}
+      {createdAccount && (
+        <div className="fx-msg success" role="status">
+          Đã tạo tài khoản <b>{createdAccount.username}</b> ở trạng thái Chờ Membership (chưa gán nhân viên, chưa cấp mật khẩu).{' '}
+          <button type="button" className="fx-link" onClick={(e) => pick(createdAccount.accountId, e.currentTarget)}>Xem tài khoản</button>
+        </div>
+      )}
       <DataTable
         label="tài khoản"
         columns={accountColumns((a, el) => pick(a.accountId, el))}
@@ -152,12 +179,13 @@ function AccountList({ onSessionLost, onOpenPath }: { onSessionLost: () => void;
               <option value="">Mọi trạng thái</option>
               {STATUSES.map((s) => <option key={s} value={s}>{accountStatusText(s)}</option>)}
             </select>
-            {can('iam.accounts.create') && <button type="button" className="fx-btn primary" onClick={() => setCreating(true)}>Tạo tài khoản</button>}
+            {can('iam.accounts.create') && <button type="button" ref={createButton} className="fx-btn primary" aria-expanded={creating} onClick={openCreate}>+ Tạo tài khoản</button>}
           </>
         )}
         actions={(a) => <button type="button" className="fx-btn" aria-expanded={selected === a.accountId} onClick={(e) => pick(a.accountId, e.currentTarget)}>Chi tiết</button>}
       />
       {selected && <AccountDetailDrawer accountId={selected} onClose={closeDrawer} onManage={manage} onSessionLost={onSessionLost} />}
+      {creating && <CreateAccountDrawer onClose={closeCreate} onCreated={created} onSessionLost={onSessionLost} />}
     </>
   );
 }

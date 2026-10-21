@@ -44,3 +44,13 @@
 @media (max-width:760px){
   .app-shell .fx-form.acc-grant-form,.app-shell .fx-form.iam-k05-form{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Create account drawer (IAM Phase C PC-01): one field, info, defaults; footer actions stay at the bottom. */
+.app-shell .acc-create{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.app-shell .acc-field{display:block;font-size:12px;color:#506176;margin-bottom:5px}
+.app-shell .acc-required{color:#b42318}
+.app-shell .acc-input{width:100%;border:1px solid #d1dbe5;border-radius:7px;padding:9px 10px;font-size:13px;background:#fff;color:#1c2937;font-family:inherit}
+.app-shell .acc-input:focus{outline:2px solid #bddecb;border-color:var(--green)}
+.app-shell .acc-input.invalid{border-color:#b42318}
+.app-shell .acc-field-error{min-height:18px;margin:4px 0 10px;font-size:12px;color:#b42318}
+.app-shell .acc-drawer-foot{gap:8px}

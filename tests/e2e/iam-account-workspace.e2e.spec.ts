@@ -150,6 +150,7 @@ test('NAV-01..08, NAV-11: table state kept in the URL; Chrome Back / Forward and
   expect(await page.evaluate(() => history.length)).toBe(start); // no history entry per change
 
   const listUrl = page.url();
+  await expect(page.locator('.dt-grid tbody tr').first()).toContainText('nv0040'); // page 3 of the DESC list has loaded
   const target = page.locator('.dt-grid tbody tr').first();
   const username = (await target.locator('.acc-pick').innerText()).trim();
   await target.getByRole('button', { name: 'Chi tiết' }).click();

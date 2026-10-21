@@ -3,7 +3,11 @@ import type { ApiResult } from '../foundation/foundationApi';
 // Client of the IAM Management API (/api/iam/admin/*). Same rules as the Foundation client: same-origin cookie session,
 // no token storage, no retry of a write, every answer parsed (no unchecked cast); the server decides every permission.
 
-export type Account = { accountId: string; username: string; accountStatus: string; disabled: boolean; employeeCode: string; fullName: string; membershipStatus: string; isRoot: boolean };
+// membershipId / employeeCode / fullName / membershipStatus are null for an account PENDING_MEMBERSHIP (IAM Phase C PC-01).
+export type Account = {
+  accountId: string; username: string; accountStatus: string; disabled: boolean; membershipId: string | null;
+  employeeCode: string | null; fullName: string | null; membershipStatus: string | null; isRoot: boolean;
+};
 export type Role = { roleId: string; roleCode: string; roleName: string; description: string | null; isActive: boolean; isSystem: boolean; permissionCount: number; activeAssignments: number };
 export type Permission = { permissionId: string; permissionCode: string; moduleCode: string; resourceCode: string; operation: string; minimumAssuranceLevel: number; description: string | null };
 export type RolePermission = { permissionId: string; permissionCode: string; moduleCode: string; resourceCode: string; operation: string };
@@ -43,7 +47,8 @@ const ok = () => (payload: unknown): true => { obj(payload); return true; };
 
 const toAccount = (o: Json): Account => ({
   accountId: str(o, 'accountId'), username: str(o, 'username'), accountStatus: str(o, 'accountStatus'), disabled: bool(o, 'disabled'),
-  employeeCode: str(o, 'employeeCode'), fullName: str(o, 'fullName'), membershipStatus: str(o, 'membershipStatus'), isRoot: o['isRoot'] === true,
+  membershipId: optStr(o, 'membershipId'), employeeCode: optStr(o, 'employeeCode'), fullName: optStr(o, 'fullName'), membershipStatus: optStr(o, 'membershipStatus'),
+  isRoot: o['isRoot'] === true,
 });
 const toRole = (o: Json): Role => ({
   roleId: str(o, 'roleId'), roleCode: str(o, 'roleCode'), roleName: str(o, 'roleName'), description: optStr(o, 'description'), isActive: bool(o, 'isActive'),
@@ -169,7 +174,8 @@ export type StatusAction = 'LOCK' | 'UNLOCK' | 'DISABLE' | 'REACTIVATE';
 export type CredentialFeature = 'DISABLED' | 'UNAVAILABLE' | 'READY';
 export type AccountDetails = {
   createdAt: string | null; activatedAt: string | null; disabledAt: string | null; createdByUsername: string | null;
-  joinedAt: string | null; leftAt: string | null; mustChangePassword: boolean | null; failedAttempts: number | null; loginLockedUntil: string | null;
+  joinedAt: string | null; leftAt: string | null; hasCredential: boolean | null; mustChangePassword: boolean | null; failedAttempts: number | null;
+  loginLockedUntil: string | null;
 };
 export type SessionRow = {
   sessionId: string; assuranceLevel: number; createdAt: string; expiresAt: string; lastSeenAt: string | null; revokedAt: string | null;
@@ -192,7 +198,7 @@ const toDetails = (payload: unknown): AccountDetails | null => {
   const o = obj(d);
   return {
     createdAt: optStr(o, 'createdAt'), activatedAt: optStr(o, 'activatedAt'), disabledAt: optStr(o, 'disabledAt'), createdByUsername: optStr(o, 'createdByUsername'),
-    joinedAt: optStr(o, 'joinedAt'), leftAt: optStr(o, 'leftAt'), mustChangePassword: optBool(o, 'mustChangePassword'),
+    joinedAt: optStr(o, 'joinedAt'), leftAt: optStr(o, 'leftAt'), hasCredential: optBool(o, 'hasCredential'), mustChangePassword: optBool(o, 'mustChangePassword'),
     failedAttempts: optNum(o, 'failedAttempts'), loginLockedUntil: optStr(o, 'loginLockedUntil'),
   };
 };
@@ -240,7 +246,11 @@ export const iamLifecycleApi = {
     const o = obj(p);
     return { events: list('events', toAuditEvent)(o), total: num(o, 'total') };
   }),
-  createAccount: (data: { employeeCode: string; fullName: string; username: string; joinedAt: string }) => request('POST', '/accounts', toIssued('account'), data),
+  // IAM Phase C PC-01: a User Account PENDING_MEMBERSHIP — username only, no membership, no password.
+  createPending: (username: string) => request('POST', '/accounts/pending', (p) => {
+    const o = obj(obj(p)['account']);
+    return { accountId: str(o, 'accountId'), username: str(o, 'username'), accountStatus: str(o, 'accountStatus') };
+  }, { username }),
   reissue: (id: string, reason: string) => request('POST', `/accounts/${e(id)}/credential/reissue`, toIssued('credential'), { reason }),
 };
 
@@ -266,6 +276,8 @@ export const IAM_TEXT: Record<string, string> = {
   CREDENTIAL_UI_DISABLED: 'Cấp mật khẩu tạm trên giao diện chưa được bật (quyết định P-4e hiện hành: chỉ qua công cụ CLI của IT).',
   CREDENTIAL_UI_UNAVAILABLE: 'Kết nối cấp tài khoản (talo_provisioner) chưa sẵn sàng. Không có thay đổi nào được lưu.',
   USERNAME_TAKEN: 'Tên đăng nhập đã tồn tại.',
+  CREDENTIAL_NOT_ISSUED: 'Tài khoản đang chờ Membership: chưa có mật khẩu để cấp lại. Mật khẩu tạm được cấp khi gán Membership.',
+  PENDING_ACCOUNT_DB_MISSING: 'Chức năng tạo tài khoản chờ Membership chưa được cài đặt trong cơ sở dữ liệu (gói IAM Phase C PC-01 chờ phê duyệt). Không có thay đổi nào được lưu.',
   MEMBERSHIP_HAS_ACCOUNT: 'Nhân viên này đã có một tài khoản đang hiện hành.',
   MEMBERSHIP_NOT_ACTIVE: 'Hồ sơ nhân viên không ở trạng thái được cấp tài khoản.',
   PRIVILEGED_ACCOUNT_PROTECTED: 'Tài khoản thuộc diện được bảo vệ theo luật của hàm phục hồi: không cấp lại mật khẩu qua giao diện.',

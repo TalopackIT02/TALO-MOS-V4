@@ -258,7 +258,7 @@ describe('IAM Phase B — temporary credentials (P-4e services, feature flag)', 
   it('reissue: root / self refused (audited) before the function; refusal TA403 → 422 PRIVILEGED_ACCOUNT_PROTECTED (audited); success audited without the password', async () => {
     await hasher.init();
     const p = provisioner();
-    const h = harness(ALL, (sql) => (sql.startsWith('SELECT username FROM iam.iam_user_accounts') ? [{ username: 'nv0101' }] : undefined), { provisioner: p.connection });
+    const h = harness(ALL, (sql) => (sql.startsWith('SELECT username, (membership_id IS NULL) AS pending FROM iam.iam_user_accounts') ? [{ username: 'nv0101', pending: false }] : undefined), { provisioner: p.connection });
     for (const [who, code] of [[ROOT, 'ROOT_ADMIN_PROTECTED'], [ADMIN, 'SELF_ACTION_FORBIDDEN']] as const) {
       const r = await h.send(`/iam/admin/accounts/${who}/credential/reissue`, { reason: 'x' });
       expect([r.status, r.body.error.code]).toEqual([422, code]);
@@ -271,7 +271,7 @@ describe('IAM Phase B — temporary credentials (P-4e services, feature flag)', 
     expect(String(success?.params[1])).toBe('IAM.CREDENTIAL.REISSUE');
     expect(JSON.stringify(h.writes)).not.toContain(password);
     const refused = provisioner({ reissue: () => { throw pgError('TA403'); } });
-    const h2 = harness(ALL, (sql) => (sql.startsWith('SELECT username FROM iam.iam_user_accounts') ? [{ username: 'nv0101' }] : undefined), { provisioner: refused.connection });
+    const h2 = harness(ALL, (sql) => (sql.startsWith('SELECT username, (membership_id IS NULL) AS pending FROM iam.iam_user_accounts') ? [{ username: 'nv0101', pending: false }] : undefined), { provisioner: refused.connection });
     const r2 = await h2.send(`/iam/admin/accounts/${TARGET}/credential/reissue`, { reason: 'x' });
     expect([r2.status, r2.body.error.code, h2.failures()]).toEqual([422, 'PRIVILEGED_ACCOUNT_PROTECTED', ['PRIVILEGED_ACCOUNT_PROTECTED']]);
   });

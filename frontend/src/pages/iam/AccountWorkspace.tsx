@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import { iamApi, iamLifecycleApi } from '../../services/iam/iamApi';
 import type { Account, AccountDetails, RoleAssignment } from '../../services/iam/iamApi';
 import type { ApiResult } from '../../services/foundation/foundationApi';
@@ -19,6 +20,8 @@ import '../../styles/iam-account-workspace.css';
 // the IAM API, controls follow the session's capabilities, the server decides (root / self protection, P-4e gate).
 
 const dash = (v: string | null | undefined) => (v && v.trim() !== '' ? v : '—');
+// No membership yet (PENDING_MEMBERSHIP, IAM Phase C): the membership columns of the account are null.
+const membershipText = (a: Account) => a.membershipStatus ?? 'Chưa gán';
 
 export function AccountStatusTag({ account }: { account: Account }) {
   return statusTag(account.accountStatus === 'ACTIVE' && !account.disabled, account.disabled ? `${accountStatusText(account.accountStatus)} · kết thúc vòng đời` : accountStatusText(account.accountStatus));
@@ -78,7 +81,7 @@ export function AccountDetailDrawer({ accountId, onClose, onManage, onSessionLos
             <dl className="acc-facts">
               <dt>Họ tên</dt><dd>{dash(data.account.fullName)}</dd>
               <dt>Mã nhân viên</dt><dd>{dash(data.account.employeeCode)}</dd>
-              <dt>Membership</dt><dd>{dash(data.account.membershipStatus)}</dd>
+              <dt>Membership</dt><dd>{membershipText(data.account)}</dd>
               <dt>Trạng thái</dt><dd><AccountStatusTag account={data.account} /></dd>
               <dt>Vai trò</dt>
               <dd>{data.roles === null ? <span className="muted">Không khả dụng</span> : live.length === 0 ? <span className="muted">Chưa có vai trò</span>
@@ -93,6 +96,90 @@ export function AccountDetailDrawer({ accountId, onClose, onManage, onSessionLos
       <footer className="acc-drawer-foot">
         <button type="button" className="fx-btn primary" disabled={data.kind !== 'ready'} onClick={() => onManage(accountId)}>Quản lý tài khoản</button>
       </footer>
+    </aside>
+  );
+}
+
+// ================================================================================================ create account drawer
+// IAM Phase C PC-01: a User Account by username only, created PENDING_MEMBERSHIP — no membership, no password (so it
+// does not depend on P-4e). Same right-hand drawer as the detail: the list keeps its size and query. The server checks
+// the username again (unique, case-insensitive) and decides; nothing is created on any error.
+export interface CreatedAccount {
+  readonly accountId: string;
+  readonly username: string;
+}
+
+// Same rule as the API and the database function: 1-80 characters, no whitespace, no control character.
+export function usernameProblem(raw: string): string | null {
+  const value = raw.trim();
+  if (value === '') return 'Nhập tên đăng nhập.';
+  if (value.length > 80) return 'Tên đăng nhập tối đa 80 ký tự.';
+  if (/[\s\p{Cc}]/u.test(value)) return 'Tên đăng nhập không được chứa khoảng trắng hoặc ký tự điều khiển.';
+  return null;
+}
+
+export function CreateAccountDrawer({ onClose, onCreated, onSessionLost }: { onClose: () => void; onCreated: (account: CreatedAccount) => void; onSessionLost: () => void }) {
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const settle = useSettle(onSessionLost, setFeedback);
+  const [username, setUsername] = useState('');
+  const [touched, setTouched] = useState(false);
+  const [taken, setTaken] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const problem = usernameProblem(username);
+  const fieldError = touched ? problem ?? (taken !== null && taken === username.trim() ? 'Tên đăng nhập đã tồn tại. Chọn tên khác.' : null) : null;
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose, busy]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setTouched(true);
+    if (busy || problem !== null) return;
+    setBusy(true);
+    setFeedback(null);
+    const value = username.trim();
+    const result = await iamLifecycleApi.createPending(value);
+    setBusy(false);
+    if (!result.ok && result.code === 'USERNAME_TAKEN') {
+      setTaken(value);
+      inputRef.current?.focus();
+      return;
+    }
+    const created = settle(result);
+    if (created) onCreated({ accountId: created.accountId, username: created.username });
+  }
+
+  return (
+    <aside className="acc-drawer" role="dialog" aria-modal="false" aria-labelledby="acc-create-title" data-drawer="create">
+      <header className="acc-drawer-head">
+        <h3 id="acc-create-title">Tạo tài khoản mới</h3>
+        <button type="button" className="acc-drawer-close" aria-label="Đóng tạo tài khoản" title="Đóng (Esc)" disabled={busy} onClick={onClose}>×</button>
+      </header>
+      <form className="acc-create" onSubmit={(e) => void submit(e)} noValidate aria-label="Tạo tài khoản mới">
+        <div className="acc-drawer-body">
+          <FeedbackLine feedback={feedback} />
+          <label className="acc-field" htmlFor="acc-create-username">Tên đăng nhập <span className="acc-required" aria-hidden="true">*</span></label>
+          <input id="acc-create-username" ref={inputRef} className={fieldError ? 'acc-input invalid' : 'acc-input'} autoComplete="off" spellCheck={false} maxLength={80}
+            placeholder="Nhập Username" required aria-required="true" aria-invalid={fieldError !== null} aria-describedby="acc-create-hint acc-create-error"
+            value={username} disabled={busy} onChange={(e) => { setUsername(e.target.value); setTouched(true); }} />
+          <p id="acc-create-error" className="acc-field-error" role="alert">{fieldError ?? ''}</p>
+          <p id="acc-create-hint" className="fx-msg info" role="note">Tài khoản sẽ được tạo ở trạng thái Chờ Membership. Bạn có thể gán nhân viên và cấp mật khẩu sau.</p>
+          <dl className="acc-facts">
+            <dt>Membership</dt><dd>Chưa gán</dd>
+            <dt>Mật khẩu</dt><dd>Chưa cấp</dd>
+            <dt>Trạng thái</dt><dd>{statusTag(false, accountStatusText('PENDING_MEMBERSHIP'))}</dd>
+          </dl>
+        </div>
+        <footer className="acc-drawer-foot">
+          <button type="button" className="fx-btn" disabled={busy} onClick={onClose}>Hủy</button>
+          <button type="submit" className="fx-btn primary" disabled={busy || (touched && problem !== null)} aria-busy={busy}>{busy ? 'Đang tạo…' : 'Tạo tài khoản'}</button>
+        </footer>
+      </form>
     </aside>
   );
 }
@@ -180,7 +267,7 @@ export function AccountWorkspace({ accountId, onSessionLost, onOpenPath }: { acc
                   <dt>Tài khoản</dt><dd>{account.username}</dd>
                   <dt>Họ tên</dt><dd>{dash(account.fullName)}</dd>
                   <dt>Mã nhân viên</dt><dd>{dash(account.employeeCode)}</dd>
-                  <dt>Membership</dt><dd>{dash(account.membershipStatus)}</dd>
+                  <dt>Membership</dt><dd>{membershipText(account)}</dd>
                   <dt>Trạng thái</dt><dd><AccountStatusTag account={account} /></dd>
                 </dl>
                 <h4>Vòng đời</h4>

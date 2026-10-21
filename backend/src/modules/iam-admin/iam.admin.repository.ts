@@ -56,7 +56,9 @@ export const IAM_MESSAGES: Record<string, string> = {
   MEMBERSHIP_HAS_ACCOUNT: 'Nhân viên này đã có một tài khoản đang hiện hành.',
   MEMBERSHIP_NOT_ACTIVE: 'Hồ sơ nhân viên (membership) không ở trạng thái được cấp tài khoản.',
   PRIVILEGED_ACCOUNT_PROTECTED: 'Tài khoản thuộc diện được bảo vệ theo luật của hàm phục hồi: không cấp lại mật khẩu qua giao diện. Dùng thủ tục quản trị đã phê duyệt.',
-  ACCOUNT_NOT_ELIGIBLE: 'Tài khoản hoặc hồ sơ nhân viên không đủ điều kiện cấp lại mật khẩu (bị khóa, vô hiệu hóa hoặc đã nghỉ).',
+  CREDENTIAL_NOT_ISSUED: 'Tài khoản đang chờ Membership: chưa có mật khẩu để cấp lại. Mật khẩu tạm được cấp khi gán Membership.',
+  PENDING_ACCOUNT_DB_MISSING: 'Chức năng tạo tài khoản chờ Membership chưa được cài đặt trong cơ sở dữ liệu (gói IAM Phase C PC-01 chờ phê duyệt). Không có thay đổi nào được lưu.',
+  ACCOUNT_NOT_ELIGIBLE:'Tài khoản hoặc hồ sơ nhân viên không đủ điều kiện cấp lại mật khẩu (bị khóa, vô hiệu hóa hoặc đã nghỉ).',
 };
 
 export class IamError extends Error {
@@ -101,8 +103,10 @@ const PLATFORM_SQL = `('IAM','FOUNDATION')`;
 
 const likePattern = (search: string) => `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
+// LEFT JOIN: an account PENDING_MEMBERSHIP (IAM Phase C PC-01) has no membership — its membership columns are null.
 const ACCOUNT_COLUMNS = `a.user_account_id::text AS "accountId", a.username, a.account_status AS "accountStatus", (a.disabled_at IS NOT NULL) AS "disabled",
-  m.employee_code AS "employeeCode", m.full_name AS "fullName", m.membership_status AS "membershipStatus"`;
+  a.membership_id::text AS "membershipId", m.employee_code AS "employeeCode", m.full_name AS "fullName", m.membership_status AS "membershipStatus"`;
+const ACCOUNT_FROM = 'iam.iam_user_accounts a LEFT JOIN iam.iam_memberships m ON m.membership_id=a.membership_id';
 // Server-side Field Search / sort of the account list: column allowlist (identifiers never come from the request).
 export const ACCOUNT_FIELDS = { username: 'a.username', employeeCode: 'm.employee_code', fullName: 'm.full_name', accountStatus: 'a.account_status' } as const;
 export type AccountField = keyof typeof ACCOUNT_FIELDS;
@@ -197,10 +201,10 @@ export class IamAdminRepository {
       const where = accountFilter(q.field);
       const params = [q.search, likePattern(q.search), q.status];
       const total = one(await this.db.query(
-        `SELECT count(*)::int AS total FROM iam.iam_user_accounts a JOIN iam.iam_memberships m ON m.membership_id=a.membership_id WHERE ${where}`, params));
+        `SELECT count(*)::int AS total FROM ${ACCOUNT_FROM} WHERE ${where}`, params));
       const accounts = rows(await this.db.query(
-        `SELECT ${ACCOUNT_COLUMNS} FROM iam.iam_user_accounts a JOIN iam.iam_memberships m ON m.membership_id=a.membership_id
-          WHERE ${where} ORDER BY ${ACCOUNT_FIELDS[q.sort]} COLLATE "C" ${q.dir === 'desc' ? 'DESC' : 'ASC'}, a.user_account_id LIMIT $4 OFFSET $5`,
+        `SELECT ${ACCOUNT_COLUMNS} FROM ${ACCOUNT_FROM}
+          WHERE ${where} ORDER BY ${ACCOUNT_FIELDS[q.sort]} COLLATE "C" ${q.dir === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, a.user_account_id LIMIT $4 OFFSET $5`,
         [...params, q.pageSize, (q.page - 1) * q.pageSize])).map((a): Record<string, unknown> => ({ ...a, isRoot: this.isRoot(a.accountId) }));
       return { accounts, total: total.total, page: q.page, pageSize: q.pageSize };
     });
@@ -209,7 +213,7 @@ export class IamAdminRepository {
   async account(accountId: string) {
     return this.read(async () => {
       const a = one(await this.db.query(
-        `SELECT ${ACCOUNT_COLUMNS} FROM iam.iam_user_accounts a JOIN iam.iam_memberships m ON m.membership_id=a.membership_id WHERE a.user_account_id=$1::uuid`, [accountId]));
+        `SELECT ${ACCOUNT_COLUMNS} FROM ${ACCOUNT_FROM} WHERE a.user_account_id=$1::uuid`, [accountId]));
       const out: Record<string, unknown> = { ...a, isRoot: this.isRoot(a.accountId) };
       return out;
     });

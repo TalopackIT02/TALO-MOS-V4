@@ -37,6 +37,8 @@ const revokeSessionsBody = z.strictObject({sessionId:uuid.nullable().optional(),
 const DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const createAccountBody = z.strictObject({employeeCode:z.string().trim().min(1).max(50),fullName:z.string().trim().min(1).max(200),
   username:z.string().trim().min(1).max(80),joinedAt:z.string().regex(DATE)});
+// IAM Phase C PC-01: username only (same rule as the P-4e service and the database function: 1-80, no whitespace / control).
+const pendingAccountBody = z.strictObject({username:z.string().trim().min(1).max(80).regex(/^[^\s\p{Cc}]+$/u)});
 const auditQuery = z.strictObject({accountId:uuid.optional(),action:z.string().max(80).regex(/^[A-Za-z0-9_.]*$/).optional(),outcome:z.enum(['SUCCESS','FAILURE','DENIED']).optional(),
   from:z.iso.datetime({offset:true}).optional(),to:z.iso.datetime({offset:true}).optional(),
   page:z.coerce.number().int().min(1).max(100000).optional(),pageSize:z.coerce.number().int().min(1).max(100).optional()});
@@ -97,6 +99,8 @@ export function iamAdminRouter({db,authService,secureCookie,rootAccountId=null,p
   router.post('/iam/admin/accounts/:accountId/sessions/revoke',handler(P.sessionsManage,async(req,a)=>{const b=iamBody(revokeSessionsBody,req.body);return {result:await life.revokeSessions(a,id(req,'accountId'),b.sessionId??null,b.reason)};}));
   router.get('/iam/admin/audit',handler(P.auditRead,async(req)=>{const q=iamBody(auditQuery,req.query);
     return life.audit({accountId:q.accountId??null,action:q.action??'',outcome:q.outcome??null,from:q.from??null,to:q.to??null,page:q.page??1,pageSize:q.pageSize??25});}));
+  // Create a User Account PENDING_MEMBERSHIP (no membership, no credential, no P-4e). The combined P-4e form below stays for compatibility (D-1).
+  router.post('/iam/admin/accounts/pending',handler(P.accountsCreate,async(req,a)=>({account:await life.createPending(a,iamBody(pendingAccountBody,req.body).username)}),201,noStore));
   router.post('/iam/admin/accounts',handler(P.accountsCreate,async(req,a,_r)=>({account:await life.createAccount(a,iamBody(createAccountBody,req.body))}),201,noStore));
   router.post('/iam/admin/accounts/:accountId/credential/reissue',handler(P.credentialsReissue,async(req,a)=>({credential:await life.reissue(a,id(req,'accountId'),iamBody(reasonBody,req.body).reason)}),200,noStore));
   // Navigation adapter (read only; writes stay POST / PATCH /api/foundation/navigation/items).

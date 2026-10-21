@@ -47,6 +47,15 @@ export function lifecycleDbError(error: unknown): IamError | null {
   }
 }
 
+// iam.admin_create_pending_account (IAM Phase C PC-01): TA414 duplicate username; function absent = package not installed.
+export function pendingAccountDbError(error: unknown): IamError | null {
+  switch (sqlstateOf(error)) {
+    case 'TA414': return new IamError(409, 'USERNAME_TAKEN');
+    case '42883': return new IamError(503, 'PENDING_ACCOUNT_DB_MISSING');
+    default: return lifecycleDbError(error);
+  }
+}
+
 const PROVISIONING_STATUS: Record<string, [number, string]> = {
   INVALID_INPUT: [400, 'VALIDATION_ERROR'],
   USERNAME_TAKEN: [409, 'USERNAME_TAKEN'],
@@ -157,10 +166,11 @@ export class IamAccountLifecycle {
         `SELECT a.created_at AS "createdAt", a.activated_at AS "activatedAt", a.disabled_at AS "disabledAt",
                 a.created_by_account_id::text AS "createdById", cb.username AS "createdByUsername",
                 m.joined_at::text AS "joinedAt", m.left_at::text AS "leftAt",
+                (c.user_account_id IS NOT NULL) AS "hasCredential",
                 c.must_change_password AS "mustChangePassword", c.failed_attempt_count AS "failedAttempts",
                 CASE WHEN c.locked_until > statement_timestamp() THEN c.locked_until END AS "loginLockedUntil"
            FROM iam.iam_user_accounts a
-           JOIN iam.iam_memberships m ON m.membership_id = a.membership_id
+           LEFT JOIN iam.iam_memberships m ON m.membership_id = a.membership_id
            LEFT JOIN iam.iam_user_accounts cb ON cb.user_account_id = a.created_by_account_id
            LEFT JOIN iam.iam_credentials c ON c.user_account_id = a.user_account_id
           WHERE a.user_account_id = $1::uuid`, [accountId]));
@@ -245,6 +255,19 @@ export class IamAccountLifecycle {
     });
   }
 
+  // IAM Phase C PC-01: a User Account PENDING_MEMBERSHIP — username only; no membership, credential, password or session
+  // (so P-4e is not involved). iam.admin_create_pending_account checks the username again, writes account + audit in one
+  // transaction; a duplicate (also between concurrent requests) is TA414. Until PC-01 is installed: 503, nothing saved.
+  async createPending(actor: Actor, username: string) {
+    return this.guarded(async () => {
+      const [row] = rows(await this.db.query(
+        'SELECT user_account_id::text AS "accountId", username, account_status AS "accountStatus", created_at AS "createdAt" FROM iam.admin_create_pending_account($1::uuid,$2,$3::uuid)',
+        [actor.userAccountId, username, randomUUID()]));
+      if (!row) throw new IamError(503, 'SERVICE_BUSY');
+      return { ...row, membershipId: null };
+    }, pendingAccountDbError);
+  }
+
   // ------------------------------------------------------------------------------------------- temporary credentials
   private ready(): { executor: NonNullable<ProvisionerConnection['executor']>; hasher: PasswordHasher } {
     const state = this.credentialState();
@@ -269,8 +292,11 @@ export class IamAccountLifecycle {
     const code = 'IAM.CREDENTIAL.REISSUE';
     if (actor.userAccountId === accountId) await this.refuse(actor, code, accountId, 'SELF_ACTION_FORBIDDEN');
     if (this.isRoot(accountId)) await this.refuse(actor, code, accountId, 'ROOT_ADMIN_PROTECTED');
-    const [target] = await this.guarded(async () => rows(await this.db.query('SELECT username FROM iam.iam_user_accounts WHERE user_account_id = $1::uuid', [accountId])));
+    const [target] = await this.guarded(async () => rows(await this.db.query(
+      'SELECT username, (membership_id IS NULL) AS pending FROM iam.iam_user_accounts WHERE user_account_id = $1::uuid', [accountId])));
     if (typeof target?.username !== 'string') throw new IamError(404, 'NOT_FOUND');
+    // An account without membership never received a credential: the first one comes with the membership (Phase C).
+    if (target.pending === true) throw new IamError(409, 'CREDENTIAL_NOT_ISSUED');
     const reissueRequestId = randomUUID();
     let result;
     try {

@@ -92,35 +92,7 @@ test('READ only: list + detail info, no create / status / reissue / sessions con
   await page.goto('/iam/accounts');
 });
 
-test('create account: password shown once in the dialog, gone after closing, never in storage or URL', async ({ page }) => {
-  const calls = await open(page, { caps: PHASE_B });
-  await page.goto('/iam/accounts');
-  await page.getByRole('button', { name: 'Tạo tài khoản' }).click();
-  const form = page.getByLabel('Tạo tài khoản');
-  await form.getByLabel('Mã nhân viên').fill('NV0202');
-  await form.getByLabel('Họ tên').fill('Trần Thị C');
-  await form.getByLabel('Tên đăng nhập').fill('nv0202');
-  await form.getByLabel('Ngày vào làm').fill('2026-10-01');
-  await form.getByRole('button', { name: 'Tạo tài khoản' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByTestId('temporary-password')).toHaveText(PASSWORD);
-  await expect(dialog).toContainText('chỉ hiển thị một lần');
-  expect(calls.find((c) => c.method === 'POST' && c.path === '/api/iam/admin/accounts')?.body).toEqual({ employeeCode: 'NV0202', fullName: 'Trần Thị C', username: 'nv0202', joinedAt: '2026-10-01' });
-  expect(await storageHas(page, PASSWORD)).toBe(false);
-  await dialog.getByRole('button', { name: /Đóng/ }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.locator('body')).not.toContainText(PASSWORD);
-  await page.reload();
-  await expect(page.locator('body')).not.toContainText(PASSWORD);
-});
-
-test('P-4e flag off: create form explains and the submit stays disabled; reissue disabled', async ({ page }) => {
-  await open(page, { caps: PHASE_B, feature: 'DISABLED' });
-  await page.goto('/iam/accounts');
-  await page.getByRole('button', { name: 'Tạo tài khoản' }).click();
-  await expect(page.getByText('chưa được bật (quyết định P-4e')).toBeVisible();
-  await expect(page.getByLabel('Tạo tài khoản').getByRole('button', { name: 'Tạo tài khoản' })).toBeDisabled();
-});
+// The combined P-4e create form was replaced by the pending-account drawer (IAM Phase C PC-01): see iam-account-create.e2e.spec.ts.
 
 test('lifecycle: lock sends action + reason; root hides lock / disable and reissue; sessions revoke; reissue shows the password once', async ({ page }) => {
   const calls = await open(page, { caps: PHASE_B });

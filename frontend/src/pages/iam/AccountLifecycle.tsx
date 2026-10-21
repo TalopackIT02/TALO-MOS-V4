@@ -16,7 +16,7 @@ import '../../styles/iam-lifecycle.css';
 // and self protection, writer protocol in the database); controls follow the session's capabilities. A temporary password
 // is held only in the one-time dialog's state and dropped when it closes — never stored, logged or put in a URL.
 
-const STATUS_TEXT: Record<string, string> = { PROVISIONED: 'Chờ kích hoạt', ACTIVE: 'Hoạt động', LOCKED: 'Đang khóa', DISABLED: 'Vô hiệu hóa' };
+const STATUS_TEXT: Record<string, string> = { PENDING_MEMBERSHIP: 'Chờ Membership', PROVISIONED: 'Chờ kích hoạt', ACTIVE: 'Hoạt động', LOCKED: 'Đang khóa', DISABLED: 'Vô hiệu hóa' };
 export const accountStatusText = (s: string) => STATUS_TEXT[s] ?? s;
 
 const ACTIONS: Record<StatusAction, { label: string; danger: boolean; confirm: string }> = {
@@ -87,54 +87,6 @@ export function useCredentialFeature(): CredentialFeature | null {
   return feature;
 }
 
-// ------------------------------------------------------------------------------------------------- create account
-export function CreateAccountPanel({ onSessionLost, onCreated, onClose }: { onSessionLost: () => void; onCreated: () => void; onClose: () => void }) {
-  const feature = useCredentialFeature();
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const settle = useSettle(onSessionLost, setFeedback);
-  const [employeeCode, setEmployeeCode] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
-  const [joinedAt, setJoinedAt] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [issued, setIssued] = useState<IssuedCredential | null>(null);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    setFeedback(null);
-    const data = settle(await iamLifecycleApi.createAccount({ employeeCode: employeeCode.trim(), fullName: fullName.trim(), username: username.trim(), joinedAt }));
-    setBusy(false);
-    if (data) {
-      setIssued(data);
-      setEmployeeCode('');
-      setFullName('');
-      setUsername('');
-      setJoinedAt('');
-      onCreated();
-    }
-  }
-
-  const notice = feature === null ? null : credentialNotice(feature);
-  return (
-    <div className="fx-version-area fx-section" aria-label="Tạo tài khoản">
-      <div className="fx-toolbar"><h3 style={{ margin: 0 }}>Tạo tài khoản</h3><button type="button" className="fx-btn" onClick={onClose}>Đóng</button></div>
-      <p className="muted">Dùng dịch vụ cấp tài khoản P-4e hiện hữu: tài khoản ở trạng thái “Chờ kích hoạt”, mật khẩu tạm 24 ký tự, bắt buộc đổi ở lần đăng nhập đầu. Mã nhân viên đã có hồ sơ thì dùng lại hồ sơ đó (mỗi nhân viên tối đa một tài khoản hiện hành).</p>
-      {notice && <p className="fx-msg info" role="note">{notice}</p>}
-      <FeedbackLine feedback={feedback} />
-      <form className="fx-form" onSubmit={(e) => void submit(e)}>
-        <label>Mã nhân viên<input required maxLength={50} value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} /></label>
-        <label>Họ tên<input required maxLength={200} value={fullName} onChange={(e) => setFullName(e.target.value)} /></label>
-        <label>Tên đăng nhập<input required maxLength={80} pattern="\S+" autoComplete="off" value={username} onChange={(e) => setUsername(e.target.value)} /></label>
-        <label>Ngày vào làm<input required type="date" value={joinedAt} onChange={(e) => setJoinedAt(e.target.value)} /></label>
-        <div><button type="submit" className="fx-btn primary" disabled={busy || feature !== 'READY'} aria-busy={busy}>{busy ? 'Đang tạo…' : 'Tạo tài khoản'}</button></div>
-      </form>
-      {issued && <OneTimeSecret credential={issued} title="Đã tạo tài khoản" onClose={() => setIssued(null)} />}
-    </div>
-  );
-}
-
 // ------------------------------------------------------------------------------------------- account facts (details)
 // GET /details of one account (created / activated / lifecycle end / password state). null = not readable.
 export function useAccountDetails(accountId: string, settle: <T>(r: ApiResult<T>) => T | null) {
@@ -154,8 +106,8 @@ export function AccountFacts({ account, details }: { account: Account; details: 
       <span><b>Kích hoạt lúc:</b> {formatTime(details.activatedAt)}</span>
       <span><b>Kết thúc vòng đời:</b> {formatTime(details.disabledAt)}</span>
       <span><b>Ngày vào / rời:</b> {details.joinedAt ?? '—'} / {details.leftAt ?? '—'}</span>
-      <span><b>Mật khẩu:</b> {details.mustChangePassword ? 'mật khẩu tạm — phải đổi khi đăng nhập' : 'đã đặt bởi người dùng'}</span>
-      <span><b>Đăng nhập sai:</b> {details.failedAttempts ?? 0} lần{details.loginLockedUntil ? ` · khóa tạm đến ${formatTime(details.loginLockedUntil)}` : ''}</span>
+      <span><b>Mật khẩu:</b> {details.hasCredential === false ? 'Chưa cấp' : details.mustChangePassword ? 'mật khẩu tạm — phải đổi khi đăng nhập' : 'đã đặt bởi người dùng'}</span>
+      {details.hasCredential !== false && <span><b>Đăng nhập sai:</b> {details.failedAttempts ?? 0} lần{details.loginLockedUntil ? ` · khóa tạm đến ${formatTime(details.loginLockedUntil)}` : ''}</span>}
     </div>
   );
 }
@@ -208,6 +160,9 @@ export function AccountStatusSection({ account, onSessionLost, onChanged }: { ac
   }
 
   const options = allowedActions(account.accountStatus, account.disabled).filter((a) => !(account.isRoot && (a === 'LOCK' || a === 'DISABLE')));
+  // Without membership no credential was ever issued (IAM Phase C): nothing to re-issue. Status actions of a pending
+  // account (disable / restore) come with Phase C PC-02 — allowedActions() offers none for PENDING_MEMBERSHIP.
+  const pending = account.membershipStatus === null;
 
   return (
     <div className="acc-section lc-panel">
@@ -240,8 +195,10 @@ export function AccountStatusSection({ account, onSessionLost, onChanged }: { ac
           <h4>Mật khẩu</h4>
           {feature !== null && credentialNotice(feature) && <p className="fx-msg info" role="note">{credentialNotice(feature)}</p>}
           <div className="fx-toolbar">
-            <button type="button" className="fx-btn" disabled={busy || feature !== 'READY' || account.isRoot} onClick={() => void reissue()}>Cấp lại mật khẩu tạm</button>
-            <span className="muted">{account.isRoot ? 'Không áp dụng cho Admin gốc.' : 'Thu hồi mọi phiên; người dùng phải đổi mật khẩu ở lần đăng nhập tiếp theo.'}</span>
+            <button type="button" className="fx-btn" disabled={busy || feature !== 'READY' || account.isRoot || pending} onClick={() => void reissue()}>Cấp lại mật khẩu tạm</button>
+            <span className="muted">{account.isRoot ? 'Không áp dụng cho Admin gốc.'
+              : pending ? 'Chưa cấp mật khẩu: tài khoản đang chờ Membership. Mật khẩu tạm được cấp khi gán Membership.'
+                : 'Thu hồi mọi phiên; người dùng phải đổi mật khẩu ở lần đăng nhập tiếp theo.'}</span>
           </div>
         </>
       )}
