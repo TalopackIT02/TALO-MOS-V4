@@ -134,7 +134,8 @@ describe.skipIf(!enabled)('IAM Phase B CORE acceptance (P-4e disabled) — lifec
     // P-4e disabled: credential routes refuse before anything is attempted.
     const cr = await c.post('/iam/admin/accounts', admin, { employeeCode: `${fx.runId}-X`, fullName: 'X', username: `${fx.runId}-x`.toLowerCase(), joinedAt: '2026-10-01' });
     const rr = await c.post(`/iam/admin/accounts/${u}/credential/reissue`, admin, { reason: 'x' });
-    expect([cr.status, cr.body.error.code, rr.status, rr.body.error.code]).toEqual([503, 'CREDENTIAL_UI_DISABLED', 503, 'CREDENTIAL_UI_DISABLED']);
+    // Legacy combined create blocked by the owner decision PC-01 G2 (410 before any P-4e step); re-issue still P-4e gated.
+    expect([cr.status, cr.body.error.code, rr.status, rr.body.error.code]).toEqual([410, 'LEGACY_ACCOUNT_CREATE_BLOCKED', 503, 'CREDENTIAL_UI_DISABLED']);
 
     // details (06 column grants)
     const d = await c.get(`/iam/admin/accounts/${u}/details`, reader);

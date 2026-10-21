@@ -225,34 +225,33 @@ describe('IAM Phase B — IAM audit viewer', () => {
 });
 
 describe('IAM Phase B — temporary credentials (P-4e services, feature flag)', () => {
-  it('flag off (default): create / reissue → 503 CREDENTIAL_UI_DISABLED, nothing attempted; capabilities report DISABLED', async () => {
+  it('flag off (default): reissue → 503 CREDENTIAL_UI_DISABLED, legacy create → 410 (blocked, PC-01 G2), nothing attempted; capabilities report DISABLED', async () => {
     const h = harness(ALL);
     const c = await h.send('/iam/admin/accounts', { employeeCode: 'E1', fullName: 'A', username: 'a1', joinedAt: '2026-10-01' });
     const r = await h.send(`/iam/admin/accounts/${TARGET}/credential/reissue`, { reason: 'x' });
-    expect([c.status, c.body.error.code, r.status, r.body.error.code]).toEqual([503, 'CREDENTIAL_UI_DISABLED', 503, 'CREDENTIAL_UI_DISABLED']);
+    expect([c.status, c.body.error.code, r.status, r.body.error.code]).toEqual([410, 'LEGACY_ACCOUNT_CREATE_BLOCKED', 503, 'CREDENTIAL_UI_DISABLED']);
     expect((await h.get('/iam/admin/me/capabilities')).body.features).toEqual({ temporaryCredentials: 'DISABLED' });
   });
 
-  it('create: P-4e service with the administrator as actor / created_by; password once, no-store; never in an audit row', async () => {
+  // Owner decision PC-01 G2: the legacy combined create (account + membership + temporary credential) is blocked until the
+  // D-1 boundary of PC-02 is approved — even with every permission and P-4e READY nothing reaches the P-4e service or the DB.
+  it('legacy combined create is blocked: 410 LEGACY_ACCOUNT_CREATE_BLOCKED even with P-4e READY; no P-4e call, no write, no password', async () => {
     await hasher.init();
     const p = provisioner();
     const h = harness(ALL, undefined, { provisioner: p.connection });
-    const res = await h.send('/iam/admin/accounts', { employeeCode: 'NV0101', fullName: 'Nguyễn Văn B', username: 'nv0101', joinedAt: '2026-10-01' });
-    expect(res.status).toBe(201);
-    expect(res.headers['cache-control']).toBe('no-store');
-    const password = String(res.body.account.temporaryPassword);
-    expect(password).toHaveLength(24);
-    expect(res.body.account).toMatchObject({ accountId: TARGET, username: 'nv0101', membershipCreated: true });
-    const insert = p.seen.find((s) => s.sql === PROVISIONING_SQL.insertAccount);
-    const audit = p.seen.find((s) => s.sql === PROVISIONING_SQL.audit);
-    expect(insert?.params[2]).toBe(ADMIN); // created_by_account_id
-    expect(audit?.params[3]).toBe(ADMIN); // actor_account_id
-    expect(JSON.parse(String(audit?.params[2])).ua).toBe('iam-admin-ui');
-    const everything = JSON.stringify([...p.seen, ...h.writes]);
-    expect(everything).not.toContain(password);
-    expect(everything).toMatch(/\$argon2id\$/); // only the hash reaches the database
-    const dup = await h.send('/iam/admin/accounts', { employeeCode: 'NV0102', fullName: 'X', username: 'taken', joinedAt: '2026-10-01' });
-    expect([dup.status, dup.body.error.code]).toEqual([409, 'USERNAME_TAKEN']);
+    for (const body of [{ employeeCode: 'NV0101', fullName: 'Nguyễn Văn B', username: 'nv0101', joinedAt: '2026-10-01' }, {}, { anything: true }]) {
+      const res = await h.send('/iam/admin/accounts', body);
+      expect([res.status, res.body.error.code]).toEqual([410, 'LEGACY_ACCOUNT_CREATE_BLOCKED']);
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(JSON.stringify(res.body)).not.toContain('temporaryPassword');
+    }
+    expect(p.seen).toEqual([]); // no P-4e statement (membership / account / credential / audit)
+    expect(h.writes).toEqual([]); // nothing written through the IAM connection either
+    expect(p.seen.some((s) => s.sql === PROVISIONING_SQL.insertAccount)).toBe(false);
+    // Not a way around the permission gate: without iam.accounts.create the answer stays 403.
+    const reader = harness(['iam.accounts.read'], undefined, { provisioner: p.connection });
+    expect((await reader.send('/iam/admin/accounts', {})).status).toBe(403);
+    // The pending-account route and the re-issue route are separate and unaffected (covered by their own tests).
   });
 
   it('reissue: root / self refused (audited) before the function; refusal TA403 → 422 PRIVILEGED_ACCOUNT_PROTECTED (audited); success audited without the password', async () => {

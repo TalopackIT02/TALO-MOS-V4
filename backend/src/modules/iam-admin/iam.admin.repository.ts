@@ -56,6 +56,7 @@ export const IAM_MESSAGES: Record<string, string> = {
   MEMBERSHIP_HAS_ACCOUNT: 'Nhân viên này đã có một tài khoản đang hiện hành.',
   MEMBERSHIP_NOT_ACTIVE: 'Hồ sơ nhân viên (membership) không ở trạng thái được cấp tài khoản.',
   PRIVILEGED_ACCOUNT_PROTECTED: 'Tài khoản thuộc diện được bảo vệ theo luật của hàm phục hồi: không cấp lại mật khẩu qua giao diện. Dùng thủ tục quản trị đã phê duyệt.',
+  LEGACY_ACCOUNT_CREATE_BLOCKED: 'Quy trình tạo tài khoản kết hợp (Membership + mật khẩu tạm trong một bước) đang tạm dừng. Dùng “Tạo tài khoản” (chờ Membership). Không có thay đổi nào được lưu.',
   CREDENTIAL_NOT_ISSUED: 'Tài khoản đang chờ Membership: chưa có mật khẩu để cấp lại. Mật khẩu tạm được cấp khi gán Membership.',
   PENDING_ACCOUNT_DB_MISSING: 'Chức năng tạo tài khoản chờ Membership chưa được cài đặt trong cơ sở dữ liệu (gói IAM Phase C PC-01 chờ phê duyệt). Không có thay đổi nào được lưu.',
   ACCOUNT_NOT_ELIGIBLE:'Tài khoản hoặc hồ sơ nhân viên không đủ điều kiện cấp lại mật khẩu (bị khóa, vô hiệu hóa hoặc đã nghỉ).',
