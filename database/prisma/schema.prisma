@@ -161,7 +161,7 @@ model iam_sessions {
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model iam_user_accounts {
   user_account_id                                                              String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  membership_id                                                                String                      @db.Uuid
+  membership_id                                                                String?                     @db.Uuid
   username                                                                     String                      @db.VarChar(80)
   account_status                                                               String                      @default("PROVISIONED") @db.VarChar(20)
   created_by_account_id                                                        String?                     @db.Uuid
@@ -174,7 +174,7 @@ model iam_user_accounts {
   iam_sessions                                                                 iam_sessions[]
   iam_user_accounts                                                            iam_user_accounts?          @relation("iam_user_accountsToiam_user_accounts", fields: [created_by_account_id], references: [user_account_id], onDelete: Restrict, onUpdate: NoAction, map: "fk_user_accounts_created_by_account_id")
   other_iam_user_accounts                                                      iam_user_accounts[]         @relation("iam_user_accountsToiam_user_accounts")
-  iam_memberships                                                              iam_memberships             @relation(fields: [membership_id], references: [membership_id], onUpdate: NoAction, map: "fk_user_accounts_membership_id")
+  iam_memberships                                                              iam_memberships?            @relation(fields: [membership_id], references: [membership_id], onUpdate: NoAction, map: "fk_user_accounts_membership_id")
   iam_user_permissions_iam_user_permissions_assigned_by_idToiam_user_accounts  iam_user_permissions[]      @relation("iam_user_permissions_assigned_by_idToiam_user_accounts")
   iam_user_permissions_iam_user_permissions_user_account_idToiam_user_accounts iam_user_permissions[]      @relation("iam_user_permissions_user_account_idToiam_user_accounts")
   iam_user_roles_iam_user_roles_assigned_by_idToiam_user_accounts              iam_user_roles[]            @relation("iam_user_roles_assigned_by_idToiam_user_accounts")
