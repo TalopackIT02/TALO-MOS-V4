@@ -32,3 +32,15 @@
   .app-shell .acc-facts{grid-template-columns:1fr}
   .app-shell .acc-facts dt{margin-top:4px}
 }
+
+/* IAM forms (FIX-04 / FIX-05): fields on rows that fit — the long permission / function choice gets its own row. */
+.app-shell .fx-form.acc-grant-form{grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1.3fr) auto;align-items:end}
+.app-shell .acc-grant-form .acc-grant-perm{grid-column:1/-1}
+.app-shell .fx-form.iam-k05-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+.app-shell .iam-k05-form .iam-span-all{grid-column:1/-1}
+@media (max-width:1100px){
+  .app-shell .fx-form.acc-grant-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  .app-shell .fx-form.acc-grant-form,.app-shell .fx-form.iam-k05-form{grid-template-columns:minmax(0,1fr)}
+}

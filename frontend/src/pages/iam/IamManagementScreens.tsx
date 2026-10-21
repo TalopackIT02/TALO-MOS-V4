@@ -398,7 +398,7 @@ function PermissionCatalog({ onSessionLost }: { onSessionLost: () => void }) {
         <form className="fx-section" style={{ borderTop: 0, marginTop: 0, paddingTop: 0 }} onSubmit={(e) => void create(e)}>
           <h3>Tạo permission từ MIC-07 (K05)</h3>
           <p className="muted">Chọn Module đang ACTIVE và cặp Chức năng / Thao tác đã khai báo; máy chủ chỉ chấp nhận bộ ba khớp đúng một ánh xạ MIC-07 của phiên bản ACTIVE. Permission quản trị IAM / FOUNDATION không tạo ở đây.</p>
-          <div className="fx-form">
+          <div className="fx-form iam-k05-form">
             <label>Module
               <select value={moduleId} onChange={(e) => { setModuleId(e.target.value); setAction(''); setCode(''); }}>
                 <option value="">Chọn module…</option>
@@ -415,7 +415,7 @@ function PermissionCatalog({ onSessionLost }: { onSessionLost: () => void }) {
             <label>Assurance tối thiểu (theo MIC-07)
               <select value={assurance} onChange={(e) => setAssurance(e.target.value === '2' ? 2 : 1)}><option value={1}>1</option><option value={2}>2</option></select>
             </label>
-            <label>Mô tả / ghi chú<input maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
+            <label className="iam-span-all">Mô tả / ghi chú<input maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
           </div>
           <button type="submit" className="fx-btn primary" disabled={busy || !chosen || !code.trim()}>Tạo permission</button>
         </form>

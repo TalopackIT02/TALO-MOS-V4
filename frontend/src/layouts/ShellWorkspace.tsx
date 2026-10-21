@@ -9,11 +9,25 @@ import type { ScreenAccess } from './AppShell';
 // not rendered; the tabs shown are those the session may open. The API checks every request again (layer 3).
 // A page of a screen without tabs (IAM-B-UI-01 account workspace) gives its own `title` for block 4.
 
+// Breadcrumb with navigation (a page inside a screen, e.g. the account workspace): a back icon, links for the levels
+// that can be opened, the current page marked aria-current. Screens without it keep the plain text trail.
+export interface CrumbItem {
+  readonly label: string;
+  readonly onOpen?: () => void;
+  readonly current?: boolean;
+}
+
+export interface CrumbNav {
+  readonly onBack: () => void;
+  readonly items: readonly CrumbItem[];
+}
+
 export interface ShellWorkspaceProps {
   readonly screen: ShellScreen;
   readonly path: ShellPath;
   readonly title?: string;
   readonly crumb: readonly string[];
+  readonly crumbNav?: CrumbNav;
   readonly access: ScreenAccess;
   readonly tabs: readonly number[];
   readonly activeTab: number;
@@ -22,11 +36,23 @@ export interface ShellWorkspaceProps {
   readonly onOpenPath: OpenPath;
 }
 
-export function ShellWorkspace({ screen, path, title, crumb, access, tabs, activeTab, onTab, onSessionLost, onOpenPath }: ShellWorkspaceProps) {
+export function ShellWorkspace({ screen, path, title, crumb, crumbNav, access, tabs, activeTab, onTab, onSessionLost, onOpenPath }: ShellWorkspaceProps) {
   const open = access === 'allowed';
   return (
     <main className="workspace">
-      <div className="crumb" id="crumb">{open ? crumb.join(' › ') : screen.name}</div>
+      {open && crumbNav ? (
+        <nav className="crumb crumb-nav" id="crumb" aria-label="Đường dẫn">
+          <button type="button" className="crumb-back" aria-label="Về danh sách" title="Về danh sách" onClick={crumbNav.onBack}>←</button>
+          <ol>
+            {crumbNav.items.map((item) => (
+              <li key={item.label}>
+                {item.onOpen ? <button type="button" className="crumb-link" onClick={item.onOpen}>{item.label}</button>
+                  : <span aria-current={item.current ? 'page' : undefined}>{item.label}</span>}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      ) : <div className="crumb" id="crumb">{open ? crumb.join(' › ') : screen.name}</div>}
       <div className="page-heading">
         <h1 id="title">{screen.name.toLocaleUpperCase('vi')}</h1>
         <p id="desc">{open ? screen.desc : ''}</p>

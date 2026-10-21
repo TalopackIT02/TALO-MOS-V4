@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { accountIdOfPath, adminTabs, canOpenAdmin, groupOf, MODULE_SCREENS, pathOfTab, screenById, screenOfPath, SCREENS, tabOfPath, visibleGroups } from '../routes/shellScreens';
+import { backOrOpen } from '../routes/navigation';
 import type { NavState, OpenPath } from '../routes/navigation';
+import { ShellPageContext } from '../contexts/ShellPage';
 import type { ScreenId, SearchTarget, ShellPath } from '../routes/shellScreens';
 import { businessTree, menuAncestors, menuPaths, menuTrail, ShellDataContext, treeFunctions, useShellDataSource } from '../contexts/ShellData';
 import type { NavTreeNode } from '../contexts/ShellData';
@@ -13,6 +15,7 @@ import { MobileAccountPanel, MobileBottomNav } from './ShellMobileNav';
 import { ShellSidebar } from './ShellSidebar';
 import { ShellTopbar } from './ShellTopbar';
 import { ShellWorkspace } from './ShellWorkspace';
+import type { CrumbNav } from './ShellWorkspace';
 import '../styles/app-shell.css';
 
 // TASK F1 — AppShell after login (React port of frontend/TALO-MOS-V4-Appshell.html). The account shown is the one of
@@ -42,7 +45,7 @@ export interface AppShellProps {
   readonly account: AccountSummary;
   readonly path: ShellPath;
   readonly onNavigate: OpenPath;
-  readonly onLoggedOut: (flash: UiMessage) => void;
+  readonly onLoggedOut: (flash: UiMessage, reason: 'logout' | 'session-lost') => void;
 }
 
 export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellProps) {
@@ -55,10 +58,11 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
   const [pinnedFlyout, setPinnedFlyout] = useState<string | null>(null);
   const [tab, setTab] = useState<{ screen: ScreenId; index: number }>({ screen: screen.id, index: tabOfPath(path) });
   const [loggingOut, setLoggingOut] = useState(false);
+  const [pageLabel, setPageLabel] = useState<string | null>(null);
 
   // An API answer 401 inside a screen: the session is gone — back to the login screen (App re-reads the session).
   const onSessionLost = useCallback(() => {
-    onLoggedOut({ text: t('SESSION.INVALID'), tone: 'warning' });
+    onLoggedOut({ text: t('SESSION.INVALID'), tone: 'warning' }, 'session-lost');
   }, [onLoggedOut]);
 
   // WS01 / WS06: one business menu + the session's admin capabilities for the sidebar, home, search, crumb and guard.
@@ -115,6 +119,18 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
     onNavigate(target, state);
   }, [onNavigate]);
 
+  // IAM-B-UI-01 FIX-03: breadcrumb of the account workspace "← IAM / Quản lý tài khoản / <username>". The back icon and
+  // "Quản lý tài khoản" do what "← Quay lại danh sách" does (browser Back to the list it came from, with its query, or
+  // the list as a new entry) — the accounts screen keeps its own access guard.
+  const crumbNav: CrumbNav | undefined = workspace && access === 'allowed' ? {
+    onBack: () => backOrOpen(SCREENS.accounts.path, openPath),
+    items: [
+      { label: groupOf(screen.id)?.name.split(' · ')[0] ?? '' },
+      { label: screen.name, onOpen: () => backOrOpen(SCREENS.accounts.path, openPath) },
+      { label: pageLabel ?? pageTitle ?? '', current: true },
+    ],
+  } : undefined;
+
   // Tabs of a module screen with sub-routes keep the path in step; other screens keep their path.
   function selectTab(index: number) {
     setTab({ screen: screen.id, index });
@@ -167,7 +183,7 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
     if (loggingOut) return;
     setLoggingOut(true);
     const result = await authApi.logout();
-    onLoggedOut(result.ok ? { text: t('LOGOUT.DONE'), tone: 'info' } : { text: t('LOGOUT.FAILED'), tone: 'error' });
+    onLoggedOut(result.ok ? { text: t('LOGOUT.DONE'), tone: 'info' } : { text: t('LOGOUT.FAILED'), tone: 'error' }, 'logout');
   }
 
   // A pinned flyout closes on a click outside the menu entries and the collapse button; the account menu on a click
@@ -200,54 +216,57 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
 
   return (
     <ShellDataContext.Provider value={shellData}>
-      <div className={shellClass}>
-        <ShellTopbar
-          account={account}
-          menuOpen={accountMenuOpen}
-          loggingOut={loggingOut}
-          targets={targets}
-          onToggleMenu={() => setAccountMenuOpen((current) => !current)}
-          onSearch={(target) => { if (target !== path) openPath(target); }}
-          onLogout={() => void logout()}
-        />
-        <div className="mobile-overlay" onClick={closeOverlays} />
-        <MobileAccountPanel account={account} open={accountPanelOpen} loggingOut={loggingOut} onLogout={() => void logout()} />
-        <MobileBottomNav
-          screenId={screen.id}
-          menuOpen={mobileOpen}
-          accountOpen={accountPanelOpen}
-          onMenu={toggleMobileMenu}
-          onHome={() => navigate('home')}
-          onAccount={toggleAccountPanel}
-        />
-        <div className={compact ? 'layout compact' : 'layout'}>
-          <ShellSidebar
-            homeActive={screen.id === 'home'}
-            path={menuPath}
-            compact={compact}
-            expanded={expanded}
-            pinnedFlyout={pinnedFlyout}
-            business={business}
-            admin={admin}
+      <ShellPageContext.Provider value={setPageLabel}>
+        <div className={shellClass}>
+          <ShellTopbar
+            account={account}
+            menuOpen={accountMenuOpen}
+            loggingOut={loggingOut}
+            targets={targets}
+            onToggleMenu={() => setAccountMenuOpen((current) => !current)}
+            onSearch={(target) => { if (target !== path) openPath(target); }}
+            onLogout={() => void logout()}
+          />
+          <div className="mobile-overlay" onClick={closeOverlays} />
+          <MobileAccountPanel account={account} open={accountPanelOpen} loggingOut={loggingOut} onLogout={() => void logout()} />
+          <MobileBottomNav
+            screenId={screen.id}
+            menuOpen={mobileOpen}
+            accountOpen={accountPanelOpen}
+            onMenu={toggleMobileMenu}
             onHome={() => navigate('home')}
-            onOpenPath={openPath}
-            onToggleGroup={toggleGroup}
-            onToggleCompact={toggleCompact}
+            onAccount={toggleAccountPanel}
           />
-          <ShellWorkspace
-            screen={screen}
-            crumb={crumb}
-            access={access}
-            path={path}
-            title={pageTitle}
-            tabs={tabs}
-            activeTab={activeTab}
-            onTab={selectTab}
-            onSessionLost={onSessionLost}
-            onOpenPath={openPath}
-          />
+          <div className={compact ? 'layout compact' : 'layout'}>
+            <ShellSidebar
+              homeActive={screen.id === 'home'}
+              path={menuPath}
+              compact={compact}
+              expanded={expanded}
+              pinnedFlyout={pinnedFlyout}
+              business={business}
+              admin={admin}
+              onHome={() => navigate('home')}
+              onOpenPath={openPath}
+              onToggleGroup={toggleGroup}
+              onToggleCompact={toggleCompact}
+            />
+            <ShellWorkspace
+              screen={screen}
+              crumb={crumb}
+              crumbNav={crumbNav}
+              access={access}
+              path={path}
+              title={pageTitle}
+              tabs={tabs}
+              activeTab={activeTab}
+              onTab={selectTab}
+              onSessionLost={onSessionLost}
+              onOpenPath={openPath}
+            />
+          </div>
         </div>
-      </div>
+      </ShellPageContext.Provider>
     </ShellDataContext.Provider>
   );
 }

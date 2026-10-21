@@ -17,10 +17,15 @@ const account = (n: number) => ({
 const rootAccount = { accountId: ROOT, username: 'admin', accountStatus: 'ACTIVE', disabled: false, employeeCode: 'ADMIN', fullName: 'Quản trị gốc', membershipStatus: 'ACTIVE', isRoot: true };
 const ACCOUNTS = [rootAccount, ...Array.from({ length: 60 }, (_, i) => account(i + 1))];
 
-interface Setup { readonly caps?: readonly string[]; readonly feature?: 'READY' | 'DISABLED' }
+interface Setup { readonly caps?: readonly string[]; readonly feature?: 'READY' | 'DISABLED'; readonly signedOut?: boolean }
+
+// Session of the intercepted API: a test can end it (idle timeout / other browser) and sign in again.
+let signedIn = true;
+const SESSION_BODY = { status: 'AUTHENTICATED', account: { userAccountId: '30000000-0000-4000-8000-0000000000aa', username: 'admin2', fullName: 'Quản trị 2' }, expiresAt: '2026-10-22T00:00:00.000Z', serverTime: '2026-10-21T00:00:00.000Z' };
 
 async function open(page: Page, setup: Setup = {}) {
   const caps = setup.caps ?? ALL;
+  signedIn = setup.signedOut !== true;
   const calls: { method: string; path: string; search: string }[] = [];
   await page.route('**/api/**', async (route) => {
     const request = route.request();
@@ -28,9 +33,16 @@ async function open(page: Page, setup: Setup = {}) {
     const path = url.pathname;
     calls.push({ method: request.method(), path, search: url.search });
     const json = (b: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', headers: { 'Cache-Control': 'no-store' }, body: JSON.stringify(b) });
-    if (path === '/api/auth/session') {
-      return json({ status: 'AUTHENTICATED', account: { userAccountId: '30000000-0000-4000-8000-0000000000aa', username: 'admin2', fullName: 'Quản trị 2' }, expiresAt: '2026-10-22T00:00:00.000Z', serverTime: '2026-10-21T00:00:00.000Z' });
+    if (path === '/api/auth/login') {
+      signedIn = true;
+      return json(SESSION_BODY);
     }
+    if (path === '/api/auth/logout') {
+      signedIn = false;
+      return route.fulfill({ status: 204 });
+    }
+    if (!signedIn) return json({ error: { code: 'SESSION_INVALID', requestId: 'expired' } }, 401);
+    if (path === '/api/auth/session') return json(SESSION_BODY);
     if (path === '/api/foundation/navigation') return json({ navigation: [] });
     if (path === '/api/iam/admin/me/capabilities') {
       return json({ permissions: Object.fromEntries([...ALL, 'iam.roles.manage', 'iam.permissions.manage'].map((c) => [c, caps.includes(c)])), features: { temporaryCredentials: setup.feature ?? 'READY' } });
@@ -177,7 +189,7 @@ test('NAV-09, NAV-10, NAV-12: direct URL, reload on the workspace, repeated Back
   await page.goto(`/iam/accounts/${idOf(7)}?section=roles`);
   await expect(page.locator('.acc-ws-title')).toContainText('nv0007');
   await expect(sections(page).filter({ hasText: 'Vai trò' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#crumb')).toHaveText('IAM · Tài khoản và quyền › Quản lý tài khoản › Quản trị tài khoản');
+  await expect(page.locator('#crumb li')).toHaveText(['IAM', 'Quản lý tài khoản', 'nv0007']);
   await backButton(page).click();
   await expect(page).toHaveURL(/\/iam\/accounts$/);
   await expect(row(page, 'nv0001')).toBeVisible();
@@ -259,6 +271,102 @@ test('UI-W10 + guard: READ-only session sees no write control; audit-only sessio
   await open(page, { caps: ['iam.audit.read'] });
   await page.goto(`/iam/accounts/${idOf(2)}`);
   await expect(page.getByText('Cần quyền xem tài khoản (iam.accounts.read).')).toBeVisible();
-  await page.goto('/iam/accounts/not-a-uuid');
-  await expect(page.locator('#title')).toHaveText('TRANG CHỦ'); // not a shell path → home (unchanged rule)
+  await page.goto('/iam/accounts/not-a-uuid'); // FIX-02: an invalid id opens the account screen (its guard applies)
+  await expect(page).toHaveURL(/\/iam\/accounts$/);
+  await expect(page.locator('#title')).toHaveText('QUẢN LÝ TÀI KHOẢN');
+  await expect(page.locator('#tabs button')).toHaveText(['Nhật ký IAM']);
+});
+
+const crumb = (page: Page) => page.getByRole('navigation', { name: 'Đường dẫn' });
+
+test('BC-01..04: breadcrumb ← IAM / Quản lý tài khoản / username — link back to the same list, no loop, same as the back button', async ({ page }) => {
+  await open(page);
+  await page.goto('/iam/accounts?status=ACTIVE&dir=desc&size=10');
+  await expect(page.getByLabel('Số dòng/trang')).toHaveValue('10');
+  const target = page.locator('.dt-grid tbody tr').first();
+  const username = (await target.locator('.acc-pick').innerText()).trim();
+  await target.getByRole('button', { name: 'Chi tiết' }).click();
+  await drawer(page).getByRole('button', { name: 'Quản lý tài khoản' }).click();
+  await expect(crumb(page).getByRole('listitem')).toHaveText(['IAM', 'Quản lý tài khoản', username]); // BC-01
+  await expect(crumb(page).locator('[aria-current=page]')).toHaveText(username);
+  const depth = await page.evaluate(() => history.length);
+  await crumb(page).getByRole('button', { name: 'Quản lý tài khoản' }).click(); // BC-02: back to the same list
+  await expect(page).toHaveURL(/\/iam\/accounts\?status=ACTIVE&dir=desc&size=10$/);
+  await expect(page.getByLabel('Lọc trạng thái')).toHaveValue('ACTIVE');
+  await expect(page.getByLabel('Số dòng/trang')).toHaveValue('10');
+  expect(await page.evaluate(() => history.length)).toBe(depth); // BC-04: history went back, no new entry / loop
+  await page.goForward();
+  await crumb(page).getByRole('button', { name: 'Về danh sách' }).click(); // ← icon = same result
+  await expect(page).toHaveURL(/\/iam\/accounts\?status=ACTIVE&dir=desc&size=10$/);
+  // Direct URL (no list behind): the crumb link opens /iam/accounts as a new entry.
+  await page.goto(`/iam/accounts/${idOf(4)}`);
+  await crumb(page).getByRole('button', { name: 'Quản lý tài khoản' }).click();
+  await expect(page).toHaveURL(/\/iam\/accounts$/);
+  await expect(row(page, 'nv0001')).toBeVisible();
+});
+
+test('Regression: cancelling the confirmation of a role / direct permission revoke sends NO request', async ({ page }) => {
+  const calls = await open(page);
+  await page.route(`**/api/iam/admin/accounts/${idOf(1)}/permissions`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    direct: [{ userPermissionId: 'up1', permissionId: 'p1', permissionCode: 'system_test.data_viewer.read', effect: 'ALLOW', reason: 'UAT', expiresAt: null, assignedAt: '2026-10-20T01:00:00Z', revokedAt: null, expired: false }],
+    effective: [], assumption: 'x' }) }));
+  page.on('dialog', (d) => void d.dismiss());
+  await page.goto(`/iam/accounts/${idOf(1)}?section=roles`);
+  await page.getByRole('button', { name: 'Thu hồi', exact: true }).click();
+  await sections(page).filter({ hasText: 'Chức năng & Quyền' }).click();
+  await page.getByRole('button', { name: 'Thu hồi', exact: true }).click();
+  await page.waitForTimeout(500);
+  expect(calls.filter((c) => c.method === 'POST' && c.path.includes('/revoke'))).toEqual([]);
+});
+
+test('BC-03: no breadcrumb link and no workspace content for a session without access to the accounts screen', async ({ page }) => {
+  await open(page, { caps: ['iam.roles.manage'] });
+  await page.goto(`/iam/accounts/${idOf(4)}`);
+  await expect(page.locator('.guard')).toBeVisible();
+  await expect(crumb(page)).toHaveCount(0);
+  await expect(page.locator('.acc-ws')).toHaveCount(0);
+});
+
+test('FIX-01/02: a lost session (idle timeout, new browser) — after sign-in the same workspace and tab reopen, not Home', async ({ page }) => {
+  // Link opened without a session (other browser / profile / expired cookie).
+  await open(page, { signedOut: true });
+  await page.goto(`/iam/accounts/${idOf(9)}?section=sessions`);
+  await expect(page.locator('#username')).toBeVisible();
+  await page.locator('#username').fill('admin2');
+  await page.locator('#password').fill('Mot-Mat-Khau-Gia-Lap-1');
+  await page.locator('#password').press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/iam/accounts/${idOf(9)}\\?section=sessions$`));
+  await expect(page.locator('.acc-ws-title')).toContainText('nv0009');
+  await expect(sections(page).filter({ hasText: 'Phiên đăng nhập' })).toHaveAttribute('aria-selected', 'true');
+  await backButton(page).click(); // no list behind → fallback /iam/accounts
+  await expect(page).toHaveURL(/\/iam\/accounts$/);
+
+  // Session ends while working (idle 60 min) → Chrome Forward / F5 → sign-in → back at the same workspace.
+  await row(page, 'nv0003').getByRole('button', { name: 'Chi tiết' }).click();
+  await drawer(page).getByRole('button', { name: 'Quản lý tài khoản' }).click();
+  await sections(page).filter({ hasText: 'Vai trò' }).click();
+  await page.goBack();
+  signedIn = false;
+  await page.goForward();
+  await expect(page.locator('#username')).toBeVisible();
+  await page.locator('#username').fill('admin2');
+  await page.locator('#password').fill('Mot-Mat-Khau-Gia-Lap-1');
+  await page.locator('#password').press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/iam/accounts/${idOf(3)}\\?section=roles$`));
+  await expect(page.locator('.acc-ws-title')).toContainText('nv0003');
+  signedIn = false;
+  await page.reload();
+  await page.locator('#username').fill('admin2');
+  await page.locator('#password').fill('Mot-Mat-Khau-Gia-Lap-1');
+  await page.locator('#password').press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/iam/accounts/${idOf(3)}\\?section=roles$`));
+
+  // An explicit logout forgets the location: the next sign-in opens Home.
+  await page.locator('.user-menu > button').first().click();
+  await page.locator('#account-logout').click();
+  await expect(page.locator('#username')).toBeVisible();
+  await page.locator('#username').fill('admin2');
+  await page.locator('#password').fill('Mot-Mat-Khau-Gia-Lap-1');
+  await page.locator('#password').press('Enter');
+  await expect(page.locator('#title')).toHaveText('TRANG CHỦ');
 });

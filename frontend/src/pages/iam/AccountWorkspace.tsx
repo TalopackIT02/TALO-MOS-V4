@@ -3,7 +3,8 @@ import { iamApi, iamLifecycleApi } from '../../services/iam/iamApi';
 import type { Account, AccountDetails, RoleAssignment } from '../../services/iam/iamApi';
 import type { ApiResult } from '../../services/foundation/foundationApi';
 import { useShellData } from '../../contexts/ShellData';
-import { currentNavState, replaceSearch } from '../../routes/navigation';
+import { useShellPageLabel } from '../../contexts/ShellPage';
+import { backOrOpen, replaceSearch } from '../../routes/navigation';
 import type { OpenPath } from '../../routes/navigation';
 import { SCREENS } from '../../routes/shellScreens';
 import { FeedbackLine, formatTime } from '../foundation/common';
@@ -137,13 +138,10 @@ export function AccountWorkspace({ accountId, onSessionLost, onOpenPath }: { acc
 
   useEffect(() => { replaceSearch(active === 'overview' ? '' : `section=${active}`); }, [active]);
 
-  // "← Quay lại danh sách" = browser Back when this entry was opened from the account list (its NavState says so);
-  // otherwise (direct URL, reload of a link) the list is opened as a new entry.
-  const back = useCallback(() => {
-    const from = currentNavState()?.returnTo ?? '';
-    if (from.split('?')[0] === SCREENS.accounts.path) window.history.back();
-    else onOpenPath(SCREENS.accounts.path);
-  }, [onOpenPath]);
+  // "← Quay lại danh sách" (same as the breadcrumb): browser Back when this entry was opened from the account list (its
+  // NavState says so); otherwise (direct URL, a link in a new tab, after a sign-in) the list is opened as a new entry.
+  const back = useCallback(() => backOrOpen(SCREENS.accounts.path, onOpenPath), [onOpenPath]);
+  useShellPageLabel(account ? account.username : null);
 
   const refresh = () => { void reload(); void reloadDetails(); };
 

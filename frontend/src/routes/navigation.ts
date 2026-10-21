@@ -50,3 +50,16 @@ export function usePopState(onPop: () => void): void {
 
 // Opens a shell path as a new history entry (optionally with the NavState of that entry).
 export type OpenPath = (path: ShellPath, state?: NavState) => void;
+
+// A new entry for a shell location that may carry its query (e.g. the screen reopened after a sign-in).
+export function pushLocation(location: string): void {
+  if (`${window.location.pathname}${window.location.search}` !== location) window.history.pushState(null, '', location);
+}
+
+// Back to a list page from one of its sub-pages: browser Back when the current entry was opened from that list (its
+// NavState says so — the list comes back with its query), otherwise the list is opened as a new entry. Never a blind
+// history.back(), never a loop.
+export function backOrOpen(listPath: ShellPath, open: OpenPath): void {
+  if (currentNavState()?.returnTo.split('?')[0] === listPath) window.history.back();
+  else open(listPath);
+}

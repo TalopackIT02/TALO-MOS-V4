@@ -180,8 +180,8 @@ export function AccountPermissionsSection({ account, onSessionLost }: { account:
         </table></div>
       )}
       {manage && (
-        <form className="fx-form" style={{ marginTop: 10 }} onSubmit={grant}>
-          <label>Quyền (Module › Chức năng › Thao tác)
+        <form className="fx-form acc-grant-form" style={{ marginTop: 10 }} onSubmit={grant} aria-label="Cấp quyền trực tiếp">
+          <label className="acc-grant-perm">Quyền (Module › Chức năng › Thao tác)
             <select value={permissionId} onChange={(e) => setPermissionId(e.target.value)}>
               <option value="">Chọn quyền…</option>
               {grantable.map((m) => (

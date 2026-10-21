@@ -93,6 +93,8 @@ export function shellPathOf(path: string): ShellPath | undefined {
 export function toShellPath(path: string): ShellPath {
   const accountId = accountIdOfPath(path);
   if (accountId !== null) return accountWorkspacePath(accountId);
+  // FIX-02: /iam/accounts/<not a UUID> opens the account list (the screen's own guard applies), not a stray page.
+  if (path.startsWith(`${SCREENS.accounts.path}/`)) return SCREENS.accounts.path;
   return SUB_ROUTES.find((r) => r.path === path)?.path ?? SCREEN_LIST.find((screen) => screen.path === path)?.path ?? SCREENS.home.path;
 }
 
