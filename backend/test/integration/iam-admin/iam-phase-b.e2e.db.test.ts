@@ -23,6 +23,11 @@ import { checkSmokeUrl } from '../../smoke/dbSmoke.js';
 import { AuthFixtures } from '../../support/authFixtures.js';
 import { PsqlSession, lit, uuidArray } from '../sc5/harness.js';
 
+// LEGACY FLOW — BLOCKED (owner decision IAM Phase C PC-01 G2, 21/10/2026): this acceptance creates its accounts through the
+// combined POST /iam/admin/accounts (account + membership + temporary credential), which now answers 410
+// LEGACY_ACCOUNT_CREATE_BLOCKED. It is NOT expected to pass and must NOT be adapted to pass; it is reworked with PC-02
+// (assign membership + credential, D-1). It stays opt-in (TALO_IAM_PHASE_B_DB=1 + P-4e) and is not part of the regression list.
+//
 // IAM Phase B acceptance on PostgreSQL (talo_mos_v4_test, or its disposable clone), AFTER the IAM-PHASE-B-DB package:
 //   TALO_IAM_PHASE_B_DB=1, DATABASE_URL (talo_app), IAM_ADMIN_DATABASE_URL (talo_iam_admin), PROVISIONER_DATABASE_URL
 //   (talo_provisioner); TALO_PG_CONTAINER for a clone. Real Auth, real IAM router on talo_iam_admin, real P-4e services on
@@ -38,7 +43,7 @@ const ADMIN_PERMS = ['iam.accounts.read', 'iam.accounts.create', 'iam.accounts.m
   'iam.assignments.manage', 'iam.roles.manage'];
 const PLATFORM_ONE = ['iam.accounts.read'];
 
-describe.skipIf(!enabled)('IAM Phase B acceptance — account lifecycle / credentials / sessions / audit on PostgreSQL', { timeout: 300_000 }, () => {
+describe.skipIf(!enabled)('[LEGACY — combined create blocked (410) until PC-02] IAM Phase B acceptance — account lifecycle / credentials / sessions / audit on PostgreSQL', { timeout: 300_000 }, () => {
   let api: PrismaClient;
   let iam: PrismaClient;
   let h: PsqlSession;

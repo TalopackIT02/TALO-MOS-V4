@@ -187,6 +187,29 @@ describe.skipIf(!enabled)('IAM Phase C PC-01 — pending account on PostgreSQL',
     expect((await send(a, '/iam/admin/accounts/pending', admin, { username: 'has space' })).status).toBe(400);
     expect((await h.ok(`SELECT count(*) FROM iam.iam_user_accounts WHERE lower(username) LIKE ${lit(`${userTag}%`)}`))[0]?.[0]).toBe('2');
 
+    // Permission enforced by the backend: a session without iam.accounts.create cannot create (403, nothing written).
+    const readerFx = await fx.create();
+    const readerRole = randomUUID();
+    created.roles.push(readerRole);
+    await h.ok('BEGIN');
+    await h.ok(`INSERT INTO iam.iam_roles (role_id, role_code, role_name, is_active, is_system) VALUES (${lit(readerRole)}, ${lit(`${tag}-READER`)}, 'FBET PC-01 reader', true, false)`);
+    await h.ok(`INSERT INTO iam.iam_role_permissions (role_id, permission_id) VALUES (${lit(readerRole)}, ${lit(perm['iam.accounts.read'] ?? NIL)})`);
+    await h.ok(`INSERT INTO iam.iam_user_roles (user_role_id, user_account_id, role_id) VALUES (${lit(randomUUID())}, ${lit(readerFx.accountId)}, ${lit(readerRole)})`);
+    await h.ok('COMMIT');
+    const readerLogin = await login(a, readerFx.username, readerFx.password); // an existing ACTIVE account still signs in normally
+    expect(readerLogin.status).toBe(200);
+    const reader = cookieOf(readerLogin);
+    const refused = await send(a, '/iam/admin/accounts/pending', reader, { username: `${userTag}-r` });
+    expect([refused.status, refused.body.error.code]).toEqual([403, 'FORBIDDEN']);
+
+    // Legacy combined create (owner decision PC-01 G2): 410, and no account / membership / credential written.
+    const counts = async () => (await h.ok(`SELECT (SELECT count(*) FROM iam.iam_user_accounts) || '/' || (SELECT count(*) FROM iam.iam_memberships) || '/' || (SELECT count(*) FROM iam.iam_credentials)`))[0]?.[0];
+    const beforeLegacy = await counts();
+    const legacy = await send(a, '/iam/admin/accounts', admin, { employeeCode: `${tag}-L`, fullName: 'Legacy', username: `${userTag}-legacy`, joinedAt: '2026-10-01' });
+    expect([legacy.status, legacy.body.error.code]).toEqual([410, 'LEGACY_ACCOUNT_CREATE_BLOCKED']);
+    expect(await counts()).toBe(beforeLegacy);
+    expect((await h.ok(`SELECT count(*) FROM iam.iam_user_accounts WHERE lower(username) LIKE ${lit(`${userTag}%`)}`))[0]?.[0]).toBe('2');
+
     // DB-09: every other account unchanged.
     expect(await othersDigest()).toBe(before);
   });
