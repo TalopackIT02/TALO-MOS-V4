@@ -1,51 +1,55 @@
-import { MODULE_SCREENS } from '../../routes/shellScreens';
+import { AccountsScreen, RolesScreen } from '../iam/IamManagementScreens';
+import { MODULE_SCREENS, SCREENS, visibleGroups } from '../../routes/shellScreens';
 import type { ScreenId, ShellPath } from '../../routes/shellScreens';
+import type { OpenPath } from '../../routes/navigation';
+import { useShellData } from '../../contexts/ShellData';
 import { FeedbackLine } from '../foundation/common';
 import { ModuleScreen } from '../foundation/ModuleScreen';
-import { MenuTree, NavigationScreen, useMenu } from '../foundation/NavigationScreen';
+import { MenuTree, NavigationScreen } from '../foundation/NavigationScreen';
 
-// Block 4 of the AppShell screens. FE-01: Foundation screens call the Foundation API; the home screen shows the business
-// menu of the account (GET /api/foundation/navigation). IAM administration has no backend API yet: those screens say so
-// and offer no action (no sample data, no form that looks functional).
+// Block 4 of the AppShell screens. Home (WS01 / WS06): the business menu of the account — the SAME list as the sidebar
+// (GET /api/foundation/navigation, filtered by the backend) — and cards of the admin screens the session may open
+// (capabilities; a screen without permission is not listed).
 
-function NotAvailable({ what }: { what: string }) {
+function Home({ onOpenPath }: { onOpenPath: (path: ShellPath) => void }) {
+  const { menu, menuFeedback, capabilities, capabilitiesFailed, can } = useShellData();
+  const cards = capabilities === null ? [] : visibleGroups(can).flatMap((g) => g.children.map((id) => ({ group: g.name, screen: SCREENS[id] })));
   return (
     <>
-      <p className="info">Chức năng {what} chưa được triển khai vì Backend chưa có API quản trị IAM tương ứng.</p>
-      <div className="note">Tài khoản quản trị ban đầu được cấp bằng công cụ khởi tạo phía máy chủ; vai trò và quyền được gán theo mô hình IAM chuẩn.</div>
-    </>
-  );
-}
-
-function Home({ onSessionLost, onOpenPath }: { onSessionLost: () => void; onOpenPath: (path: ShellPath) => void }) {
-  const { menu, feedback } = useMenu(onSessionLost);
-  return (
-    <>
-      <FeedbackLine feedback={feedback} />
+      <FeedbackLine feedback={menuFeedback} />
       {menu === null ? <p className="info">Đang tải…</p> : menu.length === 0
-        ? <p className="info">Chưa có chức năng nghiệp vụ nào được cấp quyền cho tài khoản này. Các màn hình quản trị nền tảng nằm trong menu Foundation.</p>
+        ? <p className="info">Chưa có chức năng nghiệp vụ nào được cấp quyền cho tài khoản này.</p>
         : <MenuTree nodes={menu} onOpen={onOpenPath} />}
-      <div className="cards" style={{ marginTop: 18 }}>
-        <div className="card"><b>Quản lý Module</b><p>Đăng ký module, phiên bản, hồ sơ MIC, phê duyệt và kích hoạt.</p></div>
-        <div className="card"><b>Điều hướng</b><p>Cây menu ứng dụng, lọc theo quyền IAM hiệu lực của từng tài khoản.</p></div>
-        <div className="card"><b>IAM</b><p>Quản trị tài khoản, vai trò: chưa có API, chưa triển khai.</p></div>
-      </div>
+      {cards.length > 0 && (
+        <>
+          <h3 className="home-section">Quản trị nền tảng</h3>
+          <div className="cards">
+            {cards.map(({ group, screen }) => (
+              <button type="button" className="card" key={screen.id} onClick={() => onOpenPath(screen.path)}>
+                <b>{screen.name}</b>
+                <p>{group} · {screen.desc}</p>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {capabilitiesFailed && <p className="muted">Không đọc được quyền quản trị của phiên; các màn hình quản trị được ẩn.</p>}
     </>
   );
 }
 
-export function ScreenBody({ screen, tab, onSessionLost, onOpenPath }: { screen: ScreenId; tab: number; onSessionLost: () => void; onOpenPath: (path: ShellPath) => void }) {
+export function ScreenBody({ screen, path, tab, onSessionLost, onOpenPath }: { screen: ScreenId; path: ShellPath; tab: number; onSessionLost: () => void; onOpenPath: OpenPath }) {
   switch (screen) {
     case 'home':
-      return <Home onSessionLost={onSessionLost} onOpenPath={onOpenPath} />;
+      return <Home onOpenPath={onOpenPath} />;
     case 'module':
       return <ModuleScreen tab={tab} onSessionLost={onSessionLost} />;
     case 'navigation':
       return <NavigationScreen tab={tab} onSessionLost={onSessionLost} />;
     case 'accounts':
-      return <NotAvailable what="quản lý tài khoản" />;
+      return <AccountsScreen tab={tab} path={path} onSessionLost={onSessionLost} onOpenPath={onOpenPath} />;
     case 'roles':
-      return <NotAvailable what="quản lý vai trò và quyền" />;
+      return <RolesScreen tab={tab} onSessionLost={onSessionLost} />;
     default: {
       // MOD-TEST-02: an installed module screen (component exported by the package entry).
       const Module = MODULE_SCREENS.find((m) => m.id === screen)?.component;

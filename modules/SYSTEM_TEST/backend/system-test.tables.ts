@@ -84,13 +84,38 @@ export const PAGE_MAX = 100_000;
 
 const quote = (id: string) => `"${id}"`;
 
-// SELECT built only from allowlist identifiers (validated above); paging values are bind parameters $1 / $2.
-export function rowsSql(t: ViewerTable): string {
-  const cols = t.columns.map((c) => `${quote(c)}::text AS ${quote(c)}`).join(', ');
-  const order = t.orderBy.map(quote).join(', ');
-  return `SELECT ${cols} FROM ${quote(t.schema)}.${quote(t.table)} ORDER BY ${order} LIMIT $1 OFFSET $2`;
+// Data Viewer field search / sort (master contract WS03). Column names come from the allowlist above (checked by the
+// service); the search text is always a bind parameter, matched on the column's text form.
+export interface ViewerQuery {
+  readonly search: string;
+  readonly field: string | null; // null = every shown column
+  readonly sort: string | null;
+  readonly dir: 'asc' | 'desc';
 }
 
-export function countSql(t: ViewerTable): string {
-  return `SELECT count(*)::int AS n FROM ${quote(t.schema)}.${quote(t.table)}`;
+export const NO_VIEW: ViewerQuery = { search: '', field: null, sort: null, dir: 'asc' };
+
+function where(t: ViewerTable, q: ViewerQuery): string {
+  if (q.search === '') return '';
+  const cols = q.field === null ? t.columns : t.columns.filter((c) => c === q.field);
+  return ` WHERE (${cols.map((c) => `${quote(c)}::text ILIKE $1 ESCAPE '\\'`).join(' OR ')})`;
+}
+
+// LIKE pattern for a literal search text (\, % and _ escaped).
+export function containsPattern(search: string): string {
+  return `%${search.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+}
+
+// SELECT built only from allowlist identifiers (validated above); the search pattern is $1 when present, paging the next
+// two bind parameters. The chosen sort column comes first; the table's own order keeps the result deterministic.
+export function rowsSql(t: ViewerTable, q: ViewerQuery = NO_VIEW): string {
+  const cols = t.columns.map((c) => `${quote(c)}::text AS ${quote(c)}`).join(', ');
+  const sort = q.sort !== null && t.columns.includes(q.sort) ? [`${quote(q.sort)} ${q.dir === 'desc' ? 'DESC' : 'ASC'} NULLS LAST`] : [];
+  const order = [...sort, ...t.orderBy.map(quote)].join(', ');
+  const paging = q.search === '' ? 'LIMIT $1 OFFSET $2' : 'LIMIT $2 OFFSET $3';
+  return `SELECT ${cols} FROM ${quote(t.schema)}.${quote(t.table)}${where(t, q)} ORDER BY ${order} ${paging}`;
+}
+
+export function countSql(t: ViewerTable, q: ViewerQuery = NO_VIEW): string {
+  return `SELECT count(*)::int AS n FROM ${quote(t.schema)}.${quote(t.table)}${where(t, q)}`;
 }

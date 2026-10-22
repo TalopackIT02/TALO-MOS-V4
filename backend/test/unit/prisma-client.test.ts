@@ -30,7 +30,8 @@ describe('IAM v0.3 mapping cardinality', () => {
     type AccountWithMembership = Prisma.iam_user_accountsGetPayload<{ include: { iam_memberships: true } }>;
     expectTypeOf<MembershipWithAccounts['iam_user_accounts']>().toBeArray();
     expectTypeOf<AccountWithMembership['iam_memberships']>().not.toBeArray();
-    expectTypeOf<AccountWithMembership['iam_memberships']>().not.toBeNullable();
+    // IAM Phase C PC-01 (C-13): an account PENDING_MEMBERSHIP has no membership yet — the relation is optional.
+    expectTypeOf<AccountWithMembership['iam_memberships']>().toBeNullable();
   });
 
   it('keeps Account → Credential as 1:1 (uq_iam_credential_account is a plain unique index)', () => {

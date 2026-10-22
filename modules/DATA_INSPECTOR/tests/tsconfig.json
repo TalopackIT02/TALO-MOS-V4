@@ -1,0 +1,17 @@
+{
+  "extends": "../../../backend/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../../..",
+    "noEmit": true,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "typeRoots": ["../../../backend/node_modules/@types"],
+    "paths": {
+      "vitest": ["../../../backend/node_modules/vitest"],
+      "supertest": ["../../../backend/node_modules/@types/supertest"],
+      "express": ["../../../backend/node_modules/@types/express"],
+      "zod": ["../../../backend/node_modules/zod"]
+    }
+  },
+  "include": ["./**/*.ts", "../../../backend/src/**/*.d.ts", "../../../backend/scripts/*.d.mts"]
+}

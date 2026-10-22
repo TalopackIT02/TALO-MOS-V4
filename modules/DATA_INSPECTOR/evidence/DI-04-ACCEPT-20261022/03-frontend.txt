@@ -1,0 +1,5 @@
+Frontend / AppShell (2026-10-22 18:28 +07:00)
+npm run build (frontend): exit=0; modules sync: DATA_INSPECTOR 0.1.0 (MIC-1.0, TALO-MODULE-HOST-1); bundle contains the screen (CHỈ ĐỌC, MASKED, /api/data-inspector)
+Vite dev 127.0.0.1:5173 → GET /data-inspector = 200 (SPA), module screen source = 200, proxied GET /api/data-inspector/tables without session = 401 SESSION_INVALID
+Screen buttons: Làm mới, Làm mới danh sách bảng, Trước, Tiếp, Làm mới (page) — no add / edit / delete / import / export / SQL control
+BROWSER_E2E: NOT_TESTED (no browser tool in this session; admin UI login needs the owner)

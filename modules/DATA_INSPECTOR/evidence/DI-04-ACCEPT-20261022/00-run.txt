@@ -1,0 +1,11 @@
+run: DI-04 acceptance
+repo HEAD at run: 36564ff834b27f60ecc7011b95cc71ddfecd8a96
+database: talo_mos_v4_test (API role talo_app; harness talo_test_harness; IAM writes talo_iam_admin)
+owner helper: TALO-MOS-V4_exports/DI-04-INTEGRATION/register-data-inspector.ts, run by the owner 2026-10-22T11:24:43Z (own TEST backend NODE_ENV=test on 3100), 20 checks, 0 failed — 01-owner-helper-result.json
+foundation: module cc2bdba4-35e1-4a50-b540-72a9eb2fafcd ENABLED; version 0edc6f5f-9332-4abd-9a1e-dad4995c0921 0.1.0 ACTIVE (only one); manifest sha256 7739cbcb6c3ce32b1064f11f5a1937b7906c5fc738d0c495db4c8ffdbb691110; B13 TEST/PASS, 0 blocking; B09 ebe21cdf-9adf-46f3-9771-d1a5a4e4bcfd 'Data Inspector' → Function CATALOG, root, visible
+iam: data_inspector.catalog.read (DATA_INSPECTOR/CATALOG/READ, 1), data_inspector.rows.read (DATA_INSPECTOR/ROWS/READ, 1) via IAM API; B1 bootstrap 2 Direct ALLOW for admin (grant ids ca9c33f2-ed81-41a6-a3a8-eb2bb28c6e03, fbd710d8-b752-45c7-94e2-b6e5faf4f1f1), VERIFY OK, PostgreSQL privilege fingerprint unchanged b722f9a71c7a5458219b2d62d2533050; 0 role grants; no other holder
+non-admin acceptance: exit=0 start=2026-10-22T18:28:08+07:00 end=2026-10-22T18:28:12+07:00; cmd: (cd backend) TALO_DATA_INSPECTOR_ACCEPT_DB=1 node --env-file=../.env ./node_modules/vitest/vitest.mjs run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose data-inspector.acceptance.db — ACC-01..04 PASS (02-non-admin-acceptance.log)
+fixture cleanup: FBET_DIA account 1 + membership 1 deleted, 2 mis-grant rows deleted inline, 0 remaining; independent check: FBET_DI*/FBET_DIA* = 0, accounts = 2, TALO_SYSTEM_ADMIN 25 permissions
+backups (outside Git): talo_mos_v4_test-di04-20261022-165457.dump sha256 9c5f319c54e02762a30205520ae9bcd23fe9edc2eaff8e5b7b8aa178bf14fadc (before DI-03B); talo_mos_v4_test-di04acc-20261022-182756.dump sha256 fc7f7810e81b87f8de37b0ff0393fd6814d225cff807ea6d86d41da8bbf533fb (before acceptance); both pg_restore -l checked
+audit kept (append-only): B08 DENIED of DI-03B (10) + ACC-02 (3)
+final verification: DI-04-FINAL-20261022-R2 (10 steps exit=0; regression 347 passed / 0 failed)

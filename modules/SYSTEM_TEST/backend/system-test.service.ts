@@ -9,6 +9,7 @@ import type { SystemTestRepository } from './system-test.repository.js';
 import { parseRegressionResults } from './system-test.results.js';
 import type { RegressionRead } from './system-test.results.js';
 import { PAGE_MAX, PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX, VIEWER_TABLES, viewerTable } from './system-test.tables.js';
+import type { ViewerQuery } from './system-test.tables.js';
 
 // MOD-TEST-01 — SYSTEM_TEST module API. Every operation: (1) Host IAM capability (AccessGuard) on the operation's K05 permission (DENIED →
 // B08 + 403, lookup failure → 503), (2) lifecycle gate — the module must be ENABLED with exactly one ACTIVE version,
@@ -61,6 +62,7 @@ export interface TableInfo {
 export interface TableRows {
   readonly table: TableInfo;
   readonly orderBy: readonly string[];
+  readonly view: ViewerQuery;
   readonly page: number;
   readonly pageSize: number;
   readonly totalRows: number;
@@ -84,7 +86,12 @@ const emptyBody = z.strictObject({});
 const TABLE_KEY = /^B(0[1-9]|1[0-4])$/;
 const intParam = (min: number, max: number, fallback: number) =>
   z.union([z.undefined(), z.string().regex(/^[0-9]{1,6}$/)]).transform((v) => (v === undefined ? fallback : Number(v))).pipe(z.number().int().min(min).max(max));
-const pagingSchema = z.object({ page: intParam(1, PAGE_MAX, 1), pageSize: intParam(1, PAGE_SIZE_MAX, PAGE_SIZE_DEFAULT) });
+const COLUMN = z.string().regex(/^[a-z_][a-z0-9_]{0,62}$/);
+const pagingSchema = z.object({
+  page: intParam(1, PAGE_MAX, 1), pageSize: intParam(1, PAGE_SIZE_MAX, PAGE_SIZE_DEFAULT),
+  search: z.string().max(100).optional(), field: COLUMN.optional(), sort: COLUMN.optional(), dir: z.enum(['asc', 'desc']).optional(),
+});
+const QUERY_KEYS = ['page', 'pageSize', 'search', 'field', 'sort', 'dir'] as const;
 
 export class SystemTestService {
   private readonly host: Omit<ModuleHost, 'session' | 'readOnly'>;
@@ -163,12 +170,17 @@ export class SystemTestService {
     await this.enter(actor, this.binding.dataViewerRead, SYSTEM_TEST_ACTION.DATA_VIEWER_READ);
     const table = typeof tableKeyParam === 'string' && TABLE_KEY.test(tableKeyParam) ? viewerTable(tableKeyParam) : undefined;
     if (table === undefined) throw new SystemTestError(404, 'TABLE_NOT_FOUND');
-    const paging = pagingSchema.safeParse(typeof query === 'object' && query !== null ? { page: Reflect.get(query, 'page'), pageSize: Reflect.get(query, 'pageSize') } : {});
+    const raw = typeof query === 'object' && query !== null ? Object.fromEntries(QUERY_KEYS.map((k) => [k, Reflect.get(query, k)])) : {};
+    const paging = pagingSchema.safeParse(raw);
     if (!paging.success) throw new SystemTestError(400, 'VALIDATION_ERROR', [...new Set(paging.error.issues.map((i) => String(i.path[0] ?? 'query')))]);
     const { page, pageSize } = paging.data;
+    // Field / sort columns must be shown columns of THIS table (allowlist); anything else is refused, never interpolated.
+    const bad = (['field', 'sort'] as const).filter((k) => { const c = paging.data[k]; return c !== undefined && !table.columns.includes(c); });
+    if (bad.length > 0) throw new SystemTestError(400, 'VALIDATION_ERROR', bad);
+    const view: ViewerQuery = { search: paging.data.search?.trim() ?? '', field: paging.data.field ?? null, sort: paging.data.sort ?? null, dir: paging.data.dir ?? 'asc' };
     let result;
     try {
-      result = await this.repository.tablePage(table, pageSize, (page - 1) * pageSize);
+      result = await this.repository.tablePage(table, pageSize, (page - 1) * pageSize, view);
     } catch (error) {
       if (error instanceof TableNotReadableError || this.host.sqlstate(error) === '42501') throw new SystemTestError(403, 'TABLE_NOT_READABLE');
       this.logFailure('system-test table read failed', actor, error);
@@ -176,7 +188,7 @@ export class SystemTestService {
     }
     return {
       table: { tableKey: table.tableKey, label: table.label, schema: table.schema, table: table.table, readable: true, columns: table.columns, hiddenColumns: table.hiddenColumns },
-      orderBy: table.orderBy, page, pageSize, totalRows: result.totalRows, rows: result.rows,
+      orderBy: table.orderBy, view, page, pageSize, totalRows: result.totalRows, rows: result.rows,
     };
   }
 

@@ -1,0 +1,39 @@
+/* WS03 — standard DataTable of the admin screens (scoped under .app-shell, AppShell values). */
+.app-shell .dt{margin-bottom:12px}
+.app-shell .dt-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.app-shell .dt-bar select,.app-shell .dt-bar input{border:1px solid #d1dbe5;border-radius:7px;padding:7px 10px;font-size:12px;background:#fff;color:#1c2937;font-family:inherit}
+.app-shell .dt-bar input{min-width:180px;flex:1 1 200px;max-width:340px}
+.app-shell .dt-total{margin-left:auto}
+.app-shell .dt-grid{overflow:auto;max-height:420px;border:1px solid var(--line);border-radius:7px;max-width:100%}
+.app-shell .dt-compact .dt-grid{max-height:300px}
+.app-shell .dt-grid thead th{position:sticky;top:0;z-index:1;padding:9px 12px;white-space:nowrap}
+.app-shell .dt-grid td{padding:7px 12px;vertical-align:top}
+.app-shell .dt-grid .fx-btn{padding:5px 10px}
+.app-shell .dt-actions{white-space:nowrap}
+.app-shell .dt-actions .fx-btn+.fx-btn{margin-left:6px}
+.app-shell .dt-sort{all:unset;cursor:pointer;font-weight:600}
+.app-shell .dt-sort span{color:#9aa8b6;font-size:10px}
+.app-shell .dt-sort:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.app-shell .dt-pager{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.app-shell .dt-pager select{border:1px solid #d1dbe5;border-radius:7px;padding:5px 8px;font-size:12px;background:#fff}
+.app-shell .dt-namecode{display:inline-flex;flex-direction:column;gap:2px}
+.app-shell .dt-namecode small{color:var(--muted);font-family:Consolas,'Courier New',monospace;font-size:11px}
+.app-shell .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600;margin-right:4px;background:#f0f4f6;color:#506176}
+.app-shell .badge.role{background:#e8f1fb;color:#2b5f93}
+.app-shell .badge.allow{background:#e3f5eb;color:var(--green)}
+.app-shell .badge.deny{background:#fdf0ee;color:#9b2c22}
+.app-shell .badge.root{background:#fff5e0;color:#8a5a00}
+.app-shell .pt-module{border:1px solid var(--line);border-radius:8px;margin-bottom:10px}
+.app-shell .pt-module>summary{cursor:pointer;padding:10px 12px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.app-shell .pt-module>summary small{color:var(--muted)}
+.app-shell .pt-fn{padding:6px 12px 10px 26px;border-top:1px solid #eef2f4}
+.app-shell .pt-fn>b{display:block;margin-bottom:4px;font-size:12.5px}
+.app-shell .pt-fn>b small{font-weight:400;color:var(--muted);margin-left:6px;font-family:Consolas,'Courier New',monospace}
+.app-shell .pt-action{display:flex;gap:8px;align-items:center;padding:3px 0;font-size:12px;flex-wrap:wrap}
+.app-shell .pt-action code{font-family:Consolas,'Courier New',monospace;color:var(--muted);font-size:11px}
+.app-shell .guard{border:1px dashed #e8c9c5;background:#fdf8f7;border-radius:8px;padding:18px;font-size:13px;color:#7a3a33}
+@media(max-width:760px){
+  .app-shell .dt-bar input{max-width:none}
+  .app-shell .dt-total{margin-left:0;width:100%}
+  .app-shell .dt-grid{max-height:55vh}
+}

@@ -1,0 +1,18 @@
+run: DI-02-20261022-161105
+started: 2026-10-22T16:11:05+07:00
+repo HEAD: 47ae2260da77d636b8080d7e6ce64f98cf2208a6 (feat/iam-management-foundation-20261019)
+working tree (uncommitted at run time):
+   M backend/test/unit/module-host/module-host.test.ts
+  ?? modules/DATA_INSPECTOR/evidence/
+working tree diff sha256 (tracked files): 001027449d0cb446a7273b9934d8fb8a1cbf1967eb3f7f813d9d39e3ac110472
+node: v24.18.0  os: MINGW64_NT-10.0-26300 3.6.10-710e5275.x86_64
+01-module-unit | Module unit + Host-compat tests (mock DB) | exit=0 | 2026-10-22T16:11:06+07:00 → 2026-10-22T16:11:10+07:00 | cmd: (cd backend) npm run modules:sync && npx vitest run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose |  Test Files 1 passed | 1 skipped (2); Tests 34 passed | 11 skipped (45);
+02-module-db | PostgreSQL TEST read-only (talo_mos_v4_test / talo_app) | exit=0 | 2026-10-22T16:11:10+07:00 → 2026-10-22T16:11:15+07:00 | cmd: (cd backend) TALO_DATA_INSPECTOR_DB=1 node --env-file=../.env ./node_modules/vitest/vitest.mjs run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose |  Test Files 2 passed (2); Tests 45 passed (45);
+03-masking | FIX-01 masking subset (unit + TEST DB) | exit=1 | 2026-10-22T16:11:15+07:00 → 2026-10-22T16:11:19+07:00 | cmd: (cd backend) TALO_DATA_INSPECTOR_DB=1 node --env-file=../.env ./node_modules/vitest/vitest.mjs run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose -t FIX-01 |  Test Files 1 failed | 1 passed (2); Tests 3 failed | 7 passed | 35 skipped (45);
+04-mic | MIC-1.0 validation + MIC/module.json consistency | exit=0 | 2026-10-22T16:11:19+07:00 → 2026-10-22T16:11:22+07:00 | cmd: (cd backend) npx vitest run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose -t 'MIC|module.json|syncs into a Host' |  Test Files 1 passed | 1 skipped (2); Tests 3 passed | 42 skipped (45);
+05-host-handshake | Host loader + multi-module handshake (DI-01) | exit=0 | 2026-10-22T16:11:22+07:00 → 2026-10-22T16:11:24+07:00 | cmd: (cd backend) npx vitest run test/unit/module-host/module-host.test.ts --reporter=verbose |  Test Files 1 passed (1); Tests 8 passed (8);
+06-typecheck-backend | Backend typecheck (src + test) | exit=0 | 2026-10-22T16:11:24+07:00 → 2026-10-22T16:11:27+07:00 | cmd: (cd backend) npm run typecheck | 
+07-typecheck-frontend | Frontend typecheck (app + node) | exit=0 | 2026-10-22T16:11:28+07:00 → 2026-10-22T16:11:32+07:00 | cmd: (cd frontend) npm run typecheck | 
+08-typecheck-module-tests | Module test typecheck | exit=0 | 2026-10-22T16:11:32+07:00 → 2026-10-22T16:11:34+07:00 | cmd: (cd backend) npx tsc -p ../modules/DATA_INSPECTOR/tests/tsconfig.json && echo TSC_OK | 
+09-backend-regression | Backend regression (npm test, DB suites gated off) | exit=0 | 2026-10-22T16:11:34+07:00 → 2026-10-22T16:11:49+07:00 | cmd: (cd backend) npm test |  Test Files 26 passed | 21 skipped (47); Tests 347 passed | 161 skipped (508);
+finished: 2026-10-22T16:11:49+07:00

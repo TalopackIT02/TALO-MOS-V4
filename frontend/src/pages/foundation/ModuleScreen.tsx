@@ -5,11 +5,23 @@ import type { ModuleRecord } from '../../services/foundation/foundationApi';
 import { FeedbackLine, formatTime, settle } from './common';
 import type { Feedback, ScreenProps } from './common';
 import { VersionPanel } from './VersionPanel';
+import { DataTable, NameCode } from '../../components/DataTable';
+import type { Column } from '../../components/DataTable';
+import { useShellData } from '../../contexts/ShellData';
 
 // FE-03 — Module Registry: list (GET /foundation/modules), registration (POST), ENABLE / DISABLE (lifecycle API) and the
 // versions of the selected module. Tab 0 = list + versions, tab 1 = registration form.
 
 const isTestModule = (m: ModuleRecord) => m.moduleKey.startsWith('FBET_');
+
+// WS03 / WS04: name first, technical code muted; description shown as the note of the module.
+const MODULE_COLUMNS: Column<ModuleRecord>[] = [
+  { key: 'moduleName', label: 'Module', value: (m) => `${m.moduleName} ${m.moduleKey}`, render: (m) => <NameCode name={m.moduleName} code={m.moduleKey} /> },
+  { key: 'description', label: 'Mô tả', value: (m) => m.description ?? '', render: (m) => m.description ?? <span className="muted">—</span> },
+  { key: 'moduleType', label: 'Loại', value: (m) => m.moduleType },
+  { key: 'isEnabled', label: 'Trạng thái', value: (m) => (m.isEnabled ? 'Đang bật' : 'Đang tắt'), render: (m) => <span className={m.isEnabled ? 'tag fx-status-active' : 'tag'}>{m.isEnabled ? 'Đang bật' : 'Đang tắt'}</span> },
+  { key: 'updatedAt', label: 'Cập nhật', value: (m) => m.updatedAt, render: (m) => formatTime(m.updatedAt), searchable: false },
+];
 
 export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
   const [modules, setModules] = useState<ModuleRecord[] | null>(null);
@@ -18,6 +30,7 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
   const [busy, setBusy] = useState(false);
   const [showTestModules, setShowTestModules] = useState(false);
   const versionsRef = useRef<HTMLDivElement>(null);
+  const { can } = useShellData();
 
   const load = useCallback(async () => {
     const data = settle(await foundationApi.listModules(), onSessionLost, setFeedback);
@@ -67,32 +80,23 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
           ? <VersionPanel key={selected.moduleId} module={selected} onSessionLost={onSessionLost} onChanged={() => void load()} />
           : <p className="fx-placeholder">Chọn một Module trong danh sách bên dưới để quản lý phiên bản.</p>}
       </div>
-      {visible === null ? <p className="info">Đang tải…</p> : visible.length === 0 ? (
-        <p className="info">{hiddenCount > 0 ? 'Chưa có module nào ngoài các module kiểm thử đang được ẩn.' : 'Chưa có module nào hoặc bạn không có quyền xem.'}</p>
-      ) : (
-        <div className="fx-module-list">
-          <table>
-            <thead><tr><th>Mã module</th><th>Tên</th><th>Loại</th><th>Trạng thái</th><th>Cập nhật</th><th /></tr></thead>
-            <tbody>
-              {visible.map((m) => (
-                <tr key={m.moduleId} className={m.moduleId === selectedId ? 'fx-selected' : undefined}>
-                  <td><b>{m.moduleKey}</b></td>
-                  <td>{m.moduleName}</td>
-                  <td>{m.moduleType}</td>
-                  <td><span className={m.isEnabled ? 'tag fx-status-active' : 'tag'}>{m.isEnabled ? 'Đang bật' : 'Đang tắt'}</span></td>
-                  <td>{formatTime(m.updatedAt)}</td>
-                  <td>
-                    <div className="fx-toolbar" style={{ marginBottom: 0 }}>
-                      <button type="button" className="fx-btn" onClick={() => choose(m.moduleId)}>Phiên bản</button>
-                      <button type="button" className="fx-btn" disabled={busy} onClick={() => void toggle(m)}>{m.isEnabled ? 'Tắt' : 'Bật'}</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable
+        label="module"
+        columns={MODULE_COLUMNS}
+        rows={visible}
+        rowKey={(m) => m.moduleId}
+        selectedKey={selectedId}
+        emptyText={hiddenCount > 0 ? 'Chưa có module nào ngoài các module kiểm thử đang được ẩn.' : 'Chưa có module nào hoặc bạn không có quyền xem.'}
+        initial={{ sort: 'moduleName' }}
+        actions={(m) => (
+          <>
+            {can('foundation.module_version.read') && <button type="button" className="fx-btn" onClick={() => choose(m.moduleId)}>Phiên bản</button>}
+            {can(m.isEnabled ? 'foundation.module_registry.disable' : 'foundation.module_registry.enable') && (
+              <button type="button" className="fx-btn" disabled={busy} onClick={() => void toggle(m)}>{m.isEnabled ? 'Tắt' : 'Bật'}</button>
+            )}
+          </>
+        )}
+      />
     </>
   );
 }

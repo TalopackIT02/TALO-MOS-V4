@@ -71,6 +71,11 @@ test('Lưu MIC -> Tải lại -> F5 keeps the stored 1.0.2 manifest instead of t
         serverTime: '2026-10-19T00:00:00.000Z',
       });
     }
+    // WS01 / WS06: the AppShell reads the business menu and the session's admin capabilities once.
+    if (path === '/api/foundation/navigation') return json({ navigation: [] });
+    if (path === '/api/iam/admin/me/capabilities') {
+      return json({ permissions: { 'foundation.module_registry.read': true, 'foundation.module_version.read': true, 'foundation.module_version.update': true } });
+    }
     if (path === '/api/foundation/modules') return json({ modules: [moduleRecord] });
     if (path === `/api/foundation/modules/${MODULE_ID}/versions` && request.method() === 'GET') {
       listCount += 1;

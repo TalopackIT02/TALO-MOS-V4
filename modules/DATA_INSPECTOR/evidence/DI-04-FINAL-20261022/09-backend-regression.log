@@ -1,0 +1,26 @@
+
+> talo-mos-v4-backend@0.0.0 pretest
+> npm run modules:sync
+
+
+> talo-mos-v4-backend@0.0.0 modules:sync
+> node scripts/modules-sync.mjs backend
+
+[modules] backend: DATA_INSPECTOR 0.1.0 (MIC-1.0, TALO-MODULE-HOST-1)
+[modules] backend: SYSTEM_TEST 1.0.0 (MIC-1.0, TALO-MODULE-HOST-1)
+
+> talo-mos-v4-backend@0.0.0 test
+> vitest run
+
+
+ RUN  v5.0.2 D:/Documents/ClaudeProject/TALO-MOS-V4/backend
+
+
+ Test Files  26 passed | 21 skipped (47)
+      Tests  347 passed | 161 skipped (508)
+   Start at  18:29:45
+   Duration  9.48s (import 46%, tests 39%, transform 15%, worker 1%)
+
+    Isolate  47 workers spawned · ~369ms startup each (spawn + environment, per file)
+             at least ~1.21s faster with isolate: false — reuses workers across files instead of one per file
+

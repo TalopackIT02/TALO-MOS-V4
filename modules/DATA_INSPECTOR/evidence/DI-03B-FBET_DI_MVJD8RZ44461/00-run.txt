@@ -1,0 +1,9 @@
+run: DI-03B FBET_DI_MVJD8RZ44461
+exit=0 start=2026-10-22T16:56:03+07:00 end=2026-10-22T16:56:05+07:00
+repo HEAD: 3d043ca9f911278feafc64adaf5c5d4bd15e31ca (feat/iam-management-foundation-20261019); working tree: DI-03B test file untracked
+database: talo_mos_v4_test (API role talo_app; harness talo_test_harness via docker exec psql)
+cmd: (cd backend) TALO_DATA_INSPECTOR_IAM_DB=1 TALO_DI_IAM_BACKUP=<backup> node --env-file=../.env ./node_modules/vitest/vitest.mjs run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose data-inspector.iam.db
+backup: D:/TaloData/backups/data-inspector/talo_mos_v4_test-di04-20261022-165457.dump sha256=9c5f319c54e02762a30205520ae9bcd23fe9edc2eaff8e5b7b8aa178bf14fadc (pg_restore -l OK, 25 TABLE DATA entries, outside Git)
+real: IAM rows on PostgreSQL, SqlFoundationRepository.loadAccessFacts + evaluateAccess (AccessGuard), B08 DENIED INSERT, Host readOnly, admin username gate
+stub/fake: session store (admin session simulated, no password), lifecycle (ENABLED + 1 ACTIVE); fixture K05 FBET_DI_MVJD8RZ44461 — NOT the real data_inspector.* permissions (not provisioned at test time)
+writes: iam_permissions 2, iam_memberships 1, iam_user_accounts 1, iam_roles 1, iam_role_permissions 2, iam_user_roles 1, iam_user_permissions 8 (admin + fixture, deleted by id per test); all deleted; B08 DENIED kept 10 (append-only)

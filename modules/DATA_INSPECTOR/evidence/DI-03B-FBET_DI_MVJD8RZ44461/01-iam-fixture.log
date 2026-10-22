@@ -1,0 +1,17 @@
+
+ RUN  v5.0.2 D:/Documents/ClaudeProject/TALO-MOS-V4/backend
+
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.iam.db.test.ts > DI-IAM-DB (FIXTURE) — DATA_INSPECTOR IAM runtime on PostgreSQL TEST > IAM-01 admin with Direct ALLOW (both fixture permissions) → 200 on tables / columns / rows, no DENIED audit 99ms
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.iam.db.test.ts > DI-IAM-DB (FIXTURE) — DATA_INSPECTOR IAM runtime on PostgreSQL TEST > IAM-02 admin without any grant → 403 on all three APIs, one B08 DENIED per request (NO_VALID_ALLOW) 55ms
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.iam.db.test.ts > DI-IAM-DB (FIXTURE) — DATA_INSPECTOR IAM runtime on PostgreSQL TEST > IAM-03 Direct DENY wins over Role ALLOW (fixture account): 403 by IAM with B08 DENIED reason DIRECT_DENY 27ms
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.iam.db.test.ts > DI-IAM-DB (FIXTURE) — DATA_INSPECTOR IAM runtime on PostgreSQL TEST > IAM-04 non-admin account with Role ALLOW passes IAM but is refused 403 by the username gate (no B08 DENIED) 55ms
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.iam.db.test.ts > DI-IAM-DB (FIXTURE) — DATA_INSPECTOR IAM runtime on PostgreSQL TEST > IAM-05 only CATALOG.READ → tables / columns 200, rows 403; only ROWS.READ → rows 200, tables / columns 403 107ms
+[DI-IAM-DB] run FBET_DI_MVJD8RZ44461 evidence {"backup":"D:/TaloData/backups/data-inspector/talo_mos_v4_test-di04-20261022-165457.dump (3474979 bytes, 2026-10-22T09:54:59.000Z)","IAM-01":"PASS","IAM-02":"PASS","IAM-03":"PASS","IAM-04":"PASS","IAM-05":"PASS","IAM-06":"PASS","IAM-07":"PASS","deleted.user_roles":"1","deleted.role_permissions":"2","deleted.roles":"1","deleted.accounts":"1","deleted.memberships":"1","deleted.permissions":"2","remaining":"0","auditKept":"10"}
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.iam.db.test.ts > DI-IAM-DB (FIXTURE) — DATA_INSPECTOR IAM runtime on PostgreSQL TEST > IAM-06 revoked, expired and not-yet-started Direct ALLOW are not accepted (403 NO_VALID_ALLOW) 73ms
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.iam.db.test.ts > DI-IAM-DB (FIXTURE) — DATA_INSPECTOR IAM runtime on PostgreSQL TEST > IAM-07 fixture permissions are held by no system role; the only role holding them is the non-system fixture role 6ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  16:56:03
+   Duration  1.51s (tests 50%, transform 29%, import 21%)
+

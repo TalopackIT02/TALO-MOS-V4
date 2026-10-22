@@ -39,19 +39,27 @@ describe.skipIf(!enabled)('IAM v0.3 catalog (read-only)', () => {
     });
   }
 
+  // pg_catalog, not information_schema: information_schema only lists objects the CONNECTED role holds a privilege on, and
+  // the least-privilege API role (talo_app) has none on iam_account_verifications — the catalog check must not depend on
+  // runtime grants (verified 2026-10-20: pg_tables shows 11 tables, information_schema 10 under talo_app).
   it('has exactly the 11 IAM tables', async () => {
     const rows = await readOnly((db) => db.$queryRaw<{ table_name: string }[]>`
-      select table_name from information_schema.tables where table_schema = 'iam' order by table_name`);
+      select tablename as table_name from pg_catalog.pg_tables where schemaname = 'iam' order by tablename`);
     expect(rows.map((row) => row.table_name)).toEqual(EXPECTED_TABLES);
   });
 
-  it('has 16 foreign keys, 12 CHECK constraints and 18 non-primary-key indexes', async () => {
-    const [counts] = await readOnly((db) => db.$queryRaw<{ fk: number; ck: number; ix: number }[]>`
+  // IAM Phase C PC-01 adds exactly one CHECK (ck_account_membership_state) together with membership_id nullable: the v0.3
+  // count stays 12 without it, and the two changes are present together or not at all.
+  it('has 16 foreign keys, 12 CHECK constraints of v0.3 (+ PC-01 ck_account_membership_state) and 18 non-primary-key indexes', async () => {
+    const [counts] = await readOnly((db) => db.$queryRaw<{ fk: number; ck: number; ix: number; pc01: number; nullable: string }[]>`
       select
         (select count(*)::int from pg_constraint where connamespace = 'iam'::regnamespace and contype = 'f') as fk,
-        (select count(*)::int from pg_constraint where connamespace = 'iam'::regnamespace and contype = 'c') as ck,
-        (select count(*)::int from pg_indexes where schemaname = 'iam' and indexname not like '%pkey') as ix`);
-    expect(counts).toEqual({ fk: 16, ck: 12, ix: 18 });
+        (select count(*)::int from pg_constraint where connamespace = 'iam'::regnamespace and contype = 'c' and conname <> 'ck_account_membership_state') as ck,
+        (select count(*)::int from pg_indexes where schemaname = 'iam' and indexname not like '%pkey') as ix,
+        (select count(*)::int from pg_constraint where connamespace = 'iam'::regnamespace and contype = 'c' and conname = 'ck_account_membership_state') as pc01,
+        (select is_nullable::text from information_schema.columns where table_schema = 'iam' and table_name = 'iam_user_accounts' and column_name = 'membership_id') as nullable`);
+    expect({ fk: counts?.fk, ck: counts?.ck, ix: counts?.ix }).toEqual({ fk: 16, ck: 12, ix: 18 });
+    expect([counts?.pc01, counts?.nullable]).toEqual(counts?.pc01 === 1 ? [1, 'YES'] : [0, 'NO']);
   });
 
   it('still enforces the partial and expression indexes that Prisma does not model', async () => {
@@ -65,7 +73,8 @@ describe.skipIf(!enabled)('IAM v0.3 catalog (read-only)', () => {
 
   it('has no active_role_id column (v0.3)', async () => {
     const rows = await readOnly((db) => db.$queryRaw<{ n: number }[]>`
-      select count(*)::int as n from information_schema.columns where table_schema = 'iam' and column_name = 'active_role_id'`);
+      select count(*)::int as n from pg_catalog.pg_attribute a join pg_catalog.pg_class c on c.oid = a.attrelid
+       where c.relnamespace = 'iam'::regnamespace and a.attname = 'active_role_id' and a.attnum > 0 and not a.attisdropped`);
     expect(rows[0]?.n).toBe(0);
   });
 });

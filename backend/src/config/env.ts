@@ -12,6 +12,14 @@ export interface AppConfig {
   readonly appOrigins: readonly string[];
   readonly trustProxy: TrustProxySetting;
   readonly databaseUrl: string | undefined;
+  // IAM-NEXT B1: optional dedicated connection of IAM Management (role talo_iam_admin). Never logged.
+  readonly iamAdminDatabaseUrl: string | undefined;
+  // Root administrator protected against IAM mutations (deployment configuration; never set through the API).
+  readonly iamRootAdminAccountId: string | undefined;
+  // IAM Phase B: P-4e services from the AppShell. The flag is the owner's approval of showing a temporary password once
+  // in the administration UI (default off = CLI only); the URL is the existing role talo_provisioner. Never logged.
+  readonly iamUiTemporaryCredentials: boolean;
+  readonly provisionerDatabaseUrl: string | undefined;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
 }
 
@@ -38,6 +46,10 @@ const RawEnv = z.object({
   APP_ORIGIN: optionalString,
   TRUST_PROXY: optionalString,
   DATABASE_URL: optionalString,
+  IAM_ADMIN_DATABASE_URL: optionalString,
+  IAM_ROOT_ADMIN_ACCOUNT_ID: optionalString,
+  IAM_UI_TEMPORARY_CREDENTIALS: optionalString,
+  PROVISIONER_DATABASE_URL: optionalString,
   LOG_LEVEL: z.preprocess((value) => (value === '' ? undefined : value), z.enum(['debug', 'info', 'warn', 'error']).default('info')),
 });
 
@@ -111,6 +123,83 @@ function parseDatabaseUrl(value: string | undefined, issues: string[]): string |
   return value;
 }
 
+// IAM-NEXT B1: same server and database as DATABASE_URL, another (dedicated) role. Values never appear in messages.
+function parseIamAdminDatabaseUrl(value: string | undefined, databaseUrl: string | undefined, issues: string[]): string | undefined {
+  if (value === undefined) return undefined;
+  let iam: URL;
+  let api: URL;
+  try {
+    iam = new URL(value);
+  } catch {
+    issues.push('IAM_ADMIN_DATABASE_URL must be a postgresql:// connection string');
+    return undefined;
+  }
+  if (!/^postgres(ql)?:$/.test(iam.protocol)) {
+    issues.push('IAM_ADMIN_DATABASE_URL must be a postgresql:// connection string');
+    return undefined;
+  }
+  if (databaseUrl === undefined) {
+    issues.push('IAM_ADMIN_DATABASE_URL requires DATABASE_URL');
+    return undefined;
+  }
+  try {
+    api = new URL(databaseUrl);
+  } catch {
+    return undefined;
+  }
+  if (iam.hostname !== api.hostname || (iam.port || '5432') !== (api.port || '5432') || iam.pathname !== api.pathname) {
+    issues.push('IAM_ADMIN_DATABASE_URL must target the same server and database as DATABASE_URL');
+  }
+  if (decodeURIComponent(iam.username) === decodeURIComponent(api.username)) issues.push('IAM_ADMIN_DATABASE_URL must use a role other than the DATABASE_URL role');
+  return value;
+}
+
+function parseRootAdminId(value: string | undefined, issues: string[]): string | undefined {
+  if (value === undefined) return undefined;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value)) {
+    issues.push('IAM_ROOT_ADMIN_ACCOUNT_ID must be a lowercase account UUID');
+    return undefined;
+  }
+  return value;
+}
+
+function parseCredentialFlag(value: string | undefined, issues: string[]): boolean {
+  if (value === undefined || value === 'disabled') return false;
+  if (value === 'enabled') return true;
+  issues.push('IAM_UI_TEMPORARY_CREDENTIALS must be "enabled" or "disabled"');
+  return false;
+}
+
+// Same server and database as DATABASE_URL, role talo_provisioner (also checked on the live connection at start-up).
+function parseProvisionerUrl(value: string | undefined, databaseUrl: string | undefined, issues: string[]): string | undefined {
+  if (value === undefined) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    issues.push('PROVISIONER_DATABASE_URL must be a postgresql:// connection string');
+    return undefined;
+  }
+  if (!/^postgres(ql)?:$/.test(url.protocol)) {
+    issues.push('PROVISIONER_DATABASE_URL must be a postgresql:// connection string');
+    return undefined;
+  }
+  if (decodeURIComponent(url.username) !== 'talo_provisioner') issues.push('PROVISIONER_DATABASE_URL must use role talo_provisioner');
+  if (databaseUrl === undefined) {
+    issues.push('PROVISIONER_DATABASE_URL requires DATABASE_URL');
+    return undefined;
+  }
+  try {
+    const api = new URL(databaseUrl);
+    if (url.hostname !== api.hostname || (url.port || '5432') !== (api.port || '5432') || url.pathname !== api.pathname) {
+      issues.push('PROVISIONER_DATABASE_URL must target the same server and database as DATABASE_URL');
+    }
+  } catch {
+    return undefined;
+  }
+  return value;
+}
+
 // Never includes environment values in error messages, only variable names.
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = RawEnv.safeParse(env);
@@ -126,6 +215,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     appOrigins: parseOrigins(raw.APP_ORIGIN, raw.NODE_ENV, issues),
     trustProxy: parseTrustProxy(raw.TRUST_PROXY, issues),
     databaseUrl: parseDatabaseUrl(raw.DATABASE_URL, issues),
+    iamAdminDatabaseUrl: parseIamAdminDatabaseUrl(raw.IAM_ADMIN_DATABASE_URL, raw.DATABASE_URL, issues),
+    iamRootAdminAccountId: parseRootAdminId(raw.IAM_ROOT_ADMIN_ACCOUNT_ID, issues),
+    iamUiTemporaryCredentials: parseCredentialFlag(raw.IAM_UI_TEMPORARY_CREDENTIALS, issues),
+    provisionerDatabaseUrl: parseProvisionerUrl(raw.PROVISIONER_DATABASE_URL, raw.DATABASE_URL, issues),
     logLevel: raw.LOG_LEVEL,
   };
   if (issues.length > 0) throw new ConfigError(issues);

@@ -1,0 +1,58 @@
+{
+  "api": "http://127.0.0.1:3100/api",
+  "startedAt": "2026-10-22T11:24:43.882Z",
+  "checks": {
+    "MIC hash stored = candidate hash": "PASS 7739cbcb6c3ce32b1064f11f5a1937b7906c5fc738d0c495db4c8ffdbb691110",
+    "B13 one check, environment TEST, PASS/WARN, 0 blocking": "PASS [{\"environment\":\"TEST\",\"checkResult\":\"PASS\",\"blocking\":0}]",
+    "B03-B06 Function/Action registry": "PASS [\"CATALOG.READ\",\"ROWS.READ\"]",
+    "B10 data contracts API only (no DIRECT_DB)": "PASS [\"COLUMN_CATALOG:API\",\"TABLE_CATALOG:API\",\"TABLE_PAGE:API\"]",
+    "menu of admin contains /data-inspector": "PASS",
+    "GET tables 200 (all schemas)": "PASS 93 tables {\"READABLE\":81,\"NOT_READABLE\":11,\"PARTIAL\":1}",
+    "GET columns 200": "PASS",
+    "GET rows 200, default pageSize 50": "PASS",
+    "GET rows pageSize 100 accepted": "PASS",
+    "pageSize 101 → 400": "PASS",
+    "injected key → 404": "PASS",
+    "stale key → 409": "PASS",
+    "POST on the API → 404 (no write route)": "PASS",
+    "no SQL parameter accepted → 400": "PASS",
+    "masking iam.iam_credentials.password_hash": "PASS 1 rows",
+    "masking iam.iam_sessions.session_token_hash": "PASS 25 rows",
+    "masking cannot be switched off (?unmask=1 → 400)": "PASS",
+    "no session → 401": "PASS",
+    "DISABLED → 503, re-ENABLED → 200": "PASS",
+    "final: ENABLED with exactly one ACTIVE 0.1.0": "PASS"
+  },
+  "backend": {
+    "port": 3100,
+    "nodeEnv": "test",
+    "log": "D:/TaloData/di04/backend-3100-2026-10-22T11-24-43-882Z.log"
+  },
+  "moduleId": "cc2bdba4-35e1-4a50-b540-72a9eb2fafcd",
+  "versionId": "0edc6f5f-9332-4abd-9a1e-dad4995c0921",
+  "manifestHash": "7739cbcb6c3ce32b1064f11f5a1937b7906c5fc738d0c495db4c8ffdbb691110",
+  "compatibility": [
+    {
+      "environment": "TEST",
+      "checkResult": "PASS",
+      "blocking": 0
+    }
+  ],
+  "afterActivate": {
+    "isEnabled": "f",
+    "activeVersions": "1"
+  },
+  "bootstrapExec": "[B1] EXEC OK: 2 Direct ALLOW for admin, ids ca9c33f2-ed81-41a6-a3a8-eb2bb28c6e03,fbd710d8-b752-45c7-94e2-b6e5faf4f1f1 (state D:/TaloData/di04/bootstrap-b1-state.json)",
+  "bootstrapVerify": "[B1] VERIFY OK: admin holds exactly ca9c33f2-ed81-41a6-a3a8-eb2bb28c6e03,fbd710d8-b752-45c7-94e2-b6e5faf4f1f1 (Direct ALLOW, unexpired), no other account / role / DENY, privilege fingerprint unchanged b722f9a71c7a5458219b2d62d2533050",
+  "navigationId": "ebe21cdf-9adf-46f3-9771-d1a5a4e4bcfd",
+  "finalLifecycle": {
+    "isEnabled": "t",
+    "activeVersions": "1",
+    "activeVersion": "0.1.0"
+  },
+  "summary": {
+    "checks": 20,
+    "failed": 0
+  },
+  "finishedAt": "2026-10-22T11:24:52.526Z"
+}
