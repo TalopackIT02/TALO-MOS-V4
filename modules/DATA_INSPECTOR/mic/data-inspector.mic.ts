@@ -18,7 +18,36 @@ export const DATA_INSPECTOR_DEFAULT_EVIDENCE: MicEvidence = [
   },
 ];
 
-const tableKeyColumn = (description: string) => ({ name: 'table_key', type: 'text', required: true, primaryKey: true, description });
+// DI-02 — MIC-10 CANDIDATE (not PUT / SUBMITTED; owner review pending). Each PASS cites a real run whose filtered log is
+// in modules/DATA_INSPECTOR/evidence/<run>/ (commands, time, HEAD, counts in 00-run.txt; hashes in SHA256SUMS).
+// Pre-activation tests only: post-activation acceptance (registered lifecycle, B09 menu, AppShell UI, login E2E) cannot
+// be PASS before ACTIVATE and is listed in the evidence README, not here. The IAM runtime test on PostgreSQL is required
+// BEFORE activation and is not run (IAM provisioning not approved, BL-02): it stays NOT_TESTED, so the Foundation
+// activation gate (every result PASS) stays closed — on purpose.
+export const DATA_INSPECTOR_EVIDENCE_RUN = 'DI-02-20261022-R2';
+const ev = (file: string) => `modules/DATA_INSPECTOR/evidence/${DATA_INSPECTOR_EVIDENCE_RUN}/${file}`;
+
+export const DATA_INSPECTOR_MIC10_CANDIDATE: MicEvidence = [
+  { name: 'DI-UNIT module unit and Host-compatibility tests (real Host capabilities, mock database)', result: 'PASS', reference: ev('01-module-unit.log') },
+  {
+    name: 'DI-DB PostgreSQL TEST read-only (talo_mos_v4_test / talo_app): admin account gate, all-schema catalog, columns, rows, NOT_READABLE, stale and injected keys',
+    result: 'PASS', reference: ev('02-module-db.log'),
+  },
+  { name: 'DI-MASK FIX-01 sensitive data masking (unit canaries + PostgreSQL TEST)', result: 'PASS', reference: ev('03-masking.log') },
+  { name: 'DI-MIC MIC-1.0 Foundation validator, MIC-01..10 and module.json consistency with spec v0.2', result: 'PASS', reference: ev('04-mic.log') },
+  { name: 'DI-HOST Host loader and multi-module runtime handshake (DI-01)', result: 'PASS', reference: ev('05-host-handshake.log') },
+  {
+    name: 'DI-TYPECHECK backend (src + test), frontend (app + node), module tests', result: 'PASS',
+    reference: `${ev('06-typecheck-backend.log')}; ${ev('07-typecheck-frontend.log')}; ${ev('08-typecheck-module-tests.log')}`,
+  },
+  { name: 'DI-REGRESSION backend regression suite (npm test)', result: 'PASS', reference: ev('09-backend-regression.log') },
+  {
+    name: 'DI-IAM-DB IAM runtime on PostgreSQL with provisioned data_inspector.catalog.read / rows.read: direct ALLOW admin only, Direct DENY, non-admin mis-grant 403, B08 DENIED audit',
+    result: 'NOT_TESTED', reference: 'BLOCKED: IAM provisioning of data_inspector.* not approved (BL-02); required before activation',
+  },
+];
+
+const tableKeyColumn =(description: string) => ({ name: 'table_key', type: 'text', required: true, primaryKey: true, description });
 
 export function dataInspectorMic(moduleKey: string = 'DATA_INSPECTOR', testEvidence: MicEvidence = DATA_INSPECTOR_DEFAULT_EVIDENCE) {
   const map = (functionKey: string, actionKey: string) => ({ functionKey, actionKey, moduleCode: moduleKey, resourceCode: functionKey, operation: actionKey, minimumAssuranceLevel: 1 });

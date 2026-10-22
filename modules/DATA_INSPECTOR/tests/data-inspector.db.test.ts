@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../../../backend/src/app.js';
 import { loadConfig } from '../../../backend/src/config/env.js';
 import { createLogger } from '../../../backend/src/core/logging/logger.js';
@@ -49,7 +49,8 @@ describe.runIf(enabled)('DATA_INSPECTOR on PostgreSQL TEST (read only)', () => {
   const auth = new FakeAuth();
   let adminId = '';
   let otherId = '';
-  let lifecycleStub = false;
+  // Stub ON by default (every test is independent of order / -t filters); only the real-lifecycle test turns it off.
+  let lifecycleStub = true;
   const moduleSqls: string[] = []; // every statement the module sent through the Host readOnly executor (texts only)
   let app: ReturnType<typeof createApp>;
   const read = async (sql: string, params: readonly unknown[] = []) => realHost.readOnly((tx) => tx.query(sql, params)) as Promise<Record<string, unknown>[]>;
@@ -86,12 +87,15 @@ describe.runIf(enabled)('DATA_INSPECTOR on PostgreSQL TEST (read only)', () => {
   });
 
   it('real lifecycle: DATA_INSPECTOR is not registered on TEST → 503 for admin, before any catalog read (TC-19)', async () => {
+    lifecycleStub = false;
     const [registered] = await read(`SELECT count(*)::int AS n FROM foundation.fnd_modules WHERE module_key = 'DATA_INSPECTOR'`);
     expect(registered?.['n']).toBe(0);
     for (const path of ['/tables', `/tables/t_1_0123456789abcdef/columns`, `/tables/t_1_0123456789abcdef/rows`]) {
       const res = await get(path, 'admin');
       expect([res.status, res.body.error.code]).toEqual([503, 'SERVICE_BUSY']);
     }
+  });
+  afterEach(() => {
     lifecycleStub = true;
   });
 

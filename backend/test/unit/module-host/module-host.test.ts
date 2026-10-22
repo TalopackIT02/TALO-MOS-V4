@@ -1,9 +1,9 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import express from 'express';
 import { afterAll, describe, expect, it } from 'vitest';
-import { HOST_CAPABILITIES as SCRIPT_CAPABILITIES, syncModules } from '../../../scripts/modules-sync.mjs';
+import { HOST_CAPABILITIES as SCRIPT_CAPABILITIES, syncModules, validateManifest } from '../../../scripts/modules-sync.mjs';
 import { createLogger } from '../../../src/core/logging/logger.js';
 import { INSTALLED_MODULES } from '../../../src/installed-modules/registry.js';
 import { HOST_CAPABILITIES, HOST_PROTOCOL } from '../../../src/module-host/contract.js';
@@ -111,7 +111,55 @@ describe('module-host loader (runtime handshake + mount)', () => {
     expect(mountModules([good, badProtocol, badCapability], deps, deps.logger)).toHaveLength(1);
   });
 
-  it('the installed SYSTEM_TEST package (copy of modules/SYSTEM_TEST) passes the handshake', () => {
-    expect(INSTALLED_MODULES.map((m) => [m.manifest.moduleKey, handshake(m)])).toEqual([['SYSTEM_TEST', []]]);
+  // DI-01 — multi-module Host: every installed package is checked, whatever their number. Problems of a package list:
+  // invalid / duplicate module key, Host handshake failure (protocol / capability), manifest ≠ entry capability list.
+  const MODULE_KEY = /^[A-Z][A-Z0-9_]{0,79}$/;
+  function installedProblems(list: readonly InstalledModule[]): string[] {
+    const problems: string[] = [];
+    const seen = new Set<string>();
+    for (const m of list) {
+      const key = m.manifest.moduleKey;
+      if (!MODULE_KEY.test(key)) problems.push(`${key}: invalid module key`);
+      if (seen.has(key)) problems.push(`${key}: duplicate module key`);
+      seen.add(key);
+      for (const p of handshake(m)) problems.push(`${key}: ${p}`);
+      if ([...m.manifest.requiredCapabilities].sort().join() !== [...m.entry.REQUIRED_CAPABILITIES].sort().join()) problems.push(`${key}: manifest / entry capabilities differ`);
+    }
+    return problems;
+  }
+
+  it('the checker itself detects an invalid key, a duplicate key, a protocol or capability mismatch', () => {
+    const good: InstalledModule = { manifest: manifest('GOOD'), entry: entry(HOST_PROTOCOL, ['session']) };
+    expect(installedProblems([good])).toEqual([]);
+    expect(installedProblems([
+      good, { manifest: manifest('GOOD'), entry: entry(HOST_PROTOCOL, ['session']) }, { manifest: manifest('bad-key'), entry: entry(HOST_PROTOCOL, ['session']) },
+      { manifest: manifest('OLD', 'TALO-MODULE-HOST-0'), entry: entry('TALO-MODULE-HOST-0', ['session']) },
+      { manifest: manifest('GREEDY', HOST_PROTOCOL, ['rawSql']), entry: entry(HOST_PROTOCOL, ['rawSql']) },
+      { manifest: manifest('DRIFT', HOST_PROTOCOL, ['session']), entry: entry(HOST_PROTOCOL, ['session', 'logger']) },
+    ])).toEqual([
+      'GOOD: duplicate module key', 'bad-key: invalid module key', 'OLD: host protocol', 'GREEDY: capability rawSql', 'DRIFT: manifest / entry capabilities differ',
+    ]);
+  });
+
+  it('every installed package (generated registry) passes the handshake and is mounted — no fixed package list', () => {
+    expect(INSTALLED_MODULES.length).toBeGreaterThan(0);
+    expect(installedProblems(INSTALLED_MODULES)).toEqual([]);
+    expect(mountModules(INSTALLED_MODULES, deps, deps.logger)).toHaveLength(INSTALLED_MODULES.length);
+  });
+
+  it('every package folder of the repository is valid and installed: an invalid new package (skipped by the sync) fails here', () => {
+    const modulesDir = join(import.meta.dirname, '..', '..', '..', '..', 'modules');
+    const folders = readdirSync(modulesDir).filter((f) => existsSync(join(modulesDir, f, 'module.json'))).sort();
+    for (const f of folders) {
+      expect([f, validateManifest(JSON.parse(readFileSync(join(modulesDir, f, 'module.json'), 'utf8')), f, join(modulesDir, f))]).toEqual([f, []]);
+    }
+    expect(INSTALLED_MODULES.map((m) => m.manifest.moduleKey).sort()).toEqual(folders);
+  });
+
+  it('SYSTEM_TEST and DATA_INSPECTOR are both recognised and pass the handshake (independent packages)', () => {
+    for (const key of ['SYSTEM_TEST', 'DATA_INSPECTOR']) {
+      const m = INSTALLED_MODULES.find((x) => x.manifest.moduleKey === key);
+      expect([key, m === undefined ? 'missing' : handshake(m)]).toEqual([key, []]);
+    }
   });
 });
