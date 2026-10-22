@@ -51,7 +51,7 @@ export function DiagnosticsTab({onSessionLost}:{onSessionLost:()=>void}) {
   return <div className="st-console">
     <header className="st-hero">
       <div className="st-hero-head"><span className="st-eyebrow">TALO / OPS CONTROL <span className="st-online-dot"/> DIAGNOSTICS</span>
-        <span className="st-hero-version">SYSTEM_TEST · V1.1.0</span></div>
+        <span className="st-hero-version">SYSTEM_TEST · V1.1.1</span></div>
       <div className="st-hero-main"><div>
         <h1>System health <span>monitor.</span></h1>
         <p>Quan sát Foundation, IAM, PostgreSQL và các module vừa đăng ký. Phân loại dựa trên dữ kiện thực tế, không giả lập kết quả.</p>

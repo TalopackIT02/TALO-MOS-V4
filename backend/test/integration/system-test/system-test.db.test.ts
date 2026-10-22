@@ -23,7 +23,6 @@ import { SqlFoundationRepository, prismaFoundationDb } from '../../../src/module
 import { systemTestMic } from '../../../src/installed-modules/SYSTEM_TEST/mic/system-test.mic.js';
 import type { SystemTestBinding } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.permissions.js';
 import { REGRESSION_FORMAT } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.results.js';
-import { VIEWER_TABLES } from '../../../src/installed-modules/SYSTEM_TEST/backend/system-test.tables.js';
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
 import { checkSmokeUrl } from '../../smoke/dbSmoke.js';
 import { AuthFixtures } from '../../support/authFixtures.js';
@@ -31,11 +30,14 @@ import { PsqlSession, lit, uuidArray } from '../sc5/harness.js';
 
 // MOD-TEST-01 — SYSTEM_TEST module on PostgreSQL 18.6 (talo_mos_v4_test). Runs only with TALO_FOUNDATION_DB=1.
 // The REAL module code (MOD-TEST-02: installed package + REAL Host capabilities: AccessGuard → lifecycle gate → read-only
-// SQL as talo_app) is exercised
-// against ONE fixture module FBET_ST_<RUN> that carries the SYSTEM_TEST MIC under a fixture key, so that DISABLE /
-// RETIRE / DENY can be proven without touching the registered SYSTEM_TEST module. The fixture permissions follow K05 for
-// the fixture key (talo_test_harness, FBE-06B grant) and are removed with UUID ownership proof. Foundation rows are
-// append-only (C2) and are never written by SQL here; the Data Viewer is compared with direct reads of the harness.
+// SQL as talo_app) is exercised against ONE fixture module FBET_ST_<RUN>, so that DISABLE / RETIRE / DENY can be proven
+// without touching the registered SYSTEM_TEST module. The fixture permissions follow K05 for the fixture key
+// (talo_test_harness, FBE-06B grant) and are removed with UUID ownership proof. Foundation rows are append-only (C2) and
+// are never written by SQL here.
+// SYSTEM_TEST 1.1.1 (HOST-TEST-MIGRATION.md): the fixture reproduces the real upgrade — 1.0.0 in the 1.0.x shape (with the
+// Data Viewer) ACTIVE, then the 1.1.1 MIC as a CHANGE of it, through SUBMIT (B13 / B14) → APPROVE → ACTIVATE (the real
+// Activation Gate, MIC-10 evidence PASS) — then IAM, navigation, the three APIs, the retired Data Viewer routes (404),
+// the 22 quick checks and the lifecycle refusal.
 
 const enabled = process.env['TALO_FOUNDATION_DB'] === '1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -48,9 +50,32 @@ const PERMS = {
 } as const;
 type PermKey = keyof typeof PERMS;
 const PERM_KEYS: readonly PermKey[] = ['registryCreate', 'create', 'update', 'submit', 'approve', 'activate', 'retire', 'enable', 'disable', 'navigation'];
-const READABLE = ['B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B09', 'B10', 'B11', 'B13', 'B14'];
-const NOT_READABLE = ['B07', 'B08', 'B12'];
-const ROUTES = ['/system-test', '/system-test/data', '/system-test/runner'];
+const ROUTES = ['/system-test', '/system-test/runner'];
+const MODULE_ROUTES = ['/system-test', '/system-test/data', '/system-test/runner'];
+const FOUNDATION_TABLES = ['fnd_actions', 'fnd_audit_logs', 'fnd_compatibility_changes', 'fnd_compatibility_checks', 'fnd_data_access_rules', 'fnd_data_contracts',
+  'fnd_data_fields', 'fnd_functions', 'fnd_module_events', 'fnd_module_versions', 'fnd_modules', 'fnd_navigation_items', 'fnd_version_actions', 'fnd_version_functions'];
+const CHECK_STATUSES = ['PASS', 'FAIL', 'WARN', 'NOT_TESTED', 'UNAVAILABLE'];
+const EVIDENCE = [{ name: 'MOD-TEST-01 fixture', result: 'PASS' as const, reference: 'test/integration/system-test/system-test.db.test.ts' }];
+
+// The 1.0.x shape of the MIC (Data Viewer included), as the fixture's first version: INITIAL_REGISTRATION 1.0.0.
+function legacyMic(moduleKey: string) {
+  const mic = systemTestMic(moduleKey, EVIDENCE);
+  return {
+    ...mic,
+    mic01Identity: { ...mic.mic01Identity, moduleVersion: '1.0.0' },
+    mic02Functions: [...mic.mic02Functions, { functionKey: 'DATA_VIEWER', name: 'Data Viewer', description: 'Xem bảng Foundation (chỉ đọc)' }],
+    mic03Actions: [...mic.mic03Actions, { functionKey: 'DATA_VIEWER', actionKey: 'READ', name: 'Xem bảng', nature: 'READ' }],
+    mic04Navigation: [...mic.mic04Navigation, { menuLabel: 'Data Viewer', routePath: '/system-test/data', screenKey: 'system.test', functionKey: 'DATA_VIEWER' }],
+    mic05Api: [...mic.mic05Api, { method: 'GET', path: '/api/system-test/tables', functionKey: 'DATA_VIEWER', actionKey: 'READ', errors: ['FORBIDDEN'] }],
+    mic07IamMapping: [...mic.mic07IamMapping, { functionKey: 'DATA_VIEWER', actionKey: 'READ', moduleCode: moduleKey, resourceCode: 'DATA_VIEWER', operation: 'READ', minimumAssuranceLevel: 1 }],
+    mic09Compatibility: { kind: 'INITIAL_REGISTRATION', changes: ['Đăng ký ban đầu (fixture dạng 1.0.x)'] },
+  };
+}
+// The package MIC 1.1.1, CHANGE of the fixture's 1.0.0 (the real one is a CHANGE of SYSTEM_TEST 1.0.3).
+function packageMic(moduleKey: string) {
+  const mic = systemTestMic(moduleKey, EVIDENCE);
+  return { ...mic, mic09Compatibility: { ...mic.mic09Compatibility, fromVersion: '1.0.0' } };
+}
 
 class AuthzFixtures {
   readonly roles: string[] = [];
@@ -175,7 +200,8 @@ class AuthzFixtures {
   }
 }
 
-describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_mos_v4_test)', { timeout: 300_000 }, () => {
+
+describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST 1.1.1 module — PostgreSQL (talo_mos_v4_test)', { timeout: 300_000 }, () => {
   let prisma: PrismaClient;
   let h: PsqlSession;
   let fx: AuthFixtures;
@@ -185,16 +211,14 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_m
   const perm: Record<PermKey, string> = { registryCreate: '', create: '', update: '', submit: '', approve: '', activate: '', retire: '', enable: '', disable: '', navigation: '' };
   const run = `${Date.now().toString(36).toUpperCase()}_${randomBytes(3).toString('hex').toUpperCase()}`;
   const moduleKey = `FBET_ST_${run}`;
-  const refs: { diagnostics: PermissionRef; dataViewer: PermissionRef; testRunner: PermissionRef } = {
+  const refs: { diagnostics: PermissionRef; testRunner: PermissionRef } = {
     diagnostics: { permissionCode: 'undefined', moduleCode: moduleKey, resourceCode: 'DIAGNOSTICS', operation: 'READ' },
-    dataViewer: { permissionCode: 'undefined', moduleCode: moduleKey, resourceCode: 'DATA_VIEWER', operation: 'READ' },
     testRunner: { permissionCode: 'undefined', moduleCode: moduleKey, resourceCode: 'TEST_RUNNER', operation: 'EXECUTE' },
   };
   // Late-bound: the fixture permission codes exist only once the test has created them.
   const binding: SystemTestBinding = {
     moduleKey,
     get diagnosticsRead() { return refs.diagnostics; },
-    get dataViewerRead() { return refs.dataViewer; },
     get testRunnerExecute() { return refs.testRunner; },
   };
   const logs: string[] = [];
@@ -230,12 +254,15 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_m
     expect(res.status).toBe(200);
     return { accountId: acc.accountId, cookie: cookieOf(res) };
   }
-  type MenuJson = { navigationId: string; routePath: string | null; children: MenuJson[] };
+  type MenuJson = { navigationId: string; moduleId: string | null; routePath: string | null; children: MenuJson[] };
   const flatten = (nodes: MenuJson[]): MenuJson[] => nodes.flatMap((n) => [n, ...flatten(n.children)]);
+  let fixtureModuleId = '';
+  // Routes of the FIXTURE module in the account's menu (the registered SYSTEM_TEST module has the same paths).
   async function routes(as: string): Promise<string[]> {
     const res = await get('/foundation/navigation', as);
     expect(res.status).toBe(200);
-    return flatten(res.body.navigation).map((n) => n.routePath).filter((r): r is string => r !== null && ROUTES.includes(r)).sort();
+    return flatten(res.body.navigation).filter((n) => n.moduleId === fixtureModuleId).map((n) => n.routePath)
+      .filter((r): r is string => r !== null && MODULE_ROUTES.includes(r)).sort();
   }
   async function auditsOf(requestId: string) {
     return (await h.ok(`SELECT action_code, outcome, target_type, coalesce(target_id, '<null>'), coalesce(module_id::text, '<null>'), metadata::text
@@ -243,7 +270,7 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_m
       action: r[0], outcome: r[1], targetType: r[2], targetId: r[3], moduleId: r[4], metadata: JSON.parse(r[5] ?? 'null'),
     }));
   }
-  const foundationCounts = async () => (await h.ok(`SELECT ${VIEWER_TABLES.map((t) => `(SELECT count(*) FROM foundation.${t.table})`).join(', ')}`))[0] ?? [];
+  const foundationCounts = async () => (await h.ok(`SELECT ${FOUNDATION_TABLES.map((t) => `(SELECT count(*) FROM foundation.${t})`).join(', ')}`))[0] ?? [];
   const aclFingerprint = async () => (await h.ok(`SELECT md5(string_agg(x, ';' ORDER BY x)) FROM (
       SELECT c.relname || '=' || coalesce(c.relacl::text, '') AS x FROM pg_class c WHERE c.relnamespace IN ('foundation'::regnamespace, 'iam'::regnamespace) AND c.relkind = 'r'
       UNION ALL SELECT c.relname || '.' || a.attname || '=' || a.attacl::text FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
@@ -303,60 +330,77 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_m
     expect(remaining).toBe(0);
   });
 
-  it('ST-01 … ST-11: fixture module with the SYSTEM_TEST MIC through Foundation, navigation, IAM, Data Viewer, checks, results and lifecycle', async () => {
-    // ST-01 — registration + MIC SUBMIT through the Foundation API (B01, B02, B03–B06, B10–B13).
+  it('ST-01 … ST-11: 1.0.x → 1.1.1 CHANGE through Foundation (real Activation Gate), navigation, IAM, retired viewer, checks, results, lifecycle', async () => {
+    // ST-01 — registration; 1.0.0 (1.0.x shape) SUBMIT → APPROVE → ACTIVATE → ENABLE through the Foundation API.
     const admin = await login(PERM_KEYS.map((k) => perm[k]));
     const reg = await send('post', '/foundation/modules', admin.cookie, { moduleKey, moduleName: 'System Test & Diagnostics', moduleType: 'INTERNAL' });
     expect(reg.status).toBe(201);
     const moduleId = String(reg.body.module.moduleId);
-    const created = await send('post', `/foundation/modules/${moduleId}/versions`, admin.cookie, { moduleVersion: '1.0.0', contractVersion: 'MIC-1.0' });
-    expect(created.status).toBe(201);
-    const versionId = String(created.body.version.versionId);
-    const base = `/foundation/modules/${moduleId}/versions/${versionId}`;
-    const mic = systemTestMic(moduleKey, [{ name: 'MOD-TEST-01 unit', result: 'PASS', reference: 'test/unit/system-test/system-test.test.ts' }]);
-    expect((await send('put', `${base}/manifest`, admin.cookie, { manifest: mic })).status).toBe(200);
-    const hash = canonicalDigest(mic).sha256;
-    const sub = await send('post', `${base}/submit`, admin.cookie, { expectedManifestHash: hash });
-    expect(sub.status).toBe(200);
-    expect(sub.body.version).toMatchObject({ status: 'IN_REVIEW', manifestHash: hash });
-    const fns = await h.ok(`SELECT f.function_key, f.function_id::text FROM foundation.fnd_functions f WHERE f.module_id = ${lit(moduleId)} ORDER BY f.function_key`);
-    expect(fns.map((r) => r[0])).toEqual(['DATA_VIEWER', 'DIAGNOSTICS', 'TEST_RUNNER']);
-    const fnId = (key: string) => fns.find((r) => r[0] === key)?.[1] ?? NIL;
-    const [counts] = await h.ok(`SELECT (SELECT count(*) FROM foundation.fnd_version_actions va JOIN foundation.fnd_version_functions vf ON vf.version_function_id = va.version_function_id WHERE vf.version_id = ${lit(versionId)}),
-      (SELECT string_agg(resource_key || ':' || interface_kind, ',' ORDER BY resource_key) FROM foundation.fnd_data_contracts WHERE version_id = ${lit(versionId)}),
-      (SELECT count(*) FROM foundation.fnd_data_fields d JOIN foundation.fnd_data_contracts c ON c.data_contract_id = d.data_contract_id WHERE c.version_id = ${lit(versionId)}),
-      (SELECT count(*) FROM foundation.fnd_data_access_rules r JOIN foundation.fnd_data_contracts c ON c.data_contract_id = r.data_contract_id WHERE c.version_id = ${lit(versionId)}),
-      (SELECT check_result FROM foundation.fnd_compatibility_checks WHERE to_version_id = ${lit(versionId)})`);
-    expect(counts).toEqual(['3', 'SYSTEM_STATUS:API,TABLE_PREVIEW:API,TEST_RESULTS:API', '15', '3', 'PASS']);
-
-    // ST-02 — APPROVE → ACTIVATE → ENABLE through the Foundation API.
-    expect((await send('post', `${base}/approve`, admin.cookie)).status).toBe(200);
-    expect((await send('post', `${base}/activate`, admin.cookie)).status).toBe(200);
+    fixtureModuleId = moduleId;
+    const version = async (moduleVersion: string, manifest: object) => {
+      const created = await send('post', `/foundation/modules/${moduleId}/versions`, admin.cookie, { moduleVersion, contractVersion: 'MIC-1.0' });
+      expect(created.status).toBe(201);
+      const versionId = String(created.body.version.versionId);
+      const base = `/foundation/modules/${moduleId}/versions/${versionId}`;
+      expect((await send('put', `${base}/manifest`, admin.cookie, { manifest })).status).toBe(200);
+      const hash = canonicalDigest(manifest).sha256;
+      const sub = await send('post', `${base}/submit`, admin.cookie, { expectedManifestHash: hash });
+      expect(sub.status, JSON.stringify(sub.body)).toBe(200);
+      expect(sub.body.version).toMatchObject({ status: 'IN_REVIEW', manifestHash: hash });
+      expect((await send('post', `${base}/approve`, admin.cookie)).status).toBe(200);
+      return { versionId, base };
+    };
+    const v1 = await version('1.0.0', legacyMic(moduleKey));
+    expect((await send('post', `${v1.base}/activate`, admin.cookie)).status).toBe(200);
     expect((await send('post', `/foundation/modules/${moduleId}/enable`, admin.cookie)).status).toBe(200);
-    expect(await h.ok(`SELECT v.status, m.is_enabled::text FROM foundation.fnd_module_versions v JOIN foundation.fnd_modules m ON m.module_id = v.module_id WHERE v.version_id = ${lit(versionId)}`))
-      .toEqual([['ACTIVE', 'true']]);
 
-    // Navigation items (B09) through the management API: one group and the three Function items.
+    // ST-01b — 1.1.1: CHANGE of 1.0.0. B13 = WARN (DATA_VIEWER REMOVED → WARNING, no BLOCKING); NOT_TESTED evidence is
+    // refused by the Activation Gate; the same content with PASS evidence (a new version) is activated and retires 1.0.0.
+    const blocked = await version('1.1.0', { ...packageMic(moduleKey), mic01Identity: { ...packageMic(moduleKey).mic01Identity, moduleVersion: '1.1.0' },
+      mic10Manifest: systemTestMic(moduleKey).mic10Manifest });
+    const refusal = await send('post', `${blocked.base}/activate`, admin.cookie);
+    expect([refusal.status, refusal.body.error?.code, refusal.body.error?.details?.errors]).toEqual([422, 'ACTIVATION_BLOCKED', ['TEST_EVIDENCE_NOT_PASSED']]);
+    const v2 = await version('1.1.1', packageMic(moduleKey));
+    const [compat] = await h.ok(`SELECT k.check_result, (SELECT string_agg(x.change_area || ':' || x.object_key || ':' || x.change_type || ':' || x.severity, ',' ORDER BY x.change_area, x.object_key)
+      FROM foundation.fnd_compatibility_changes x WHERE x.check_id = k.check_id AND x.change_type <> 'ADDED'), (SELECT module_version FROM foundation.fnd_module_versions WHERE version_id = k.from_version_id)
+      FROM foundation.fnd_compatibility_checks k WHERE k.to_version_id = ${lit(v2.versionId)}`);
+    expect(compat?.[0]).toBe('WARN');
+    expect(compat?.[1]).toContain('DATA_VIEWER');
+    expect(compat?.[1]).not.toContain('BLOCKING');
+    expect(compat?.[2]).toBe('1.0.0');
+    const activated = await send('post', `${v2.base}/activate`, admin.cookie);
+    expect(activated.status, JSON.stringify(activated.body)).toBe(200);
+    expect(await h.ok(`SELECT module_version, status FROM foundation.fnd_module_versions WHERE module_id = ${lit(moduleId)} ORDER BY module_version`))
+      .toEqual([['1.0.0', 'RETIRED'], ['1.1.0', 'APPROVED'], ['1.1.1', 'ACTIVE']]);
+    const fns = await h.ok(`SELECT f.function_key, f.function_id::text FROM foundation.fnd_version_functions vf JOIN foundation.fnd_functions f ON f.function_id = vf.function_id
+      WHERE vf.version_id = ${lit(v2.versionId)} ORDER BY f.function_key`);
+    expect(fns.map((r) => r[0])).toEqual(['DIAGNOSTICS', 'TEST_RUNNER']);
+    const fnId = (key: string) => fns.find((r) => r[0] === key)?.[1] ?? NIL;
+    const [counts] = await h.ok(`SELECT (SELECT count(*) FROM foundation.fnd_version_actions va JOIN foundation.fnd_version_functions vf ON vf.version_function_id = va.version_function_id WHERE vf.version_id = ${lit(v2.versionId)}),
+      (SELECT string_agg(resource_key || ':' || interface_kind, ',' ORDER BY resource_key) FROM foundation.fnd_data_contracts WHERE version_id = ${lit(v2.versionId)}),
+      (SELECT count(*) FROM foundation.fnd_data_fields d JOIN foundation.fnd_data_contracts c ON c.data_contract_id = d.data_contract_id WHERE c.version_id = ${lit(v2.versionId)})`);
+    expect(counts).toEqual(['2', 'SYSTEM_STATUS:API,TEST_RESULTS:API', '11']);
+    evidence['gate'] = { refused: refusal.body.error?.details?.errors, compatibility: compat, activated: activated.status };
+
+    // Navigation items (B09) through the management API: one group and the two Function items of 1.1.1.
     const grp = await send('post', '/foundation/navigation/items', admin.cookie, { moduleId, menuTitle: `FBET ST ${run}`, sortOrder: 90 });
     expect(grp.status).toBe(201);
     const groupId = String(grp.body.item.navigationId);
-    for (const [i, key] of ['DIAGNOSTICS', 'DATA_VIEWER', 'TEST_RUNNER'].entries()) {
+    for (const [i, key] of ['DIAGNOSTICS', 'TEST_RUNNER'].entries()) {
       expect((await send('post', '/foundation/navigation/items', admin.cookie, { parentId: groupId, moduleId, functionId: fnId(key), menuTitle: key, sortOrder: i })).status).toBe(201);
     }
 
     // Fixture permissions with the K05 triple of the fixture key; three accounts: full, diagnostics only, none.
     const d = await az.definePermission(moduleKey, 'DIAGNOSTICS', 'READ');
-    const v = await az.definePermission(moduleKey, 'DATA_VIEWER', 'READ');
     const r = await az.definePermission(moduleKey, 'TEST_RUNNER', 'EXECUTE');
     refs.diagnostics = d.ref;
-    refs.dataViewer = v.ref;
     refs.testRunner = r.ref;
-    const full = await login([d.id, v.id, r.id]);
+    const full = await login([d.id, r.id]);
     const partial = await login([d.id]);
     const outsider = await login([]);
 
-    // ST-03 — navigation follows IAM ALLOW per Function.
-    expect(await routes(full.cookie)).toEqual(['/system-test', '/system-test/data', '/system-test/runner']);
+    // ST-03 — navigation follows IAM ALLOW per Function; the retired /system-test/data is never offered.
+    expect(await routes(full.cookie)).toEqual(ROUTES);
     expect(await routes(partial.cookie)).toEqual(['/system-test']);
     expect(await routes(outsider.cookie)).toEqual([]);
     expect(await routes(admin.cookie)).toEqual([]); // Foundation administration grants no module permission
@@ -368,81 +412,57 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_m
       action: 'SYSTEM_TEST.DIAGNOSTICS.READ', outcome: 'DENIED', targetType: 'SYSTEM_TEST_API', targetId: '<null>', moduleId: '<null>',
       metadata: { v: 1, reason: 'NO_VALID_ALLOW', requestId: rid(refused) },
     }]);
-    expect((await get('/system-test/tables', partial.cookie)).status).toBe(403);
     expect((await get('/system-test/results', partial.cookie)).status).toBe(403);
     expect((await get('/system-test/health', partial.cookie)).status).toBe(200);
-    const deny = await az.direct(full.accountId, v.id, 'DENY');
-    expect(await routes(full.cookie)).toEqual(['/system-test', '/system-test/runner']);
-    const denied = await get('/system-test/tables/B01/rows', full.cookie);
+    const deny = await az.direct(full.accountId, r.id, 'DENY');
+    expect(await routes(full.cookie)).toEqual(['/system-test']);
+    const denied = await get('/system-test/results', full.cookie);
     expect(denied.status).toBe(403);
-    expect((await auditsOf(rid(denied)))[0]).toMatchObject({ action: 'SYSTEM_TEST.DATA_VIEWER.READ', outcome: 'DENIED', metadata: { reason: 'DIRECT_DENY' } });
+    expect((await auditsOf(rid(denied)))[0]).toMatchObject({ action: 'SYSTEM_TEST.TEST_RUNNER.EXECUTE', outcome: 'DENIED', metadata: { reason: 'DIRECT_DENY' } });
     await az.revokeDirect(deny);
     expect(await routes(full.cookie)).toEqual(ROUTES);
 
-    // ST-05 / ST-06 / ST-07 / ST-08 — Data Viewer as talo_app; the database must be unchanged by the viewer.
-    const before = await foundationCounts();
-    const tables = await get('/system-test/tables', full.cookie);
-    expect(tables.status).toBe(200);
-    const listed: { tableKey: string; readable: boolean; columns: string[]; hiddenColumns: string[] }[] = tables.body.tables;
-    expect(listed.filter((t) => t.readable).map((t) => t.tableKey)).toEqual(READABLE);
-    expect(listed.filter((t) => !t.readable).map((t) => t.tableKey)).toEqual(NOT_READABLE);
-    for (const key of NOT_READABLE) {
-      const res = await get(`/system-test/tables/${key}/rows`, full.cookie);
-      expect([key, res.status, res.body.error?.code]).toEqual([key, 403, 'TABLE_NOT_READABLE']);
+    // ST-05 — the retired Data Viewer: no API for anyone (404), nothing read.
+    for (const retired of ['/system-test/tables', '/system-test/tables/B01/rows', '/system-test/tables/B01/rows?page=1&pageSize=3']) {
+      expect([retired, (await get(retired, full.cookie)).status]).toEqual([retired, 404]);
     }
-    for (const key of ['B15', 'fnd_modules', 'iam_credentials', 'B01%3B%20DROP%20TABLE%20x']) {
-      expect((await get(`/system-test/tables/${key}/rows`, full.cookie)).status).toBe(404);
-    }
-    for (const q of ['pageSize=101', 'page=0', 'pageSize=abc', 'page=1&page=2']) expect((await get(`/system-test/tables/B01/rows?${q}`, full.cookie)).status).toBe(400);
-    for (const key of READABLE) {
-      const t = VIEWER_TABLES.find((x) => x.tableKey === key);
-      if (!t) throw new Error(key);
-      const res = await get(`/system-test/tables/${key}/rows?page=2&pageSize=3`, full.cookie);
-      expect(res.status).toBe(200);
-      const expected = await h.ok(`SELECT ${t.columns.map((c) => `coalesce(${c}::text, '<null>')`).join(', ')} FROM foundation.${t.table} ORDER BY ${t.orderBy.join(', ')} LIMIT 3 OFFSET 3`);
-      const [total] = await h.ok(`SELECT count(*) FROM foundation.${t.table}`);
-      expect(res.body.data.table.columns).toEqual(t.columns);
-      for (const hidden of t.hiddenColumns) expect(res.body.data.table.columns).not.toContain(hidden);
-      expect([res.body.data.page, res.body.data.pageSize, String(res.body.data.totalRows)]).toEqual([2, 3, total?.[0]]);
-      expect(res.body.data.rows.map((row: (string | null)[]) => row.map((x) => x ?? '<null>'))).toEqual(expected);
-    }
-    const first = await get('/system-test/tables/B01/rows', full.cookie);
-    expect([first.body.data.pageSize, first.body.data.rows.length <= 50]).toEqual([50, true]);
-    const [b01Total] = await h.ok('SELECT count(*) FROM foundation.fnd_modules');
-    const lastPage = Math.ceil(Number(b01Total?.[0]) / 100);
-    const last = await get(`/system-test/tables/B01/rows?page=${lastPage}&pageSize=100`, full.cookie);
-    expect(last.body.data.rows.length).toBe(Number(b01Total?.[0]) - (lastPage - 1) * 100);
-    expect((await get(`/system-test/tables/B01/rows?page=${lastPage + 1}&pageSize=100`, full.cookie)).body.data.rows).toEqual([]);
-    // WS03 — server field search (bound ILIKE on the text form) + sort (allowlisted column, table order as tiebreak).
-    const found = await get('/system-test/tables/B01/rows?search=SYSTEM_TEST&field=module_key&sort=module_key&dir=desc&pageSize=100', full.cookie);
-    expect(found.status).toBe(200);
-    const exp = await h.ok(`SELECT module_key FROM foundation.fnd_modules WHERE strpos(lower(module_key::text), 'system_test') > 0 ORDER BY module_key DESC NULLS LAST, created_at, module_id LIMIT 100`);
-    const keyAt = (VIEWER_TABLES.find((x) => x.tableKey === 'B01')?.columns ?? []).indexOf('module_key');
-    expect(found.body.data.rows.map((r: (string | null)[]) => r[keyAt])).toEqual(exp.map((r) => r[0]));
-    expect(found.body.data.rows.length).toBeGreaterThanOrEqual(1);
-    const injected = await get(`/system-test/tables/B01/rows?search=${encodeURIComponent("%' OR 1=1 --")}`, full.cookie);
-    expect([injected.status, injected.body.data.totalRows]).toEqual([200, 0]); // literal text, never SQL
-    for (const q of ['field=manifest_json&search=x', 'sort=session_id', 'field=module_key%3B']) expect((await get(`/system-test/tables/B01/rows?${q}`, full.cookie)).status).toBe(400);
-    expect(await foundationCounts()).toEqual(before); // ST-07: the viewer wrote nothing
-    evidence['viewer'] = { readable: READABLE, refused: NOT_READABLE, b01Rows: b01Total?.[0] };
 
-    // ST-09 — quick check: real facts; the fixture account has all three permissions and the full menu.
+    // ST-09 — quick check: 22 real statuses as talo_app; nothing written to Foundation; body must be {}.
+    const before = await foundationCounts();
     const check = await send('post', '/system-test/checks/run', full.cookie);
     expect(check.status).toBe(200);
-    const statuses = Object.fromEntries(check.body.run.results.map((x: { key: string; status: string }) => [x.key, x.status]));
-    expect(check.body.run.summary).toEqual({ PASS: 12, FAIL: 0, NOT_TESTED: 0, UNAVAILABLE: 0 });
-    expect(check.body.run.results.find((x: { key: string }) => x.key === 'POSTGRESQL').detail).toContain('talo_mos_v4_test');
+    const results: { key: string; status: string; detail: string }[] = check.body.run.results;
+    const statuses = Object.fromEntries(results.map((x) => [x.key, x.status]));
+    expect(results).toHaveLength(22);
+    expect(results.every((x) => CHECK_STATUSES.includes(x.status))).toBe(true);
+    expect(statuses).toMatchObject({
+      AUTHENTICATION: 'PASS', SESSION: 'PASS', IAM: 'PASS', POSTGRESQL: 'PASS', REGISTRY: 'PASS', VERSION_MIC: 'PASS', FUNCTION_ACTION: 'PASS',
+      DATA_CONTRACTS: 'PASS', COMPATIBILITY: 'PASS', LIFECYCLE: 'PASS', NAVIGATION: 'PASS', MODULE_API: 'PASS',
+      DB_CONNECTIONS: 'PASS', DEPLOYMENT_SYNC: 'NOT_TESTED',
+      // talo_app has no SELECT on B08: reported UNAVAILABLE with its SQLSTATE, never invented as 0.
+      AUDIT_DENIED: 'UNAVAILABLE', AUDIT_FAILURE: 'UNAVAILABLE',
+    });
+    expect(results.find((x) => x.key === 'POSTGRESQL')?.detail).toContain('talo_mos_v4_test');
+    expect(results.find((x) => x.key === 'VERSION_MIC')?.detail).toContain('1.1.1');
+    expect(results.find((x) => x.key === 'AUDIT_DENIED')?.detail).toContain('42501');
+    // The TEST registry holds more than 200 modules (append-only FBET fixtures): the fleet list is capped → WARN, not PASS.
+    const fleetComplete: boolean = check.body.run.fleetComplete;
+    expect(statuses['FLEET_DISCOVERY']).toBe(fleetComplete ? 'PASS' : 'WARN');
+    if (fleetComplete) expect(check.body.run.fleet.some((m: { moduleKey: string }) => m.moduleKey === moduleKey)).toBe(true);
+    else expect(check.body.run.fleet).toHaveLength(200);
     const partialCheck = await send('post', '/system-test/checks/run', partial.cookie);
-    expect(partialCheck.body.run.results.find((x: { key: string }) => x.key === 'IAM').detail).toContain('DATA_VIEWER: DENY (NO_VALID_ALLOW)');
-    expect(partialCheck.body.run.summary.PASS).toBe(12);
+    expect(partialCheck.body.run.results.find((x: { key: string }) => x.key === 'IAM').detail).toContain('TEST_RUNNER: DENY (NO_VALID_ALLOW)');
+    expect(partialCheck.body.run.results.find((x: { key: string }) => x.key === 'NAVIGATION').status).toBe('PASS');
     expect(await auditsOf(rid(check))).toEqual([]); // the quick check writes nothing
     expect((await send('post', '/system-test/checks/run', full.cookie, { sql: 'DELETE FROM x' })).status).toBe(400);
+    expect(await foundationCounts()).toEqual(before);
     evidence['quickCheck'] = statuses;
 
-    // ST-10 — results: NOT_RUN without a runner file; a runner file is returned after validation (the API runs nothing).
+    // ST-10 — results: the account's own last quick check; NOT_RUN without a runner file; a runner file is returned
+    // after validation (the API runs nothing).
     const none = await get('/system-test/results', full.cookie);
     expect(none.body.results).toMatchObject({ regression: { state: 'NOT_RUN' }, runner: { apiExecution: false, mode: 'CLI' } });
-    expect(none.body.results.quickCheck.runId).toBe(rid(partialCheck));
+    expect(none.body.results.quickCheck.runId).toBe(rid(check));
     const file = {
       format: REGRESSION_FORMAT, runId: 'ST10', startedAt: '2026-10-19T00:00:00.000Z', finishedAt: '2026-10-19T00:00:01.000Z',
       target: { database: 'talo_mos_v4_test', host: '127.0.0.1', nodeEnv: 'test' }, status: 'FAIL',
@@ -453,20 +473,19 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_m
 
     // ST-11 — DISABLE / RETIRE: menu hidden AND every module API refused (503 MODULE_UNAVAILABLE); ENABLE restores.
     const all = async () => [
-      (await get('/system-test/health', full.cookie)).status, (await get('/system-test/tables', full.cookie)).status,
-      (await get('/system-test/tables/B01/rows', full.cookie)).status, (await get('/system-test/results', full.cookie)).status,
+      (await get('/system-test/health', full.cookie)).status, (await get('/system-test/results', full.cookie)).status,
       (await send('post', '/system-test/checks/run', full.cookie)).status,
     ];
     expect((await send('post', `/foundation/modules/${moduleId}/disable`, admin.cookie)).status).toBe(200);
     expect(await routes(full.cookie)).toEqual([]);
-    expect(await all()).toEqual([503, 503, 503, 503, 503]);
+    expect(await all()).toEqual([503, 503, 503]);
     expect((await get('/system-test/health', full.cookie)).body.error.code).toBe('MODULE_UNAVAILABLE');
     expect((await send('post', `/foundation/modules/${moduleId}/enable`, admin.cookie)).status).toBe(200);
-    expect(await all()).toEqual([200, 200, 200, 200, 200]);
-    expect((await send('post', `${base}/retire`, admin.cookie)).status).toBe(200);
+    expect(await all()).toEqual([200, 200, 200]);
+    expect((await send('post', `${v2.base}/retire`, admin.cookie)).status).toBe(200);
     expect(await routes(full.cookie)).toEqual([]);
-    expect(await all()).toEqual([503, 503, 503, 503, 503]);
-    evidence['st'] = { moduleId, versionId, groupId, permissionCodes: [d.ref.permissionCode, v.ref.permissionCode, r.ref.permissionCode] };
+    expect(await all()).toEqual([503, 503, 503]);
+    evidence['st'] = { moduleId, versions: [v1.versionId, blocked.versionId, v2.versionId], groupId, permissionCodes: [d.ref.permissionCode, r.ref.permissionCode] };
   });
 
   it('ST-12 / ST-13: IAM back to the baseline, no ACL change, Foundation rows only added (C2), the run module kept RETIRED', async () => {
@@ -475,10 +494,10 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST module — PostgreSQL (talo_m
     const after = (await foundationCounts()).map((x) => Number(x ?? 0));
     after.forEach((n, i) => expect(n).toBeGreaterThanOrEqual(Number(foundationBefore[i] ?? 0)));
     const [kept] = await h.ok(`SELECT (SELECT count(*) FROM foundation.fnd_modules WHERE module_key = ${lit(moduleKey)}),
-      (SELECT string_agg(v.status, ',') FROM foundation.fnd_module_versions v JOIN foundation.fnd_modules m ON m.module_id = v.module_id WHERE m.module_key = ${lit(moduleKey)}),
+      (SELECT string_agg(v.module_version || ':' || v.status, ',' ORDER BY v.module_version) FROM foundation.fnd_module_versions v JOIN foundation.fnd_modules m ON m.module_id = v.module_id WHERE m.module_key = ${lit(moduleKey)}),
       (SELECT count(*) FROM foundation.fnd_navigation_items n JOIN foundation.fnd_modules m ON m.module_id = n.module_id WHERE m.module_key = ${lit(moduleKey)}),
       (SELECT count(*) FROM iam.iam_permissions WHERE module_code = ${lit(moduleKey)})`);
-    expect(kept).toEqual(['1', 'RETIRED', '4', '0']);
+    expect(kept).toEqual(['1', '1.0.0:RETIRED,1.1.0:APPROVED,1.1.1:RETIRED', '3', '0']);
     evidence['st12'] = { iam: iamBaseline, acl: aclBaseline };
   });
 });

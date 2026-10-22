@@ -17,7 +17,7 @@ const screen=readFileSync(resolve(root,'frontend/SystemTestScreen.tsx'),'utf8');
 describe('SYSTEM_TEST 1.1 package contracts',()=>{
   it('keeps module identity and removes table viewer everywhere',()=>{
     expect(manifest.moduleKey).toBe('SYSTEM_TEST');
-    expect(manifest.packageVersion).toBe('1.1.0');
+    expect(manifest.packageVersion).toBe('1.1.1');
     expect(manifest.frontend.screens[0]?.tabs.map((t)=>t.path)).toEqual(['/system-test','/system-test/runner']);
     expect(routes).not.toMatch(/\/system-test\/tables/);
     expect(screen).not.toMatch(/DataViewerTab/);
@@ -31,8 +31,8 @@ describe('SYSTEM_TEST 1.1 package contracts',()=>{
   it('defines MIC CHANGE, two functions and exactly three APIs; evidence stays NOT_TESTED',()=>{
     const mic=systemTestMic();
     expect(mic.mic09Compatibility.kind).toBe('CHANGE');
-    expect(mic.mic09Compatibility.fromVersion).toBe('1.0.0');
-    expect(mic.mic01Identity.moduleVersion).toBe('1.1.0');
+    expect(mic.mic09Compatibility.fromVersion).toBe('1.0.3');
+    expect(mic.mic01Identity.moduleVersion).toBe('1.1.1');
     expect(mic.mic02Functions.map(f=>f.functionKey)).toEqual(['DIAGNOSTICS','TEST_RUNNER']);
     expect(mic.mic03Actions.map(a=>a.actionKey)).toEqual(['READ','EXECUTE']);
     expect(mic.mic05Api).toHaveLength(3);

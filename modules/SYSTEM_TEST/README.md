@@ -1,4 +1,4 @@
-# SYSTEM_TEST 1.1.0 — System Test & Diagnostics
+# SYSTEM_TEST 1.1.1 — System Test & Diagnostics
 
 **Executable TALO module package**, rebuilt from the supplied `SYSTEM_TEST.zip`. Same `moduleKey=SYSTEM_TEST`; **not** a new `SYSTEM_TEST_V2` module. Package format `TALO-MODULE-PACKAGE-1`, protocol `TALO-MODULE-HOST-1`, contract `MIC-1.0`.
 

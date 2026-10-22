@@ -17,7 +17,7 @@ const caps = (allowed: readonly string[]) => Object.fromEntries(ALL_CAPS.map((c)
 const node = (id: string, title: string, routePath: string | null, children: unknown[] = []) => ({
   navigationId: `00000000-0000-4000-8000-${id.padStart(12, '0')}`, moduleId: null, functionId: null, menuTitle: title, sortOrder: 0, routePath, screenKey: null, children,
 });
-const SYSTEM_TEST_MENU = [node('1', 'Test System', null, [node('2', 'Kiểm tra hệ thống', '/system-test'), node('3', 'Xem bảng dữ liệu', '/system-test/data')])];
+const SYSTEM_TEST_MENU = [node('1', 'Test System', null, [node('2', 'Kiểm tra hệ thống', '/system-test'), node('3', 'Chạy test & xem kết quả', '/system-test/runner')])]; // SYSTEM_TEST 1.1.1 routes
 
 const ACCOUNT = {
   accountId: '30000000-0000-4000-8000-000000000001', username: 'nv.an', accountStatus: 'ACTIVE', disabled: false, employeeCode: 'NV001', fullName: 'Nguyễn An',
@@ -84,26 +84,27 @@ test('P1 no rights at all: only Home, no admin section / cards; admin URL → no
   expect(calls.filter((c) => /\/api\/(iam\/admin\/(?!me\/capabilities)|foundation\/modules)/.test(c))).toEqual([]);
 });
 
-test('P2 SYSTEM_TEST only: sidebar group from B09 (no hard-coding), Home = same menu, menu-less tab URL refused', async ({ page }) => {
+test('P2 SYSTEM_TEST only: sidebar group from B09 (no hard-coding), Home = same menu, retired route opens Home', async ({ page }) => {
   await open(page, { caps: [], menu: SYSTEM_TEST_MENU });
   await page.goto('/');
   await expect(sidebar(page).getByRole('button', { name: 'Test System' })).toBeVisible();
   await expect(sidebar(page).getByText('Quản trị')).toHaveCount(0);
-  await expect(page.locator('#body').getByRole('button', { name: 'Xem bảng dữ liệu' })).toBeVisible(); // home menu
+  await expect(page.locator('#body').getByRole('button', { name: 'Chạy test & xem kết quả' })).toBeVisible(); // home menu
   await sidebar(page).getByRole('button', { name: 'Test System' }).click();
-  await sidebar(page).locator('.sub').getByRole('button', { name: 'Xem bảng dữ liệu' }).click();
-  await expect(page).toHaveURL(/\/system-test\/data$/);
-  await expect(page.locator('#crumb')).toHaveText('Test System › Xem bảng dữ liệu');
-  await expect(tabs(page)).toHaveText(['Kiểm tra hệ thống', 'Xem bảng dữ liệu']); // runner tab not in the menu → hidden
-  await expect(sidebar(page).locator('.sub button.active')).toHaveText('Xem bảng dữ liệu');
-  await page.goto('/system-test/runner');
-  await expect(guard(page)).toBeVisible();
+  await sidebar(page).locator('.sub').getByRole('button', { name: 'Chạy test & xem kết quả' }).click();
+  await expect(page).toHaveURL(/\/system-test\/runner$/);
+  await expect(page.locator('#crumb')).toHaveText('Test System › Chạy test & xem kết quả');
+  await expect(tabs(page)).toHaveText(['System Diagnostics', 'Test Runner & Results']); // both tabs are menu routes
+  await expect(sidebar(page).locator('.sub button.active')).toHaveText('Chạy test & xem kết quả');
+  // The retired Data Viewer route (SYSTEM_TEST 1.0.x) is no shell screen any more: it opens Home.
+  await page.goto('/system-test/data');
+  await expect(page).toHaveURL(/\/$/);
   // Search offers only what the menu / capabilities allow.
   await page.goto('/');
   await page.locator('#search').fill('Quản lý tài khoản');
   await expect(page).toHaveURL(/\/$/);
-  await page.locator('#search').fill('bảng dữ liệu');
-  await expect(page).toHaveURL(/\/system-test\/data$/);
+  await page.locator('#search').fill('xem kết quả');
+  await expect(page).toHaveURL(/\/system-test\/runner$/);
 });
 
 test('P3 Foundation view only: Foundation › Quản lý Module only; register tab and navigation hidden; IAM hidden', async ({ page }) => {
@@ -169,5 +170,5 @@ test('P6 root admin: every admin screen; B09 managed in Foundation by name (no U
   // Compact sidebar: a business group opens its flyout with the B09 items.
   await page.locator('#collapse-button').click();
   await sidebar(page).getByRole('button', { name: 'Test System' }).click();
-  await expect(sidebar(page).locator('.flyout-open .flyout')).toContainText('Xem bảng dữ liệu');
+  await expect(sidebar(page).locator('.flyout-open .flyout')).toContainText('Chạy test & xem kết quả');
 });

@@ -16,8 +16,8 @@ const facts = (overrides: Partial<CheckFacts>={}): CheckFacts => ({
   snapshot:{
     identity:{databaseName:'talo_mos_v4_test',roleName:'talo_app',serverVersion:'18.6'},
     module:{moduleId:'a',isEnabled:true,activeVersions:1},
-    activeVersions:[{versionId:'b',moduleVersion:'1.1.0',manifestHash:'x',manifestJson:{
-      mic01Identity:{moduleKey:'SYSTEM_TEST',moduleVersion:'1.1.0'},
+    activeVersions:[{versionId:'b',moduleVersion:'1.1.1',manifestHash:'x',manifestJson:{
+      mic01Identity:{moduleKey:'SYSTEM_TEST',moduleVersion:'1.1.1'},
       mic02Functions:[{functionKey:'DIAGNOSTICS'},{functionKey:'TEST_RUNNER'}],
       mic03Actions:[{functionKey:'DIAGNOSTICS',actionKey:'READ'},{functionKey:'TEST_RUNNER',actionKey:'EXECUTE'}],
       mic04Navigation:[{functionKey:'DIAGNOSTICS',routePath:'/system-test'},{functionKey:'TEST_RUNNER',routePath:'/system-test/runner'}],

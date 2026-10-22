@@ -1,4 +1,5 @@
-// SYSTEM_TEST 1.1.0: CHANGE of existing 1.0.0, no data viewer.
+// SYSTEM_TEST 1.1.1: CHANGE of the ACTIVE 1.0.3, no data viewer. Same content as 1.1.0 (APPROVED on TEST with NOT_TESTED
+// evidence, therefore not activatable and immutable); 1.1.1 carries the real MIC-10 evidence.
 // MIC must be reviewed and submitted through Foundation separately; loading the source does not update B02/MIC/B09/IAM.
 export type MicEvidence = readonly { readonly name: string; readonly result: 'PASS' | 'FAIL' | 'NOT_TESTED'; readonly reference: string }[];
 const STANDARD = 'MIC-1.0';
@@ -11,7 +12,7 @@ export function systemTestMic(moduleKey = 'SYSTEM_TEST', testEvidence: MicEviden
   const mapping = (functionKey: string, actionKey: string) => ({ functionKey, actionKey, moduleCode: moduleKey,
     resourceCode: functionKey, operation: actionKey, minimumAssuranceLevel: 1 });
   return {
-    mic01Identity: { moduleKey, moduleName: 'System Test & Diagnostics', moduleVersion: '1.1.0', micStandard: STANDARD },
+    mic01Identity: { moduleKey, moduleName: 'System Test & Diagnostics', moduleVersion: '1.1.1', micStandard: STANDARD },
     mic02Functions: [
       { functionKey: 'DIAGNOSTICS', name: 'System Diagnostics', description: 'Chạy các phép kiểm tra chỉ đọc trên Auth, IAM, PostgreSQL, Foundation và module fleet.' },
       { functionKey: 'TEST_RUNNER', name: 'Test Runner & Results', description: 'Xem kết quả kiểm tra nhanh và Full Regression đã chạy từ CLI an toàn của Host.' },
@@ -55,9 +56,10 @@ export function systemTestMic(moduleKey = 'SYSTEM_TEST', testEvidence: MicEviden
     ],
     mic07IamMapping: [mapping('DIAGNOSTICS', 'READ'), mapping('TEST_RUNNER', 'EXECUTE')],
     mic08EventsAudit: { eventCodes: [], auditActionCodes: ['SYSTEM_TEST.DIAGNOSTICS.READ', 'SYSTEM_TEST.TEST_RUNNER.EXECUTE'] },
-    mic09Compatibility: { kind: 'CHANGE', fromVersion: '1.0.0', changes: [
+    mic09Compatibility: { kind: 'CHANGE', fromVersion: '1.0.3', changes: [
       'Loại bỏ chức năng DATA_VIEWER và các API bảng; chỉ giữ chẩn đoán và đọc kết quả test',
       'Mở rộng kiểm tra sức khỏe module fleet, PostgreSQL stats, B08 audit, regression; giao diện drawer và ba mức',
+      'Phiên bản 1.1.1 thay thế 1.1.0 (cùng nội dung chức năng) để mang bằng chứng kiểm thử MIC-10 thực tế',
     ] },
     mic10Manifest: { manifestVersion: STANDARD, hashAlgorithm: 'SHA-256', testEvidence },
   };

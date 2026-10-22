@@ -15,9 +15,9 @@ const ALL_CAPS = [
 const node = (id: string, title: string, routePath: string | null, children: unknown[] = []) => ({
   navigationId: `00000000-0000-4000-8000-${id.padStart(12, '0')}`, moduleId: null, functionId: null, menuTitle: title, sortOrder: 0, routePath, screenKey: null, children,
 });
-// Nested B09 tree: Test System › (Kiểm tra hệ thống, Dữ liệu › (Xem bảng dữ liệu with a long title)).
+// Nested B09 tree: Test System › (Kiểm tra hệ thống, Dữ liệu › (the runner route of SYSTEM_TEST 1.1.1 with a long title)).
 const LONG = 'Xem bảng dữ liệu nền tảng Foundation và các bảng điều hướng có tiêu đề rất dài';
-const MENU = [node('1', 'Test System', null, [node('2', 'Kiểm tra hệ thống', '/system-test'), node('4', 'Dữ liệu', null, [node('3', LONG, '/system-test/data')])])];
+const MENU = [node('1', 'Test System', null, [node('2', 'Kiểm tra hệ thống', '/system-test'), node('4', 'Dữ liệu', null, [node('3', LONG, '/system-test/runner')])])];
 
 async function open(page: Page, caps: readonly string[] = ALL_CAPS) {
   const posts: unknown[] = [];
@@ -96,7 +96,7 @@ test.describe('desktop', () => {
     await group.click();
     await expect(sidebar(page).getByRole('button', { name: 'Kiểm tra hệ thống' })).toBeHidden();
     // 6. Active: opening a function by URL expands every menu above it and marks it.
-    await page.goto('/system-test/data');
+    await page.goto('/system-test/runner');
     const active = sidebar(page).locator('.sub .nav-fn.active');
     await expect(active).toHaveText(LONG);
     await expect(active).toHaveAttribute('aria-current', 'page');
@@ -144,7 +144,7 @@ test.describe('mobile', () => {
 
   test('drawer keeps the hierarchy, no horizontal overflow, long function titles wrap', async ({ page }) => {
     await open(page);
-    await page.goto('/system-test/data');
+    await page.goto('/system-test/runner');
     await page.locator('#mobileBottomMenu').click();
     await expect(sidebar(page)).toBeInViewport();
     await expect(sidebar(page).locator('.sub .nav-fn.active')).toBeVisible();

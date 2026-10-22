@@ -26,7 +26,7 @@ export function RunnerTab({onSessionLost}:{onSessionLost:()=>void}) {
   const counts=checkCounts(suites);
   return <div className="st-console">
     <header className="st-hero st-hero-runner"><div className="st-hero-head"><span className="st-eyebrow">TALO / QUALITY CONTROL</span>
-      <span className="st-hero-version">TEST EXECUTION · V1.1.0</span></div>
+      <span className="st-hero-version">TEST EXECUTION · V1.1.1</span></div>
       <div className="st-hero-main"><div><h1>Test runner <span>& results.</span></h1>
         <p>Kiểm tra nhanh ngay trên hệ thống; xem lịch sử và kết quả Full Regression của bộ runner CLI có sẵn.</p></div>
         <div className="st-hero-actions"><button type="button" className="st-button st-button-primary" disabled={busy} onClick={()=>void runQuick()}>
