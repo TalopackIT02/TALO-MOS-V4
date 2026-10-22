@@ -2,7 +2,7 @@
   "packageFormat": "TALO-MODULE-PACKAGE-1",
   "moduleKey": "SYSTEM_TEST",
   "name": "System Test & Diagnostics",
-  "packageVersion": "1.0.0",
+  "packageVersion": "1.1.0",
   "contractVersion": "MIC-1.0",
   "hostProtocol": "TALO-MODULE-HOST-1",
   "backendEntry": "backend/index.ts",
@@ -13,11 +13,10 @@
       {
         "screenKey": "system.test",
         "name": "System Test & Diagnostics",
-        "description": "Chẩn đoán hệ thống, xem dữ liệu Foundation ở chế độ chỉ đọc và kết quả kiểm thử. Quyền do máy chủ quyết định.",
+        "description": "Trung tâm chẩn đoán hệ thống, giám sát module và tổng hợp kết quả kiểm thử theo ba mức.",
         "tabs": [
-          { "label": "Kiểm tra hệ thống", "path": "/system-test" },
-          { "label": "Xem bảng dữ liệu", "path": "/system-test/data" },
-          { "label": "Chạy test & xem kết quả", "path": "/system-test/runner" }
+          { "label": "System Diagnostics", "path": "/system-test" },
+          { "label": "Test Runner & Results", "path": "/system-test/runner" }
         ]
       }
     ]

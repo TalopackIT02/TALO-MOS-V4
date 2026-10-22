@@ -1,270 +1,110 @@
-// MOD-TEST-02: self-contained result envelope (same shape as the Host clients), no import of the Host's services.
-export interface ApiFailure {
-  ok: false;
-  status: number; // 0 = no response (network)
-  code: string;
-  details: string[];
-  requestId: string;
-}
-
+// Browser client: same-origin session, read-only checks and pre-existing CLI regression artifacts.
+export interface ApiFailure { ok: false; status: number; code: string; details: string[]; requestId: string }
 export type ApiResult<T> = { ok: true; data: T } | ApiFailure;
-
-// MOD-TEST-01 — client of the SYSTEM_TEST module API (/api/system-test/*). Same rules as the Foundation client: same-
-// origin cookie session, no token storage, no retry of a request with side effects, the server decides every permission.
-// No request carries SQL, a table name outside B01…B14, a command or a file path.
-
-export type CheckStatus = 'PASS' | 'FAIL' | 'NOT_TESTED' | 'UNAVAILABLE';
-
-export interface CheckResult {
-  key: string;
-  label: string;
-  status: CheckStatus;
-  detail: string;
-}
-
+export type CheckStatus = 'PASS' | 'FAIL' | 'WARN' | 'NOT_TESTED' | 'UNAVAILABLE';
+export interface CheckResult { key: string; label: string; status: CheckStatus; detail: string }
+export interface FleetModule { moduleKey: string; enabled: boolean; versionCount: number; activeVersions: number }
 export interface QuickCheckRun {
-  runId: string;
-  startedAt: string;
-  finishedAt: string;
-  moduleKey: string;
-  results: CheckResult[];
-  summary: Record<CheckStatus, number>;
+  runId: string; startedAt: string; finishedAt: string; durationMs: number; moduleKey: string;
+  results: CheckResult[]; summary: Record<CheckStatus, number>; fleet: FleetModule[]; fleetComplete: boolean;
 }
-
-export interface TableInfo {
-  tableKey: string;
-  label: string;
-  schema: string;
-  table: string;
-  readable: boolean;
-  columns: string[];
-  hiddenColumns: string[];
-}
-
-// Server-side field search / sort: columns must be shown columns of the table (the server refuses anything else).
-export interface RowsView {
-  search: string;
-  field: string | null;
-  sort: string | null;
-  dir: 'asc' | 'desc';
-}
-
-export const NO_ROWS_VIEW: RowsView = { search: '', field: null, sort: null, dir: 'asc' };
-
-export interface TableRows {
-  table: TableInfo;
-  orderBy: string[];
-  page: number;
-  pageSize: number;
-  totalRows: number;
-  rows: (string | null)[][];
-}
-
 export interface RegressionSuite {
-  key: string;
-  label: string;
-  command: string;
-  status: string;
-  exitCode: number | null;
-  durationMs: number;
-  tests: { passed: number; failed: number; skipped: number } | null;
-  summary: string[];
+  key: string; label: string; command: string; status: 'PASS' | 'FAIL' | 'TIMEOUT' | 'NOT_RUN'; exitCode: number | null;
+  durationMs: number; tests: { passed: number; failed: number; skipped: number } | null; summary: string[];
 }
-
-export interface RegressionRun {
-  runId: string;
-  startedAt: string;
-  finishedAt: string;
-  target: { database: string; host: string; nodeEnv: string };
-  status: string;
-  suites: RegressionSuite[];
-}
-
+export interface RegressionRun { runId: string; startedAt: string; finishedAt: string;
+  target: { database: string; host: string; nodeEnv: string }; status: 'PASS' | 'FAIL' | 'ABORTED'; suites: RegressionSuite[] }
 export type RegressionState = { state: 'NOT_RUN' } | { state: 'INVALID' } | { state: 'AVAILABLE'; run: RegressionRun };
-
-export interface ResultsView {
-  quickCheck: QuickCheckRun | null;
-  regression: RegressionState;
-}
-
-export interface Health {
-  moduleKey: string;
-  checkedAt: string;
-}
+export interface ResultsView { quickCheck: QuickCheckRun | null; regression: RegressionState; runner: { apiExecution: false; mode: 'CLI' } }
+export interface Health { moduleKey: string; enabled: boolean; activeVersions: number; checkedAt: string }
 
 type Json = Record<string, unknown>;
-const isObject = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v);
-const STATUSES: readonly CheckStatus[] = ['PASS', 'FAIL', 'NOT_TESTED', 'UNAVAILABLE'];
-
-function str(v: Json, key: string): string {
-  const value = v[key];
-  if (typeof value !== 'string') throw new Error(`field ${key}`);
-  return value;
-}
-
-function num(v: Json, key: string): number {
-  const value = v[key];
-  if (typeof value !== 'number') throw new Error(`field ${key}`);
-  return value;
-}
-
-function strings(v: unknown): string[] {
-  if (!Array.isArray(v) || !v.every((x): x is string => typeof x === 'string')) throw new Error('strings');
-  return v;
-}
-
-function obj(v: unknown): Json {
-  if (!isObject(v)) throw new Error('object');
-  return v;
-}
-
-function toCheck(v: unknown): CheckResult {
-  const o = obj(v);
-  const status = STATUSES.find((s) => s === o.status);
-  if (!status) throw new Error('status');
-  return { key: str(o, 'key'), label: str(o, 'label'), status, detail: str(o, 'detail') };
-}
-
-function toRun(v: unknown): QuickCheckRun {
-  const o = obj(v);
-  const s = obj(o.summary);
-  if (!Array.isArray(o.results)) throw new Error('results');
-  return {
-    runId: str(o, 'runId'), startedAt: str(o, 'startedAt'), finishedAt: str(o, 'finishedAt'), moduleKey: str(o, 'moduleKey'), results: o.results.map(toCheck),
-    summary: { PASS: num(s, 'PASS'), FAIL: num(s, 'FAIL'), NOT_TESTED: num(s, 'NOT_TESTED'), UNAVAILABLE: num(s, 'UNAVAILABLE') },
-  };
-}
-
-function toTable(v: unknown): TableInfo {
-  const o = obj(v);
-  if (typeof o.readable !== 'boolean') throw new Error('readable');
-  return {
-    tableKey: str(o, 'tableKey'), label: str(o, 'label'), schema: str(o, 'schema'), table: str(o, 'table'), readable: o.readable,
-    columns: strings(o.columns), hiddenColumns: strings(o.hiddenColumns),
-  };
-}
-
-function toRows(v: unknown): TableRows {
-  const o = obj(v);
-  if (!Array.isArray(o.rows)) throw new Error('rows');
-  const rows = o.rows.map((r) => {
-    if (!Array.isArray(r)) throw new Error('row');
-    return r.map((c) => (typeof c === 'string' ? c : null));
-  });
-  return { table: toTable(o.table), orderBy: strings(o.orderBy), page: num(o, 'page'), pageSize: num(o, 'pageSize'), totalRows: num(o, 'totalRows'), rows };
-}
-
-function toSuite(v: unknown): RegressionSuite {
-  const o = obj(v);
-  const t = o.tests === null ? null : obj(o.tests);
-  return {
-    key: str(o, 'key'), label: str(o, 'label'), command: str(o, 'command'), status: str(o, 'status'),
-    exitCode: typeof o.exitCode === 'number' ? o.exitCode : null, durationMs: num(o, 'durationMs'),
-    tests: t ? { passed: num(t, 'passed'), failed: num(t, 'failed'), skipped: num(t, 'skipped') } : null, summary: strings(o.summary),
-  };
-}
-
-function toRegression(v: unknown): RegressionState {
-  const o = obj(v);
-  if (o.state === 'NOT_RUN') return { state: 'NOT_RUN' };
-  if (o.state !== 'AVAILABLE') return { state: 'INVALID' };
-  const r = obj(o.run);
-  const target = obj(r.target);
-  if (!Array.isArray(r.suites)) throw new Error('suites');
-  return {
-    state: 'AVAILABLE',
-    run: {
-      runId: str(r, 'runId'), startedAt: str(r, 'startedAt'), finishedAt: str(r, 'finishedAt'), status: str(r, 'status'), suites: r.suites.map(toSuite),
-      target: { database: str(target, 'database'), host: str(target, 'host'), nodeEnv: str(target, 'nodeEnv') },
-    },
-  };
-}
-
-function toResults(v: unknown): ResultsView {
-  const o = obj(v);
-  return { quickCheck: o.quickCheck === null ? null : toRun(o.quickCheck), regression: toRegression(o.regression) };
-}
-
-async function call<T>(method: 'GET' | 'POST', path: string, key: string, parse: (payload: unknown) => T): Promise<ApiResult<T>> {
+const obj = (x: unknown): Json => {
+  if (x === null || typeof x !== 'object' || Array.isArray(x)) throw new Error('expected object');
+  return x as Json;
+};
+const str = (x: Json, k: string): string => { if (typeof x[k] !== 'string') throw new Error(k); return x[k] as string; };
+const num = (x: Json, k: string): number => { if (typeof x[k] !== 'number' || !Number.isFinite(x[k])) throw new Error(k); return x[k] as number; };
+const statuses = ['PASS', 'FAIL', 'WARN', 'NOT_TESTED', 'UNAVAILABLE'] as const;
+const check = (v: unknown): CheckResult => {
+  const x = obj(v), status = str(x, 'status');
+  if (!statuses.includes(status as CheckStatus)) throw new Error('check status');
+  return { key: str(x, 'key'), label: str(x, 'label'), status: status as CheckStatus, detail: str(x, 'detail') };
+};
+const fleet = (v: unknown): FleetModule => {
+  const x = obj(v);
+  if (typeof x.enabled !== 'boolean') throw new Error('enabled');
+  return { moduleKey: str(x,'moduleKey'), enabled: x.enabled, versionCount: num(x,'versionCount'), activeVersions: num(x,'activeVersions') };
+};
+const quick = (v: unknown): QuickCheckRun => {
+  const x = obj(v), s = obj(x.summary);
+  if (!Array.isArray(x.results) || !Array.isArray(x.fleet) || typeof x.fleetComplete !== 'boolean') throw new Error('quick result');
+  return { runId: str(x,'runId'), startedAt: str(x,'startedAt'), finishedAt: str(x,'finishedAt'),
+    durationMs: num(x,'durationMs'), moduleKey: str(x,'moduleKey'), results: x.results.map(check),
+    summary: { PASS:num(s,'PASS'), FAIL:num(s,'FAIL'), WARN:num(s,'WARN'), NOT_TESTED:num(s,'NOT_TESTED'), UNAVAILABLE:num(s,'UNAVAILABLE') },
+    fleet: x.fleet.map(fleet), fleetComplete: x.fleetComplete };
+};
+const stringList = (x: unknown): string[] => { if (!Array.isArray(x) || x.some((v) => typeof v !== 'string')) throw new Error('array'); return x; };
+const suite = (v: unknown): RegressionSuite => {
+  const x = obj(v), status = str(x,'status');
+  if (!['PASS','FAIL','TIMEOUT','NOT_RUN'].includes(status)) throw new Error('suite status');
+  const t = x.tests === null ? null : obj(x.tests);
+  return { key: str(x,'key'), label: str(x,'label'), command: str(x,'command'), status: status as RegressionSuite['status'],
+    exitCode: x.exitCode === null ? null : num(x,'exitCode'), durationMs: num(x,'durationMs'),
+    tests: t ? {passed:num(t,'passed'), failed:num(t,'failed'), skipped:num(t,'skipped')} : null,
+    summary: stringList(x.summary) };
+};
+const regression = (v: unknown): RegressionState => {
+  const x = obj(v);
+  if (x.state === 'NOT_RUN') return { state:'NOT_RUN' };
+  if (x.state !== 'AVAILABLE') return { state:'INVALID' };
+  const run = obj(x.run), target = obj(run.target), status = str(run,'status');
+  if (!Array.isArray(run.suites) || !['PASS','FAIL','ABORTED'].includes(status)) throw new Error('regression');
+  return { state:'AVAILABLE', run: { runId:str(run,'runId'), startedAt:str(run,'startedAt'), finishedAt:str(run,'finishedAt'),
+    target:{database:str(target,'database'),host:str(target,'host'),nodeEnv:str(target,'nodeEnv')},
+    status:status as RegressionRun['status'], suites:run.suites.map(suite) } };
+};
+async function call<T>(method: 'GET' | 'POST', path: string, name: string, parse: (x: unknown) => T): Promise<ApiResult<T>> {
   let response: Response;
   try {
-    response = await fetch(`/api/system-test${path}`, {
-      method,
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: method === 'GET' ? { Accept: 'application/json' } : { 'Content-Type': 'application/json', Accept: 'application/json' },
-      ...(method === 'GET' ? {} : { body: '{}' }),
-    });
-  } catch {
-    return { ok: false, status: 0, code: 'NETWORK', details: [], requestId: '' };
-  }
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
+    response = await fetch(`/api/system-test${path}`, { method, credentials:'same-origin', cache:'no-store',
+      headers: method === 'GET' ? {Accept:'application/json'} : {'Content-Type':'application/json',Accept:'application/json'},
+      ...(method === 'POST' ? {body:'{}'} : {}) });
+  } catch { return {ok:false,status:0,code:'NETWORK',details:[],requestId:''}; }
+  let payload: unknown;
+  try { payload = await response.json(); } catch { payload = null; }
   if (response.ok) {
-    try {
-      return { ok: true, data: parse(isObject(payload) ? payload[key] : undefined) };
-    } catch {
-      return { ok: false, status: response.status, code: 'UNEXPECTED_RESPONSE', details: [], requestId: '' };
-    }
+    try { return {ok:true,data:parse(obj(payload)[name])}; }
+    catch { return {ok:false,status:response.status,code:'UNEXPECTED_RESPONSE',details:[],requestId:''}; }
   }
-  const error = isObject(payload) && isObject(payload.error) ? payload.error : {};
-  const details = isObject(error.details) && Array.isArray(error.details.fields) ? error.details.fields.filter((x): x is string => typeof x === 'string') : [];
-  return {
-    ok: false, status: response.status, code: typeof error.code === 'string' ? error.code : 'UNKNOWN', details,
-    requestId: typeof error.requestId === 'string' ? error.requestId : '',
-  };
+  let error: Json = {};
+  try { error = obj(obj(payload).error); } catch { /* untrusted error body */ }
+  let details: string[] = [];
+  try { details = stringList(obj(error.details).fields); } catch { /* optional */ }
+  return {ok:false,status:response.status,code:typeof error.code === 'string'?error.code:'UNKNOWN',
+    details,requestId:typeof error.requestId === 'string'?error.requestId:''};
 }
-
 export const systemTestApi = {
-  health: () => call('GET', '/health', 'health', (v) => {
-    const o = obj(v);
-    return { moduleKey: str(o, 'moduleKey'), checkedAt: str(o, 'checkedAt') };
+  health: () => call('GET','/health','health', (v) => {
+    const x = obj(v);
+    return {moduleKey:str(x,'moduleKey'),checkedAt:str(x,'checkedAt'),enabled:x.enabled===true,activeVersions:num(x,'activeVersions')};
   }),
-  runChecks: () => call('POST', '/checks/run', 'run', toRun),
-  tables: () => call('GET', '/tables', 'tables', (v) => {
-    if (!Array.isArray(v)) throw new Error('tables');
-    return v.map(toTable);
+  runChecks: () => call('POST','/checks/run','run',quick),
+  results: () => call('GET','/results','results',(v) => {
+    const x=obj(v); return {quickCheck:x.quickCheck===null?null:quick(x.quickCheck),regression:regression(x.regression),
+      runner:{apiExecution:false as const,mode:'CLI' as const}};
   }),
-  rows: (tableKey: string, page: number, pageSize: number, view: RowsView = NO_ROWS_VIEW) => {
-    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    if (view.search.trim() !== '') q.set('search', view.search.trim());
-    if (view.field !== null) q.set('field', view.field);
-    if (view.sort !== null) { q.set('sort', view.sort); q.set('dir', view.dir); }
-    return call('GET', `/tables/${encodeURIComponent(tableKey)}/rows?${q.toString()}`, 'data', toRows);
-  },
-  results: () => call('GET', '/results', 'results', toResults),
 };
-
-const SYSTEM_TEST_TEXT: Record<string, string> = {
-  MODULE_UNAVAILABLE: 'Module System Test chưa được bật hoặc không có phiên bản ACTIVE.',
-  TABLE_NOT_FOUND: 'Bảng không nằm trong danh sách được phép xem.',
-  TABLE_NOT_READABLE: 'Không có quyền xem bảng này.',
+const CODES: Record<string,string> = {
+  MODULE_UNAVAILABLE:'SYSTEM_TEST chưa ENABLED hoặc không có đúng một phiên bản ACTIVE.',
+  VALIDATION_ERROR:'Payload kiểm tra không hợp lệ.',
+  SESSION_INVALID:'Phiên đăng nhập đã hết hạn.',
+  PASSWORD_CHANGE_REQUIRED:'Cần đổi mật khẩu để tiếp tục.',
+  FORBIDDEN:'Tài khoản chưa được cấp quyền cho chức năng này.',
+  SERVICE_BUSY:'Không truy vấn được dịch vụ. Không coi là PASS.',
+  NETWORK:'Không kết nối được backend.',
+  UNEXPECTED_RESPONSE:'API trả dữ liệu không đúng hợp đồng.',
 };
-
-const BY_CODE: Record<string, string> = {
-  VALIDATION_ERROR: 'Thông tin chưa hợp lệ. Vui lòng kiểm tra lại các trường đã nhập.',
-  FORBIDDEN: 'Bạn không có quyền thực hiện thao tác này.',
-  SESSION_INVALID: 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.',
-  PASSWORD_CHANGE_REQUIRED: 'Bạn cần đổi mật khẩu trước khi sử dụng hệ thống.',
-  SERVICE_BUSY: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
-  UNEXPECTED_RESPONSE: 'Phản hồi từ máy chủ không đúng định dạng mong đợi.',
-};
-
-const BY_STATUS: Record<number, string> = {
-  0: 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng và thử lại.',
-  403: 'Bạn không có quyền thực hiện thao tác này.',
-  404: 'Không tìm thấy dữ liệu yêu cầu.',
-  503: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
-};
-
-export function describeSystemTestFailure(failure: ApiFailure): string {
-  const own = SYSTEM_TEST_TEXT[failure.code];
-  const base = own ?? BY_CODE[failure.code] ?? BY_STATUS[failure.status] ?? 'Đã xảy ra lỗi không xác định.';
-  const details = failure.details.length > 0 ? ` (${failure.details.join(', ')})` : '';
-  const reference = failure.status >= 500 && failure.requestId ? ` Mã tham chiếu: ${failure.requestId}.` : '';
-  return `${base}${details}${reference}`;
+export function describeSystemTestFailure(e: ApiFailure): string {
+  return `${CODES[e.code] ?? `Yêu cầu không thành công (HTTP ${e.status}).`}${e.requestId ? ` Mã tham chiếu: ${e.requestId}.` : ''}`;
 }

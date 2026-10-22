@@ -8,7 +8,7 @@ import { systemTestRouter } from './system-test.routes.js';
 import { SystemTestService } from './system-test.service.js';
 
 // SYSTEM_TEST (System Test & Diagnostics) module — backend entry of the package (module.json "backendEntry").
-// Diagnostics, read-only Data Viewer and test results, mounted under /api/system-test. MOD-TEST-02: everything the
+// Diagnostics and regression results, mounted under /api/system-test. MOD-TEST-02: everything the
 // module needs from Foundation / Auth arrives as Host capabilities (host.ts); it reads through the Host's API role only.
 
 export { HOST_PROTOCOL, REQUIRED_CAPABILITIES } from './host.js';

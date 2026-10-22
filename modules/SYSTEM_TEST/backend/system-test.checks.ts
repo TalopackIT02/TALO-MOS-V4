@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import type { ModuleAccessDecision as AccessDecision } from './host.js';
-import type { DiagnosticsSnapshot } from './system-test.repository.js';
+import type { DiagnosticsSnapshot, OperationsSnapshot } from './system-test.repository.js';
+import type { RegressionRead } from './system-test.results.js';
 
 // MOD-TEST-01 — quick read-only checks (TAB 1). Pure evaluation of facts that the service has just read: nothing here
 // is assumed. A component is PASS only when its check really ran and succeeded; FAIL when it ran and found a defect;
 // UNAVAILABLE when its source could not be read (privilege / database error); NOT_TESTED when a prerequisite is missing.
 
-export type CheckStatus = 'PASS' | 'FAIL' | 'NOT_TESTED' | 'UNAVAILABLE';
+export type CheckStatus = 'PASS' | 'FAIL' | 'WARN' | 'NOT_TESTED' | 'UNAVAILABLE';
 
 export const CHECK_COMPONENTS = [
   ['AUTHENTICATION', 'Authentication'],
@@ -21,6 +22,16 @@ export const CHECK_COMPONENTS = [
   ['LIFECYCLE', 'Lifecycle'],
   ['NAVIGATION', 'Navigation'],
   ['MODULE_API', 'Module API'],
+  ['FLEET_DISCOVERY', 'Danh mục module đã đăng ký'],
+  ['FLEET_LIFECYCLE', 'Sức khỏe vòng đời các module'],
+  ['FLEET_RELEASES', 'Phiên bản module đang hoạt động'],
+  ['DEPLOYMENT_SYNC', 'Đối chiếu source package / deployed registry'],
+  ['DB_CONNECTIONS', 'Mức sử dụng kết nối PostgreSQL'],
+  ['DB_DEADLOCKS', 'Deadlock từ PostgreSQL statistics'],
+  ['DB_ROLLBACKS', 'Transaction rollback (thống kê tích lũy)'],
+  ['AUDIT_DENIED', 'IAM/Foundation DENIED trong 60 phút'],
+  ['AUDIT_FAILURE', 'Foundation audit FAILURE trong 60 phút'],
+  ['REGRESSION', 'Tín hiệu Full Regression gần nhất'],
 ] as const;
 
 export type CheckKey = (typeof CHECK_COMPONENTS)[number][0];
@@ -47,6 +58,8 @@ export interface CheckFacts {
   readonly menuRoutes: readonly string[] | { readonly error: unknown };
   // MOD-TEST-02: Host MIC inspection of the single ACTIVE version (hash integrity, MIC-1.0 schema); null = not inspected.
   readonly manifest: { readonly intact: boolean; readonly micValid: boolean } | null;
+  readonly operations?: OperationsSnapshot | { readonly error: unknown };
+  readonly regression?: RegressionRead | null;
 }
 
 const failed = <T extends object>(v: T | { readonly error: unknown }): v is { readonly error: unknown } => 'error' in v;
@@ -155,6 +168,69 @@ export function evaluateChecks(facts: CheckFacts, sqlstate: (error: unknown) => 
   }
   if (!out.has('NAVIGATION')) set('NAVIGATION', 'NOT_TESTED', 'Chưa có hồ sơ MIC hợp lệ để biết route của Module.');
 
+  const ops = facts.operations;
+  const unavailable = (key: CheckKey, note: string) => set(key, 'UNAVAILABLE', note);
+  if (!ops || failed(ops)) {
+    for (const key of ['FLEET_DISCOVERY','FLEET_LIFECYCLE','FLEET_RELEASES','DB_CONNECTIONS','DB_DEADLOCKS','DB_ROLLBACKS','AUDIT_DENIED','AUDIT_FAILURE'] as const)
+      unavailable(key, 'Không thu thập được số liệu kiểm tra vận hành.');
+  } else {
+    if (ops.fleet.state === 'UNAVAILABLE') {
+      for (const key of ['FLEET_DISCOVERY','FLEET_LIFECYCLE','FLEET_RELEASES'] as const)
+        unavailable(key, `Không có số liệu Foundation Registry (${ops.fleet.sqlstate ?? 'query failed'}).`);
+    } else {
+      const fleet = ops.fleet.value;
+      const capped = fleet.length > 200;
+      const included = fleet.slice(0, 200);
+      const misconfigured = included.filter((m) => m.activeVersions > 1 || (m.enabled && m.activeVersions !== 1));
+      const disabled = included.filter((m) => !m.enabled);
+      const ready = included.filter((m) => m.enabled && m.activeVersions === 1);
+      const missingVersion = included.filter((m) => m.versionCount === 0);
+      set('FLEET_DISCOVERY', capped ? 'WARN' : 'PASS',
+        `Registry: ${included.length}${capped ? '+' : ''} module; ${ready.length} đang ENABLED với đúng 1 ACTIVE. ${capped ? 'Danh sách đạt giới hạn 200, chưa đầy đủ.' : 'Đây là danh sách đăng ký, không chứng minh code đã được deploy.'}`);
+      set('FLEET_LIFECYCLE', misconfigured.length ? 'FAIL' : disabled.length ? 'WARN' : 'PASS',
+        misconfigured.length ? `${misconfigured.length} module ENABLED không có đúng 1 ACTIVE (hoặc có nhiều ACTIVE): ${misconfigured.slice(0, 8).map((m) => m.moduleKey).join(', ')}.`
+          : `${ready.length} ENABLED/ACTIVE; ${disabled.length} DISABLED (có thể chủ động); không có sai lệch lifecycle đang bật.`);
+      set('FLEET_RELEASES', included.some((m) => m.activeVersions > 1) ? 'FAIL' : missingVersion.length ? 'WARN' : 'PASS',
+        `${included.reduce((a, m) => a + m.versionCount, 0)} version được đăng ký; ${missingVersion.length} module chưa có version; ${included.filter((m) => m.activeVersions === 1).length} module có 1 ACTIVE.`);
+    }
+    if (ops.activity.state === 'UNAVAILABLE') {
+      for (const key of ['DB_CONNECTIONS','DB_DEADLOCKS','DB_ROLLBACKS'] as const) unavailable(key, `Không có quyền/số liệu pg_stat_database (${ops.activity.sqlstate ?? 'query failed'}).`);
+    } else {
+      const a = ops.activity.value;
+      const pct = a.maxConnections > 0 ? a.connections / a.maxConnections * 100 : 0;
+      set('DB_CONNECTIONS', pct >= 95 ? 'FAIL' : pct >= 80 ? 'WARN' : 'PASS',
+        `${a.connections}/${a.maxConnections} kết nối đang mở (${pct.toFixed(1)}% max_connections). Ngưỡng cảnh báo 80%, nghiêm trọng 95%.`);
+      set('DB_DEADLOCKS', a.deadlocks > 0 ? 'WARN' : 'PASS',
+        `${a.deadlocks} deadlock cộng dồn kể từ ${a.statsReset ?? 'lần đặt lại thống kê gần nhất (không rõ thời điểm)'}. Không suy diễn đây là lỗi đang xảy ra.`);
+      const transactions = a.commits + a.rollbacks;
+      const rollbackPercent = transactions > 0 ? 100 * a.rollbacks / transactions : 0;
+      const rollbackStatus: CheckStatus = transactions >= 100 && rollbackPercent >= 30 ? 'FAIL'
+        : transactions >= 100 && rollbackPercent >= 10 ? 'WARN' : 'PASS';
+      set('DB_ROLLBACKS', rollbackStatus,
+        `${a.rollbacks} rollback / ${transactions} transactions (${rollbackPercent.toFixed(1)}%) kể từ stats_reset. Ngưỡng tham khảo: WARN ≥10%, FAIL ≥30% khi ≥100 transactions; không phải tỷ lệ 60 phút.`);
+    }
+    if (ops.audit.state === 'UNAVAILABLE') {
+      for (const key of ['AUDIT_DENIED','AUDIT_FAILURE'] as const) unavailable(key, `Không đọc được B08 audit (${ops.audit.sqlstate ?? 'query failed'}). Không suy diễn là 0.`);
+    } else {
+      const a = ops.audit.value;
+      set('AUDIT_DENIED', a.denied > 0 ? 'WARN' : 'PASS', `${a.denied} yêu cầu DENIED trong 60 phút gần nhất. DENIED có thể là kiểm soát truy cập hoạt động đúng; cần xem audit theo quy trình phân quyền.`);
+      set('AUDIT_FAILURE', a.failures > 0 ? 'WARN' : 'PASS', `${a.failures} sự kiện FAILURE được ghi trong B08 trong 60 phút gần nhất. Không đồng nghĩa hệ thống ngừng hoạt động.`);
+    }
+  }
+  set('DEPLOYMENT_SYNC', 'NOT_TESTED', 'Module Host hiện không cung cấp capability so sánh thư mục modules/ với package đang chạy. Chỉ kiểm tra registry Foundation; không tự coi là deploy thành công.');
+  const reg = facts.regression;
+  if (reg === null || reg === undefined) set('REGRESSION', 'NOT_TESTED', 'Chưa có quyền hoặc chưa đọc tín hiệu Full Regression qua Host. Kiểm tra bằng tab Test Runner.');
+  else if (reg.state === 'NOT_RUN') set('REGRESSION', 'NOT_TESTED', 'Chưa có artifact Full Regression từ runner CLI chính thức.');
+  else if (reg.state === 'INVALID') set('REGRESSION', 'WARN', 'Artifact Full Regression không hợp lệ; cần chạy lại runner CLI của Host.');
+  else {
+    const failedSuites = reg.run.suites.filter((s) => s.status === 'FAIL' || s.status === 'TIMEOUT');
+    const notRunSuites = reg.run.suites.filter((s) => s.status === 'NOT_RUN');
+    const age = Date.now() - Date.parse(reg.run.finishedAt);
+    const stale = !Number.isFinite(age) || age < 0 || age > 24 * 60 * 60 * 1000;
+    set('REGRESSION', failedSuites.length || reg.run.status === 'FAIL' ? 'FAIL' : reg.run.status === 'ABORTED' || notRunSuites.length || stale ? 'WARN' : 'PASS',
+      `Lần chạy ${reg.run.runId}: ${reg.run.status}; ${failedSuites.length} suite lỗi/timeout; ${notRunSuites.length} chưa chạy; ${stale ? 'kết quả cũ trên 24 giờ hoặc timestamp không hợp lệ' : 'kết quả trong 24 giờ'}.`);
+  }
+
   return CHECK_COMPONENTS.map(([key, label]) => {
     const r = out.get(key);
     return { key, label, status: r?.status ?? 'NOT_TESTED', detail: r?.detail ?? 'Chưa kiểm tra.' };
@@ -162,7 +238,7 @@ export function evaluateChecks(facts: CheckFacts, sqlstate: (error: unknown) => 
 }
 
 export function summarize(results: readonly CheckResult[]): Record<CheckStatus, number> {
-  const s: Record<CheckStatus, number> = { PASS: 0, FAIL: 0, NOT_TESTED: 0, UNAVAILABLE: 0 };
+  const s: Record<CheckStatus, number> = { PASS: 0, FAIL: 0, WARN: 0, NOT_TESTED: 0, UNAVAILABLE: 0 };
   for (const r of results) s[r.status] += 1;
   return s;
 }

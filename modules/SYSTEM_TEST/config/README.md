@@ -1,1 +1,1 @@
-No package configuration is required; Host-specific settings (regression suites, results location) belong to the Host.
+No extra module-specific configuration is required. The Host provides session, IAM, readOnly PostgreSQL, Foundation navigation, MIC validation and regressionResults capabilities. No command execution / arbitrary SQL capability is requested.
