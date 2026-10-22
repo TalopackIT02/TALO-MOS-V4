@@ -1,0 +1,19 @@
+
+> talo-mos-v4-frontend@0.0.0 pretypecheck
+> npm run modules:sync && npm run icons:sync
+
+
+> talo-mos-v4-frontend@0.0.0 modules:sync
+> node ../backend/scripts/modules-sync.mjs frontend
+
+[modules] frontend: DATA_INSPECTOR 0.1.0 (MIC-1.0, TALO-MODULE-HOST-1)
+[modules] frontend: SYSTEM_TEST 1.0.0 (MIC-1.0, TALO-MODULE-HOST-1)
+
+> talo-mos-v4-frontend@0.0.0 icons:sync
+> node scripts/navigation-icons.mjs
+
+[icons] manifest unchanged (5184 icons)
+
+> talo-mos-v4-frontend@0.0.0 typecheck
+> tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit
+

@@ -1,0 +1,14 @@
+
+> talo-mos-v4-backend@0.0.0 pretypecheck
+> npm run modules:sync
+
+
+> talo-mos-v4-backend@0.0.0 modules:sync
+> node scripts/modules-sync.mjs backend
+
+[modules] backend: DATA_INSPECTOR 0.1.0 (MIC-1.0, TALO-MODULE-HOST-1)
+[modules] backend: SYSTEM_TEST 1.0.0 (MIC-1.0, TALO-MODULE-HOST-1)
+
+> talo-mos-v4-backend@0.0.0 typecheck
+> tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit
+

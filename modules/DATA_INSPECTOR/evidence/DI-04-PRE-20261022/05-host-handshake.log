@@ -1,0 +1,17 @@
+
+ RUN  v5.0.2 D:/Documents/ClaudeProject/TALO-MOS-V4/backend
+
+ ✓ test/unit/module-host/module-host.test.ts > modules-sync (build-time loader) > discovers a second minimal package by the same loader; skips every invalid package; copies only the target side 96ms
+ ✓ test/unit/module-host/module-host.test.ts > modules-sync (build-time loader) > no modules folder → empty registry (the Host still builds); refuses an output folder with another name 6ms
+ ✓ test/unit/module-host/module-host.test.ts > modules-sync (build-time loader) > the build-time and runtime capability lists are the same 1ms
+ ✓ test/unit/module-host/module-host.test.ts > module-host loader (runtime handshake + mount) > mounts a package only after protocol + capability handshake; a failing package is not mounted 3ms
+ ✓ test/unit/module-host/module-host.test.ts > module-host loader (runtime handshake + mount) > the checker itself detects an invalid key, a duplicate key, a protocol or capability mismatch 1ms
+ ✓ test/unit/module-host/module-host.test.ts > module-host loader (runtime handshake + mount) > every installed package (generated registry) passes the handshake and is mounted — no fixed package list 2ms
+ ✓ test/unit/module-host/module-host.test.ts > module-host loader (runtime handshake + mount) > every package folder of the repository is valid and installed: an invalid new package (skipped by the sync) fails here 2ms
+ ✓ test/unit/module-host/module-host.test.ts > module-host loader (runtime handshake + mount) > SYSTEM_TEST and DATA_INSPECTOR are both recognised and pass the handshake (independent packages) 0ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  16:58:11
+   Duration  832ms (transform 46%, import 37%, tests 17%, worker 1%)
+
