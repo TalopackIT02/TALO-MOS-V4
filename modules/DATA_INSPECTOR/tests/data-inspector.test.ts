@@ -22,7 +22,7 @@ import {
 } from '../../../backend/src/installed-modules/DATA_INSPECTOR/backend/data-inspector.sql.js';
 import type { RelationIdentity } from '../../../backend/src/installed-modules/DATA_INSPECTOR/backend/data-inspector.sql.js';
 import { JSON_PARSE_MAX_CHARS, MASK, isSensitiveName, maskJsonText, maskModeOf } from '../../../backend/src/installed-modules/DATA_INSPECTOR/backend/data-inspector.masking.js';
-import { DATA_INSPECTOR_EVIDENCE_RUN, DATA_INSPECTOR_MIC10_CANDIDATE, dataInspectorMic } from '../../../backend/src/installed-modules/DATA_INSPECTOR/mic/data-inspector.mic.js';
+import { DATA_INSPECTOR_EVIDENCE_RUN, DATA_INSPECTOR_IAM_FIXTURE_RUN, DATA_INSPECTOR_MIC10_CANDIDATE, dataInspectorMic } from '../../../backend/src/installed-modules/DATA_INSPECTOR/mic/data-inspector.mic.js';
 import { canonicalDigest } from '../../../backend/src/modules/foundation/foundation.json.js';
 import { activationBlockers } from '../../../backend/src/modules/foundation/foundation.lifecycle.service.js';
 
@@ -258,27 +258,33 @@ describe('DI-02 MIC-10 candidate', () => {
     expect(result.ok ? 'ok' : result.errors).toBe('ok');
   });
 
-  it('every PASS cites a log of the evidence run; the pre-activation IAM runtime test stays NOT_TESTED', () => {
-    for (const e of DATA_INSPECTOR_MIC10_CANDIDATE.filter((x) => x.result === 'PASS')) {
-      for (const ref of e.reference.split('; ')) expect(ref).toMatch(new RegExp(`^modules/DATA_INSPECTOR/evidence/${DATA_INSPECTOR_EVIDENCE_RUN}/0[1-9]-[a-z-]+\\.log$`));
+  it('eight pre-activation groups, every one PASS with a log of a real evidence run; DI-IAM-DB is declared as FIXTURE', () => {
+    expect(DATA_INSPECTOR_MIC10_CANDIDATE.map((x) => x.name.split(' ')[0])).toEqual(['DI-UNIT', 'DI-DB', 'DI-MASK', 'DI-MIC', 'DI-HOST', 'DI-TYPECHECK', 'DI-REGRESSION', 'DI-IAM-DB']);
+    for (const e of DATA_INSPECTOR_MIC10_CANDIDATE) {
+      expect([e.name.split(' ')[0], e.result]).toEqual([e.name.split(' ')[0], 'PASS']);
+      for (const ref of e.reference.split('; ')) {
+        expect(ref).toMatch(new RegExp(`^modules/DATA_INSPECTOR/evidence/(${DATA_INSPECTOR_EVIDENCE_RUN}|${DATA_INSPECTOR_IAM_FIXTURE_RUN})/0[1-9]-[a-z-]+\\.log$`));
+      }
     }
-    expect(DATA_INSPECTOR_MIC10_CANDIDATE.filter((x) => x.result !== 'PASS').map((x) => [x.name.split(' ')[0], x.result])).toEqual([['DI-IAM-DB', 'NOT_TESTED']]);
+    expect(DATA_INSPECTOR_MIC10_CANDIDATE.find((x) => x.name.startsWith('DI-IAM-DB'))?.name).toMatch(/^DI-IAM-DB \(FIXTURE\).*NOT the real data_inspector\.\* permissions/);
   });
 
-  it('the REAL Foundation activation gate still blocks the candidate (and the spec default): TEST_EVIDENCE_NOT_PASSED', () => {
-    expect(activationBlockers(factsOf(candidate()))).toEqual(['TEST_EVIDENCE_NOT_PASSED']);
+  it('the REAL Foundation activation gate accepts the final candidate and still blocks the spec default (NOT_TESTED)', () => {
+    expect(activationBlockers(factsOf(candidate()))).toEqual([]);
     expect(activationBlockers(factsOf(dataInspectorMic()))).toEqual(['TEST_EVIDENCE_NOT_PASSED']);
   });
 
   // Run after the evidence run (TALO_DI_EVIDENCE_VERIFY=1): referenced logs exist, their step exited 0, and test logs report no failure.
   it.runIf(process.env['TALO_DI_EVIDENCE_VERIFY'] === '1')('evidence files referenced by PASS entries exist and record a successful step', () => {
     const repo = resolve(here, '../../..');
-    const run = readFileSync(join(repo, 'modules/DATA_INSPECTOR/evidence', DATA_INSPECTOR_EVIDENCE_RUN, '00-run.txt'), 'utf8');
     for (const e of DATA_INSPECTOR_MIC10_CANDIDATE.filter((x) => x.result === 'PASS')) {
       for (const ref of e.reference.split('; ')) {
         const log = readFileSync(join(repo, ref), 'utf8');
+        const run = readFileSync(join(repo, ref, '..', '00-run.txt'), 'utf8');
         const step = ref.split('/').at(-1)?.replace(/\.log$/, '') ?? '';
-        expect([step, run.includes(`${step} |`) && new RegExp(`^${step} \\|[^\\n]*\\| exit=0 \\|`, 'm').test(run)]).toEqual([step, true]);
+        // Multi-step run: "<step> | … | exit=0 |"; single-step run (DI-03B): "exit=0 start=…".
+        const ok = new RegExp(`^${step} \\|[^\\n]*\\| exit=0 \\|`, 'm').test(run) || (!run.includes(' | exit=') && /^exit=0 /m.test(run));
+        expect([step, ok]).toEqual([step, true]);
         expect([step, /Tests\s+\d+ failed|Test Files\s+\d+ failed|error TS/.test(log)]).toEqual([step, false]);
       }
     }

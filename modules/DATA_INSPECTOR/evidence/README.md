@@ -5,12 +5,15 @@ code, số test), các log đã lọc (bỏ dòng logger JSON và mã ANSI — k
 `SHA256SUMS`. Log thô chỉ nằm ở máy chạy, không đưa vào repository.
 
 Môi trường: Windows 11, Node v24, PostgreSQL TEST `talo_mos_v4_test`, role `talo_app` (chỉ đọc qua Host `readOnly`).
-Không có migration, GRANT, ghi dữ liệu, đăng ký module hay cấp quyền IAM trong các lần chạy này.
+Không có migration, SQL GRANT, đăng ký module hay cấp quyền IAM thật trong các lần chạy này. Các lần chạy DI-02 / DI-04-PRE
+chỉ đọc; DI-03B ghi dữ liệu IAM **fixture** bằng `talo_test_harness` (quyền có sẵn) và xóa hết theo ID (audit B08 giữ lại).
 
 | Lần chạy | Trạng thái | Ghi chú |
 |---|---|---|
 | `DI-02-20261022-161105` | R1 — có 1 bước FAIL | Bước 03 (`-t FIX-01`): test DB phụ thuộc thứ tự (stub lifecycle chỉ bật sau test đầu). Đã sửa test cho độc lập thứ tự; không đổi assertion. Giữ lại làm hồ sơ. |
-| `DI-02-20261022-R2` | Lần chạy được MIC-10 Candidate tham chiếu | Xem `00-run.txt` |
+| `DI-02-20261022-R2` | Lần chạy DI-02 (thay thế bởi DI-04-PRE cho MIC-10 cuối) | Xem `00-run.txt` |
+| `DI-03B-FBET_DI_MVJD8RZ44461` | DI-IAM-DB (FIXTURE) — 7/7 PASS, cleanup 0 dòng còn lại, 10 dòng B08 DENIED giữ lại | IAM/Host/PostgreSQL thật; session admin giả lập, lifecycle stub; K05 fixture, không phải `data_inspector.*` |
+| `DI-04-PRE-20261022` | Lần chạy được MIC-10 FINAL tham chiếu (10 bước exit=0) | Xem `00-run.txt` |
 
 ## Phân loại
 
@@ -25,9 +28,9 @@ Không có migration, GRANT, ghi dữ liệu, đăng ký module hay cấp quyề
 | DI-HOST (DI-01) | 05 | PASS |
 | DI-TYPECHECK | 06–08 | PASS |
 | DI-REGRESSION | 09 | PASS |
-| DI-IAM-DB — IAM runtime trên PostgreSQL với quyền `data_inspector.*` đã provision (ALLOW chỉ admin, Direct DENY, cấp nhầm cho người khác → 403, audit B08) | — | **NOT_TESTED** — cần phê duyệt provision IAM (BL-02) |
+| DI-IAM-DB (FIXTURE) — IAM runtime trên PostgreSQL TEST với K05 fixture (quyết định chủ dự án DI-04) | DI-03B | PASS |
 
-Vì còn DI-IAM-DB `NOT_TESTED`, gate kích hoạt của Foundation (mọi kết quả phải PASS) **vẫn đóng**.
+MIC-10 FINAL: 8/8 PASS, gate kích hoạt Foundation chấp nhận (`activationBlockers` = []). Quyền thật `data_inspector.*` được kiểm ở nghiệm thu sau kích hoạt.
 
 **Sau kích hoạt — nghiệm thu tích hợp, không đưa vào MIC-10 (không thể PASS trước ACTIVATE)**
 - Lifecycle thật: ENABLED + 1 ACTIVE → 200; DISABLE / RETIRE → 503.

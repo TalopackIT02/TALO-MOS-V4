@@ -18,14 +18,15 @@ export const DATA_INSPECTOR_DEFAULT_EVIDENCE: MicEvidence = [
   },
 ];
 
-// DI-02 — MIC-10 CANDIDATE (not PUT / SUBMITTED; owner review pending). Each PASS cites a real run whose filtered log is
-// in modules/DATA_INSPECTOR/evidence/<run>/ (commands, time, HEAD, counts in 00-run.txt; hashes in SHA256SUMS).
-// Pre-activation tests only: post-activation acceptance (registered lifecycle, B09 menu, AppShell UI, login E2E) cannot
-// be PASS before ACTIVATE and is listed in the evidence README, not here. The IAM runtime test on PostgreSQL is required
-// BEFORE activation and is not run (IAM provisioning not approved, BL-02): it stays NOT_TESTED, so the Foundation
-// activation gate (every result PASS) stays closed — on purpose.
-export const DATA_INSPECTOR_EVIDENCE_RUN = 'DI-02-20261022-R2';
-const ev = (file: string) => `modules/DATA_INSPECTOR/evidence/${DATA_INSPECTOR_EVIDENCE_RUN}/${file}`;
+// DI-04 — MIC-10 FINAL CANDIDATE of 0.1.0 (owner decision: the eight pre-activation groups below; DI-IAM-DB accepted as
+// a FIXTURE test). Each PASS cites a real run whose filtered log is in modules/DATA_INSPECTOR/evidence/<run>/ (commands,
+// time, HEAD, counts in 00-run.txt; hashes in SHA256SUMS). Pre-activation tests only: the post-activation acceptance
+// (real data_inspector.* permissions, registered lifecycle, B09 menu, AppShell UI, login E2E) is NOT in MIC-10.
+// DI-IAM-DB (FIXTURE): fixture K05 FBET_DI_<run>; the real data_inspector.* permissions did not exist at test time;
+// admin session simulated, lifecycle stubbed; AccessGuard, IAM evaluator, PostgreSQL and Host readOnly were real.
+export const DATA_INSPECTOR_EVIDENCE_RUN = 'DI-04-PRE-20261022';
+export const DATA_INSPECTOR_IAM_FIXTURE_RUN = 'DI-03B-FBET_DI_MVJD8RZ44461';
+const ev = (file: string, run: string = DATA_INSPECTOR_EVIDENCE_RUN) => `modules/DATA_INSPECTOR/evidence/${run}/${file}`;
 
 export const DATA_INSPECTOR_MIC10_CANDIDATE: MicEvidence = [
   { name: 'DI-UNIT module unit and Host-compatibility tests (real Host capabilities, mock database)', result: 'PASS', reference: ev('01-module-unit.log') },
@@ -42,8 +43,8 @@ export const DATA_INSPECTOR_MIC10_CANDIDATE: MicEvidence = [
   },
   { name: 'DI-REGRESSION backend regression suite (npm test)', result: 'PASS', reference: ev('09-backend-regression.log') },
   {
-    name: 'DI-IAM-DB IAM runtime on PostgreSQL with provisioned data_inspector.catalog.read / rows.read: direct ALLOW admin only, Direct DENY, non-admin mis-grant 403, B08 DENIED audit',
-    result: 'NOT_TESTED', reference: 'BLOCKED: IAM provisioning of data_inspector.* not approved (BL-02); required before activation',
+    name: 'DI-IAM-DB (FIXTURE) IAM runtime on PostgreSQL TEST with fixture K05 FBET_DI_<run> (NOT the real data_inspector.* permissions, not provisioned at test time; admin session simulated, lifecycle stubbed): Direct ALLOW, no grant, Role ALLOW + Direct DENY, non-admin username gate, per-Action permission, revoked / expired / not started, no system role, B08 DENIED audit, cleanup 0 rows left',
+    result: 'PASS', reference: ev('01-iam-fixture.log', DATA_INSPECTOR_IAM_FIXTURE_RUN),
   },
 ];
 
