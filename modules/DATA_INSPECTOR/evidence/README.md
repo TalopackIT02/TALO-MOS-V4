@@ -14,6 +14,9 @@ chỉ đọc; DI-03B ghi dữ liệu IAM **fixture** bằng `talo_test_harness` 
 | `DI-02-20261022-R2` | Lần chạy DI-02 (thay thế bởi DI-04-PRE cho MIC-10 cuối) | Xem `00-run.txt` |
 | `DI-03B-FBET_DI_MVJD8RZ44461` | DI-IAM-DB (FIXTURE) — 7/7 PASS, cleanup 0 dòng còn lại, 10 dòng B08 DENIED giữ lại | IAM/Host/PostgreSQL thật; session admin giả lập, lifecycle stub; K05 fixture, không phải `data_inspector.*` |
 | `DI-04-PRE-20261022` | Lần chạy được MIC-10 FINAL tham chiếu (10 bước exit=0) | Xem `00-run.txt` |
+| `DI-04-ACCEPT-20261022` | Nghiệm thu sau kích hoạt: helper chủ dự án (session `admin` thật, 20/20), non-admin ACC-01…04 (4/4), frontend | BROWSER_E2E NOT_TESTED |
+| `DI-04-FINAL-20261022` | Có 1 bước FAIL | Bước 02: test TC-19 giả định DATA_INSPECTOR chưa đăng ký — tiền đề hết đúng sau đăng ký; test đổi sang key chắc chắn chưa đăng ký (cùng hành vi). Giữ làm hồ sơ |
+| `DI-04-FINAL-20261022-R2` | Verification cuối (10 bước exit=0, regression 347/0) | Xem `00-run.txt` |
 
 ## Phân loại
 

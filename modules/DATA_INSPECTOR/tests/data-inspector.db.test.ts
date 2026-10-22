@@ -26,6 +26,7 @@ import { tableKeyOf } from '../../../backend/src/installed-modules/DATA_INSPECTO
 
 const enabled = process.env['TALO_DATA_INSPECTOR_DB'] === '1';
 const OK_LIFECYCLE = { isEnabled: true, activeVersions: 1 } as const;
+const UNREGISTERED_KEY = 'FBET_DI_UNREGISTERED'; // never registered (checked by the test)
 
 class AllowAllAccess {
   async loadAccessFacts(_userAccountId: string, _permission: PermissionRef): Promise<AccessFacts> {
@@ -53,6 +54,7 @@ describe.runIf(enabled)('DATA_INSPECTOR on PostgreSQL TEST (read only)', () => {
   let lifecycleStub = true;
   const moduleSqls: string[] = []; // every statement the module sent through the Host readOnly executor (texts only)
   let app: ReturnType<typeof createApp>;
+  let unregisteredApp: ReturnType<typeof createApp>;
   const read = async (sql: string, params: readonly unknown[] = []) => realHost.readOnly((tx) => tx.query(sql, params)) as Promise<Record<string, unknown>[]>;
   const get = (path: string, who: 'admin' | 'other') => request(app).get(`/api/data-inspector${path}`).set('Cookie', `talo_sid=${token(who)}`);
 
@@ -80,20 +82,34 @@ describe.runIf(enabled)('DATA_INSPECTOR on PostgreSQL TEST (read only)', () => {
       readOnly: (fn) => realHost.readOnly((tx) => fn({ query: (sql, params) => { moduleSqls.push(sql); return tx.query(sql, params); } })),
     };
     app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger, apiRouters: [createModule(host).router] });
+    // Same module code under a key that is certainly NOT registered: the real lifecycle query must fail closed (TC-19),
+    // whatever the registration state of DATA_INSPECTOR itself (registered on TEST since DI-04).
+    const unregistered = createModule(realHost, {
+      binding: {
+        moduleKey: UNREGISTERED_KEY,
+        catalogRead: { permissionCode: 'fbet-di-unregistered.catalog.read', moduleCode: UNREGISTERED_KEY, resourceCode: 'CATALOG', operation: 'READ' },
+        rowsRead: { permissionCode: 'fbet-di-unregistered.rows.read', moduleCode: UNREGISTERED_KEY, resourceCode: 'ROWS', operation: 'READ' },
+      },
+    });
+    unregisteredApp = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger, apiRouters: [unregistered.router] });
   });
 
   afterAll(async () => {
     await prisma?.$disconnect();
   });
 
-  it('real lifecycle: DATA_INSPECTOR is not registered on TEST → 503 for admin, before any catalog read (TC-19)', async () => {
-    lifecycleStub = false;
-    const [registered] = await read(`SELECT count(*)::int AS n FROM foundation.fnd_modules WHERE module_key = 'DATA_INSPECTOR'`);
+  it('real lifecycle: a module that is not registered → 503 for admin, before any catalog read (TC-19); DATA_INSPECTOR state read for real', async () => {
+    const [registered] = await read(`SELECT count(*)::int AS n FROM foundation.fnd_modules WHERE module_key = $1`, [UNREGISTERED_KEY]);
     expect(registered?.['n']).toBe(0);
+    moduleSqls.length = 0;
     for (const path of ['/tables', `/tables/t_1_0123456789abcdef/columns`, `/tables/t_1_0123456789abcdef/rows`]) {
-      const res = await get(path, 'admin');
+      const res = await request(unregisteredApp).get(`/api/data-inspector${path}`).set('Cookie', `talo_sid=${token('admin')}`);
       expect([res.status, res.body.error.code]).toEqual([503, 'SERVICE_BUSY']);
     }
+    expect(moduleSqls).toEqual([]); // no account gate, no catalog read
+    // DATA_INSPECTOR itself: either not registered (before DI-04) or ENABLED with exactly one ACTIVE version (after).
+    const state = await realHost.lifecycle('DATA_INSPECTOR');
+    expect(state === null || (state.isEnabled && state.activeVersions === 1)).toBe(true);
   });
   afterEach(() => {
     lifecycleStub = true;

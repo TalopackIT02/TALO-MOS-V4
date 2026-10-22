@@ -1,0 +1,14 @@
+
+ RUN  v5.0.2 D:/Documents/ClaudeProject/TALO-MOS-V4/backend
+
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.acceptance.db.test.ts > DI-04 acceptance — DATA_INSPECTOR registered on PostgreSQL TEST (real lifecycle, permissions, menu) > ACC-01 real registration: lifecycle ENABLED + 1 ACTIVE, admin is the only holder (Direct ALLOW, no role), IAM evaluates ALLOW for admin 27ms
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.acceptance.db.test.ts > DI-04 acceptance — DATA_INSPECTOR registered on PostgreSQL TEST (real lifecycle, permissions, menu) > ACC-02 non-admin without permission: menu has no /data-inspector; the three APIs → 403 by IAM (B08 DENIED NO_VALID_ALLOW) 655ms
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.acceptance.db.test.ts > DI-04 acceptance — DATA_INSPECTOR registered on PostgreSQL TEST (real lifecycle, permissions, menu) > ACC-03 non-admin with a mis-granted Direct ALLOW: the menu shows /data-inspector (known B09 limit) but the APIs → 403 by the username gate 743ms
+[DI-04-ACCEPT] run FBET_DIA_MVJGJ7N7D6EF evidence {"ACC-01":"PASS","ACC-02":"PASS","ACC-03":"PASS","ACC-04":"PASS","deleted.user_permissions":"0","deleted.accounts":"1","deleted.memberships":"1","remaining":"0","holdersAfter":"admin:ALLOW:data_inspector.catalog.read,admin:ALLOW:data_inspector.rows.read"}
+ ✓ ../modules/DATA_INSPECTOR/tests/data-inspector.acceptance.db.test.ts > DI-04 acceptance — DATA_INSPECTOR registered on PostgreSQL TEST (real lifecycle, permissions, menu) > ACC-04 running TEST backend: no session / forged session → 401 on the three APIs 127ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  18:28:09
+   Duration  2.89s (tests 68%, transform 18%, import 14%)
+

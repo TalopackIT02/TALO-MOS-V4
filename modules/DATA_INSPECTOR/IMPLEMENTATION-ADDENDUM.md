@@ -21,10 +21,12 @@ thái triển khai thực tế trên TEST (`talo_mos_v4_test`).
 
 ## 3. Quy trình đăng ký / kích hoạt (TEST)
 1. Backup (`pg_dump -Fc`, kiểm `pg_restore -l`, SHA-256) — đã làm: `D:/TaloData/backups/data-inspector/talo_mos_v4_test-di04-20261022-165457.dump` (sha256 `9c5f319c…14fadc`).
-2. Backend TEST với `NODE_ENV=test` (để B13 ghi môi trường `TEST`), ví dụ cổng 3100:
-   `cd backend && PORT=3100 NODE_ENV=test node --import tsx --env-file-if-exists=../.env src/server.ts`
-3. Chủ dự án chạy helper (đăng nhập `admin` ở prompt ẩn), ngoài Git:
-   `cd backend && npx tsx ../../TALO-MOS-V4_exports/DI-04-INTEGRATION/register-data-inspector.ts`
+2. Backend TEST với `NODE_ENV=test` (để B13 ghi môi trường `TEST`): helper **tự khởi động** một backend con ở
+   `127.0.0.1:3100` (`NODE_ENV=test`, log tại `D:/TaloData/di04/backend-3100-<ts>.log`), chờ `/api/health` = 200 trước khi
+   hỏi mật khẩu và tắt nó khi kết thúc. Cổng 3100 phải trống (không cần mở terminal backend riêng).
+3. Chủ dự án chạy helper (đăng nhập `admin` ở prompt ẩn), ngoài Git, từ PowerShell hoặc cmd:
+   `cd D:\Documents\ClaudeProject\TALO-MOS-V4\backend` rồi
+   `npx tsx ../../TALO-MOS-V4_exports/DI-04-INTEGRATION/register-data-inspector.ts`
    REGISTER → VERSION 0.1.0 → PUT MIC → SUBMIT → kiểm B13/B14 → APPROVE → ACTIVATE → 2 permission (IAM API) →
    bootstrap B1 (`bootstrap-b1.mjs` prep/exec/verify: 2 Direct ALLOW cho `admin` bằng `talo_iam_admin`; rollback =
    UPDATE `revoked_at` của đúng 2 dòng) → menu B09 "Data Inspector" (Function CATALOG) → ENABLE → nghiệm thu bằng session
@@ -37,5 +39,14 @@ thái triển khai thực tế trên TEST (`talo_mos_v4_test`).
 |---|---|
 | DI-03B IAM fixture IAM-01…07 | PASS (7/7), cleanup 0 dòng còn lại, 10 dòng B08 DENIED giữ lại |
 | Evidence tiền kích hoạt DI-04-PRE (10 bước) | PASS |
-| Đăng ký / kích hoạt / quyền thật / menu / ENABLE | **BLOCKED** — chưa có session `admin` thật (helper chưa được chạy) |
-| Nghiệm thu runtime sau kích hoạt, AppShell, login E2E | NOT_TESTED |
+| Đăng ký / kích hoạt (helper chủ dự án, session `admin` thật, 11:24Z) | PASS — module `cc2bdba4-35e1-4a50-b540-72a9eb2fafcd` ENABLED; version `0edc6f5f-9332-4abd-9a1e-dad4995c0921` 0.1.0 ACTIVE (duy nhất); MIC sha256 `7739cbcb…691110`; B13 TEST/PASS, 0 blocking |
+| Quyền thật + bootstrap B1 | PASS — 2 permission qua IAM API; `admin` giữ đúng 2 Direct ALLOW (bootstrap VERIFY OK, fingerprint quyền PostgreSQL không đổi); 0 role grant; không tài khoản khác |
+| Menu B09 | PASS — `ebe21cdf-9adf-46f3-9771-d1a5a4e4bcfd` "Data Inspector" → Function CATALOG; menu của `admin` có `/data-inspector` |
+| Runtime với session `admin` thật (login E2E qua API) | PASS 20/20 — 3 API GET, pageSize 50/100/101, key tiêm/cũ, không route ghi, masking `password_hash` / `session_token_hash`, `?unmask` → 400, 401, DISABLE → 503 → ENABLE |
+| Nghiệm thu non-admin (ACC-01…04) | PASS 4/4 — không quyền → 403 + B08 DENIED, không thấy menu; cấp nhầm → menu hiện (giới hạn B09 đã biết) nhưng API 403; 401 trên backend TEST; cleanup 0 dòng còn lại |
+| Frontend build + kết nối AppShell (không trình duyệt) | PASS — build exit 0, `/data-inspector` 200, proxy `/api` → 401 khi chưa đăng nhập |
+| Giao diện trên trình duyệt (BROWSER_E2E) | **NOT_TESTED** — không có công cụ trình duyệt trong phiên; cần chủ dự án mở `/data-inspector` với `admin` |
+| Verification cuối DI-04-FINAL-20261022-R2 | PASS 10/10 bước; regression 347 / 0 FAIL |
+
+Bằng chứng: `evidence/DI-04-ACCEPT-20261022/`, `evidence/DI-04-FINAL-20261022-R2/`. Lần `DI-04-FINAL-20261022` có 1 FAIL do
+test TC-19 giả định module chưa đăng ký; test đã đổi sang key chắc chắn chưa đăng ký (cùng hành vi fail-closed) — giữ lại làm hồ sơ.
