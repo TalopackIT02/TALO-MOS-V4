@@ -1,0 +1,52 @@
+/* Navigation Builder (22/10/2026) — scoped under .app-shell .nb, reusing the AppShell values (green, line, muted). */
+.app-shell .nb-bar{position:sticky;top:0;z-index:3;background:#fff;padding:6px 0;border-bottom:1px solid #eef2f4}
+.app-shell .nb-unsaved{color:#a15c00;font-size:12px;font-weight:600}
+.app-shell .nb-panes{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}
+@media(max-width:1100px){.app-shell .nb-panes{grid-template-columns:minmax(0,1fr)}}
+.app-shell .nb-left,.app-shell .nb-right{min-width:0}
+.app-shell .nb-search{border:1px solid #d1dbe5;border-radius:7px;padding:7px 10px;font-size:12px;min-width:0;flex:1 1 180px}
+.app-shell .nb-tree,.app-shell .nb-tree ul{list-style:none;margin:0;padding:0}
+.app-shell .nb-tree ul{padding-left:22px;border-left:1px dashed #d6e1e7;margin-left:12px}
+.app-shell .nb-row{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid transparent;border-radius:7px;font-size:13px;cursor:pointer;min-width:0}
+.app-shell .nb-row:hover{background:#f6faf8}
+.app-shell .nb-row.selected{background:#eaf6ef;border-color:#bddecb}
+.app-shell .nb-row.drop{border-color:var(--green);border-style:dashed;background:#f2faf5}
+.app-shell .nb-row.invalid{border-color:#e8c9c5;background:#fdf6f5}
+.app-shell .nb-row.hidden-row .nb-title{color:#9aa8b6;text-decoration:line-through}
+.app-shell .nb-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.app-shell .nb-area{font-size:13.5px}
+.app-shell .nb-link .nb-title{font-weight:400}
+.app-shell .nb-mod{font-size:11px;white-space:nowrap}
+.app-shell .nb-handle{cursor:grab;color:#9aa8b6;user-select:none;padding:0 2px;font-size:12px;letter-spacing:-2px}
+.app-shell .nb-handle.locked{cursor:default;letter-spacing:0}
+.app-shell .nb-twist{border:0;background:none;color:#4c5d70;cursor:pointer;width:18px;padding:0;font-size:12px}
+.app-shell .nb-dot{color:#d98a00;font-size:10px}
+.app-shell .nb-develop{background:#e8f0fe;color:#1d4fa3}
+.app-shell .nb-dev{background:#fff4e0;color:#8a5200}
+.app-shell .nb-empty{font-size:12px;padding:4px 8px}
+.app-shell .nb-system{cursor:default}
+.app-shell .nb-panel{border:1px solid #e3eaef;border-radius:9px;padding:12px 14px;margin-bottom:14px;display:grid;gap:8px}
+.app-shell .nb-panel h3{margin:0;font-size:14px}
+.app-shell .nb-panel label{display:grid;gap:4px;font-size:12px;color:#506176}
+.app-shell .nb-panel input,.app-shell .nb-panel select,.app-shell .nb-inventory select,.app-shell .nb-dialog select{border:1px solid #d1dbe5;border-radius:7px;padding:7px 10px;font-size:12px;background:#fff;color:#1c2937;font-family:inherit;min-width:0;max-width:100%}
+.app-shell .nb-panel .fx-toolbar{margin-bottom:0}
+.app-shell .nb-inventory h3{font-size:14px;margin:0 0 8px}
+.app-shell .nb-fns{list-style:none;margin:0;padding:0;max-height:460px;overflow:auto;border:1px solid #eef2f4;border-radius:8px}
+.app-shell .nb-fn{padding:7px 10px;border-bottom:1px solid #f1f4f6;cursor:grab;display:grid;gap:2px}
+.app-shell .nb-fn.disabled{cursor:not-allowed;opacity:.65}
+.app-shell .nb-fn label{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px}
+.app-shell .nb-fn-name{font-weight:600;color:#1c2937}
+.app-shell .nb-where{font-size:11px}
+.app-shell .nb-legacy{margin-top:16px;font-size:12.5px}
+.app-shell .nb-legacy summary{cursor:pointer;font-weight:600;color:#4c5d70}
+.app-shell .nb-legacy ul{list-style:none;padding:0;margin:8px 0 0;max-height:320px;overflow:auto}
+.app-shell .nb-legacy li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid #f1f4f6}
+.app-shell .nb-legacy li.hidden-row b{color:#9aa8b6}
+.app-shell .nb-legacy .fx-btn{padding:4px 9px;margin-left:auto}
+.app-shell .nb-devnote{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.app-shell .nb-linkbtn{border:0;background:none;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit;text-align:left}
+.app-shell .nb-preview h3{margin:0 8px 0 0}
+.app-shell .nb-dialog-backdrop{position:fixed;inset:0;background:rgba(15,25,35,.35);display:grid;place-items:center;z-index:50;padding:16px}
+.app-shell .nb-dialog{background:#fff;border-radius:10px;padding:18px 20px;max-width:520px;width:100%;display:grid;gap:10px;font-size:13px;box-shadow:0 12px 40px rgba(0,0,0,.18)}
+.app-shell .nb-dialog h3{margin:0;font-size:15px}
+.app-shell .nb-choice{display:flex;gap:8px;align-items:center}

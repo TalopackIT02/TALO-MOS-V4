@@ -80,6 +80,51 @@ export function businessTree(menu: readonly MenuNode[], icon: string): NavTreeNo
   });
 }
 
+// Navigation Builder (owner decisions 22/10/2026): the whole sidebar is ONE tree. The DEVELOP area of B09 (marked by the
+// backend) also holds the protected SYSTEM screens (Foundation / IAM groups the session may open — capabilities); they
+// are not B03 Functions and are never stored in B09. Without a stored DEVELOP area (not configured yet) a virtual
+// "Develop" area at the end holds them. An area with nothing to open is not shown.
+export const VIRTUAL_DEVELOP_ID = 'develop:virtual';
+export const DEFAULT_DEVELOP_TITLE = 'Develop';
+
+export function shellTree(menu: readonly MenuNode[], icon: string, system: readonly NavTreeNode[]): NavTreeNode[] {
+  const hasDevelop = menu.some((n) => n.developArea);
+  const out = menu.flatMap((n): NavTreeNode[] => {
+    if (!n.developArea) return businessTree([n], icon);
+    const children = [...system, ...businessTree(n.children, icon)];
+    return children.length > 0 ? [{ kind: 'menu', id: `b09:${n.navigationId}`, title: n.menuTitle, icon, children }] : [];
+  });
+  if (!hasDevelop && system.length > 0) out.push({ kind: 'menu', id: VIRTUAL_DEVELOP_ID, title: DEFAULT_DEVELOP_TITLE, icon, children: [...system] });
+  return out;
+}
+
+// Multi-link (§6): several Function nodes may open the same path. The ACTIVE link is the one chosen (its node id, kept in
+// the history entry) when it still opens that path; otherwise the first one in tree order (deterministic).
+export function activeLinkId(nodes: readonly NavTreeNode[], path: string, chosen: string | null): string | null {
+  let first: string | null = null;
+  let match = false;
+  const walk = (list: readonly NavTreeNode[]) => list.forEach((n) => {
+    if (n.kind === 'menu') return walk(n.children);
+    if (n.path === null || n.path !== path) return;
+    first ??= n.id;
+    if (n.id === chosen) match = true;
+  });
+  walk(nodes);
+  return match ? chosen : first;
+}
+
+// Menus above a node (outermost first) and the titles from the root to it (breadcrumb); [] when the node is absent.
+export function linkAncestors(nodes: readonly NavTreeNode[], id: string): NavTreeNode[] {
+  for (const n of nodes) {
+    if (n.id === id) return [n];
+    if (n.kind === 'menu') {
+      const below = linkAncestors(n.children, id);
+      if (below.length > 0) return [n, ...below];
+    }
+  }
+  return [];
+}
+
 // Every Function of a tree (search targets).
 export function treeFunctions(nodes: readonly NavTreeNode[]): { title: string; path: ShellPath | null }[] {
   return nodes.flatMap((n) => (n.kind === 'function' ? [{ title: n.title, path: n.path }] : treeFunctions(n.children)));

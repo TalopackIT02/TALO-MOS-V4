@@ -8,6 +8,16 @@ import type { NavigationService } from './foundation.navigation.service.js';
 
 // FBE-06 — Navigation routes (owner decision N3). Same session wrapper, origin / JSON protection, request id and error
 // envelope as every Foundation router. POST 201 {item}, PATCH 200 {item}, GET 200 {navigation: MenuNode[]}.
+// Navigation Builder (22/10/2026, foundation.navigation.manage):
+//   GET  /foundation/navigation/builder            200 {layout}     every B09 row as areas / menus / Function links + legacy
+//   GET  /foundation/navigation/builder/functions  200 {functions}  Function inventory (assignable or not, with the reason)
+//   POST /foundation/navigation/builder/preview    200 {navigation} the menu of THIS account with the draft (no write)
+//   PUT  /foundation/navigation/builder            200 {layout}     apply the whole draft atomically (409 on a revision conflict)
+// A draft is larger than the global 10 kB body limit: the two Builder bodies get their own 1 MiB parser (app.ts).
+
+export const NAVIGATION_BUILDER_ROUTE = '/foundation/navigation/builder';
+export const NAVIGATION_PREVIEW_ROUTE = '/foundation/navigation/builder/preview';
+export const navigationBuilderJsonParser = express.json({ limit: 1048576 });
 
 export interface NavigationRouterDeps {
   readonly authService: Pick<AuthService, 'describeSession'>;
@@ -45,6 +55,14 @@ export function navigationRouter({ authService, service, secureCookie }: Navigat
 
   router.patch('/foundation/navigation/items/:navigationId', handle(async (req, res, actor) =>
     answer(res, 200, async () => ({ item: itemBody(await service.updateItem(actor, req.params['navigationId'], req.body)) }))));
+
+  router.get(NAVIGATION_BUILDER_ROUTE, handle(async (_req, res, actor) => answer(res, 200, async () => ({ layout: await service.layout(actor) }))));
+
+  router.get(`${NAVIGATION_BUILDER_ROUTE}/functions`, handle(async (_req, res, actor) => answer(res, 200, async () => ({ functions: await service.inventory(actor) }))));
+
+  router.post(NAVIGATION_PREVIEW_ROUTE, handle(async (req, res, actor) => answer(res, 200, async () => ({ navigation: await service.preview(actor, req.body) }))));
+
+  router.put(NAVIGATION_BUILDER_ROUTE, handle(async (req, res, actor) => answer(res, 200, async () => ({ layout: await service.apply(actor, req.body) }))));
 
   return router;
 }

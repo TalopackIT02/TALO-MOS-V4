@@ -48,7 +48,10 @@ const PERMS = {
 type PermKey = keyof typeof PERMS;
 const PERM_KEYS: readonly PermKey[] = ['registryCreate', 'create', 'update', 'submit', 'read', 'approve', 'activate', 'enable', 'disable', 'navigation'];
 
-type Fault = 'NONE' | 'B08_CREATE' | 'B08_UPDATE' | 'B09_WIDTH';
+type Fault = 'NONE' | 'B08_CREATE' | 'B08_UPDATE' | 'B09_WIDTH' | 'B08_LAYOUT';
+// Navigation Builder: B08_LAYOUT breaks the B08 row of NAVIGATION.LAYOUT.APPLY — written AFTER every B09 INSERT / UPDATE of
+// the draft — so the whole apply runs on PostgreSQL and is then rolled back (no B09 row of the user is changed).
+let layoutAuditReached = 0;
 
 // One bind value changed → a real PostgreSQL error inside the navigation transaction.
 //   B08_CREATE / B08_UPDATE  insertAudit outcome SUCCESS (NAVIGATION.*) → 'BOGUS'   23514
@@ -60,6 +63,10 @@ function faultyDb(db: FoundationDb, fault: () => Fault): FoundationDb {
     if ((f === 'B08_CREATE' || f === 'B08_UPDATE') && sql === FOUNDATION_SQL.insertAudit && params[6] === 'SUCCESS'
       && params[3] === (f === 'B08_CREATE' ? 'NAVIGATION.CREATE' : 'NAVIGATION.UPDATE')) return set(6, 'BOGUS');
     if (f === 'B09_WIDTH' && sql === NAVIGATION_SQL.insertItem) return set(3, 'x'.repeat(151));
+    if (f === 'B08_LAYOUT' && sql === FOUNDATION_SQL.insertAudit && params[6] === 'SUCCESS' && params[3] === 'NAVIGATION.LAYOUT.APPLY') {
+      layoutAuditReached += 1;
+      return set(6, 'BOGUS');
+    }
     return params;
   };
   const wrap = (x: SqlExecutor): SqlExecutor => ({
@@ -348,6 +355,7 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
       ['insertItem', NAVIGATION_SQL.insertItem, [null, null, null, 'plan', null, null]], ['updateItem', NAVIGATION_SQL.updateItem, [NIL, 'plan', null, null]],
       ['listItems', NAVIGATION_SQL.listItems, []], ['activeVersions', NAVIGATION_SQL.activeVersions, []], ['activeFunctions', NAVIGATION_SQL.activeFunctions, []],
       ['permissionsByTriple', NAVIGATION_SQL.permissionsByTriple, ['X', 'Y', 'Z']],
+      ['lockLayout', NAVIGATION_SQL.lockLayout, []], ['inventory', NAVIGATION_SQL.inventory, []],
     ];
     expect(statements.map((s) => s[0]).sort()).toEqual(Object.keys(NAVIGATION_SQL).sort());
     const allowed: Record<string, string> = {};
@@ -583,6 +591,218 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
     expect((await send('post', `/api/foundation/modules/${m.moduleId}/enable`)).status).toBe(200);
     expect((await shown(viewer.cookie)).some((n) => n.navigationId === orderItem)).toBe(true);
     evidence['v7'] = { permissionCode: def?.[0], iamBefore: Number(iamBefore[0]?.[0]), noPermission: false, allow: true, deny: false, restore: true };
+  });
+
+  // ------------------------------------------------------------------------------------------- Navigation Builder (22/10/2026)
+  // No Builder save is committed here: the stored layout of talo_mos_v4_test (including whether a DEVELOP area exists) is the
+  // owner's configuration. Reads, preview, 403 / 409 / 422 write nothing; the apply path runs fully and is rolled back.
+  type LayoutJson = {
+    revision: string; developAreaId: string | null;
+    areas: { id: string; title: string; visible: boolean; develop: boolean; menus: { id: string; title: string; visible: boolean; items: { id: string; functionId: string; title: string; visible: boolean }[] }[] }[];
+    legacy: { id: string; visible: boolean; reason: string; inDevelop: boolean }[];
+  };
+  type DraftJson = {
+    revision: string;
+    areas: { id: string | null; title: string; visible: boolean; develop: boolean; menus: { id: string | null; title: string; visible: boolean; items: { id: string | null; functionId: string; title: string; visible: boolean }[] }[] }[];
+    legacy: { id: string; visible: boolean }[];
+  };
+  const getAs = (url: string, as = cookie) => request(app).get(url).set('User-Agent', fx.userAgent).set('Cookie', as);
+  async function storedLayout(): Promise<LayoutJson> {
+    const res = await getAs('/api/foundation/navigation/builder');
+    expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+    return res.body.layout;
+  }
+  // The stored layout as an unchanged draft (+ a DEVELOP area when none is stored, as the Builder UI proposes).
+  function draftOf(l: LayoutJson): DraftJson {
+    const areas: DraftJson['areas'] = l.areas.map((a) => ({
+      id: a.id, title: a.title, visible: a.visible, develop: a.develop,
+      menus: a.menus.map((m) => ({ id: m.id, title: m.title, visible: m.visible, items: m.items.map((i) => ({ id: i.id, functionId: i.functionId, title: i.title, visible: i.visible })) })),
+    }));
+    if (l.developAreaId === null) areas.push({ id: null, title: 'Develop', visible: true, develop: true, menus: [] });
+    return { revision: l.revision, areas, legacy: l.legacy.map((x) => ({ id: x.id, visible: x.visible })) };
+  }
+  const anchors = async () => Number((await h.ok(`SELECT count(*) FROM ${B09} WHERE sort_order = -2147483648`))[0]?.[0]);
+  const b09Digest = async () => (await h.ok(`SELECT md5(coalesce(string_agg(navigation_id::text || coalesce(parent_id::text, '') || menu_title || sort_order::text || is_visible::text, '|' ORDER BY navigation_id), ''))
+    FROM ${B09}`))[0]?.[0];
+
+  it('NB-1: Builder read on PostgreSQL — every B09 row is classified exactly once; inventory = every non-retired Function; read only; 403 + B08 DENIED without the permission', async () => {
+    await login();
+    const before = await b09Digest();
+    const l = await storedLayout();
+    const counted = l.areas.length + l.areas.reduce((s, a) => s + a.menus.length + a.menus.reduce((t, m) => t + m.items.length, 0), 0) + l.legacy.length;
+    expect(counted + (l.developAreaId === null ? 0 : await anchors())).toBe(await b09Count());
+    expect((await storedLayout()).revision).toBe(l.revision);
+    const inv = await getAs('/api/foundation/navigation/builder/functions');
+    expect(inv.status).toBe(200);
+    const functions: { moduleKey: string; functionKey: string; developer: boolean; assignable: boolean; reason: string | null }[] = inv.body.functions;
+    const [notRetired] = await h.ok(`SELECT count(*) FROM foundation.fnd_functions WHERE retired_at IS NULL`);
+    expect(functions.length).toBe(Number(notRetired?.[0]));
+    const developer = functions.filter((f) => f.developer).map((f) => `${f.moduleKey}.${f.functionKey}`).sort();
+    expect(developer.every((k) => ['SYSTEM_TEST.TEST_RUNNER', 'SYSTEM_TEST.DIAGNOSTICS', 'SYSTEM_TEST.DATA_VIEWER', 'DATA_INSPECTOR.CATALOG', 'DATA_INSPECTOR.ROWS'].includes(k))).toBe(true);
+    expect(await b09Digest()).toBe(before);
+
+    const none = await login([]);
+    const denied = await getAs('/api/foundation/navigation/builder', none.cookie);
+    expect(denied.status).toBe(403);
+    expect((await auditsOf(rid(denied))).map((a) => [a.action, a.outcome])).toEqual([['NAVIGATION.BUILDER.READ', 'DENIED']]);
+    const put = await send('put', '/api/foundation/navigation/builder', draftOf(l), none.cookie);
+    expect(put.status).toBe(403);
+    expect((await auditsOf(rid(put))).map((a) => [a.action, a.outcome])).toEqual([['NAVIGATION.LAYOUT.APPLY', 'DENIED']]);
+    expect(await b09Digest()).toBe(before);
+    evidence['nb1'] = {
+      rows: await b09Count(), areas: l.areas.length, legacy: l.legacy.length, developStored: l.developAreaId !== null, functions: functions.length, developer,
+      legacyReasons: Object.fromEntries(['FUNCTION_AT_ROOT', 'FUNCTION_UNDER_AREA', 'TOO_DEEP', 'UNREACHABLE'].map((r) => [r, l.legacy.filter((x) => x.reason === r).length])),
+    };
+  });
+
+  it('NB-2: preview on PostgreSQL — the draft (new area / menu / two links of one Function) as THIS account would see it (real IAM + lifecycle); nothing written', async () => {
+    await login();
+    const m = await liveModule();
+    const orderRead = await az.definePermission(m.moduleKey, 'ORDER', 'READ');
+    await login(PERM_KEYS, [orderRead]);
+    const before = await b09Digest();
+    const d = draftOf(await storedLayout());
+    d.areas.unshift({ id: null, title: `NB ${run}`, visible: true, develop: false, menus: [
+      { id: null, title: 'Menu A', visible: true, items: [{ id: null, functionId: m.orderId, title: 'Đơn hàng A', visible: true }] },
+      { id: null, title: 'Menu B', visible: true, items: [{ id: null, functionId: m.orderId, title: 'Đơn hàng B', visible: true }] },
+    ] });
+    const res = await send('post', '/api/foundation/navigation/builder/preview', d);
+    expect(res.status, JSON.stringify(res.body).slice(0, 400)).toBe(200);
+    const nodes = flatten(res.body.navigation);
+    const orders = nodes.filter((n) => n.functionId === m.orderId);
+    expect(orders.map((n) => n.routePath)).toEqual(['/sales/orders', '/sales/orders']);
+    expect(new Set(orders.map((n) => n.navigationId)).size).toBe(2); // two links, two identities
+    expect(nodes.some((n) => n.functionId === m.reportId)).toBe(false); // no MIC-04 route
+    expect(await b09Digest()).toBe(before);
+    expect((await auditsOf(rid(res))).filter((a) => a.outcome === 'SUCCESS')).toEqual([]);
+    evidence['nb2'] = { previewRoots: res.body.navigation.length, orderLinks: orders.length };
+  });
+
+  it('NB-3: apply on PostgreSQL — INSERT (area, Develop anchor, menu, links) + UPDATE (title, visibility) as talo_app all succeed, then a B08 failure rolls back everything (503)', async () => {
+    await login();
+    const m = await liveModule();
+    const root = String((await create({ menuTitle: `NB vùng ${run}` })).body.item.navigationId);
+    const menu = String((await create({ parentId: root, moduleId: m.moduleId, menuTitle: 'NB menu' })).body.item.navigationId);
+    const link = String((await create({ parentId: menu, moduleId: m.moduleId, functionId: m.orderId, menuTitle: 'NB đơn hàng' })).body.item.navigationId);
+    const l = await storedLayout();
+    const d = draftOf(l);
+    const area = d.areas.find((a) => a.id === root);
+    const stored = area?.menus.find((x) => x.id === menu);
+    if (!area || !stored) throw new Error('fixture area not in layout');
+    area.title = `NB vùng ${run} (đổi)`;
+    stored.items.push({ id: null, functionId: m.orderId, title: 'NB đơn hàng ẩn', visible: false }); // hidden duplicate: allowed
+    const moved = stored.items.shift(); // MOVE the stored link to a new menu → re-link (INSERT + old row hidden)
+    if (moved) area.menus.push({ id: null, title: 'NB menu mới', visible: true, items: [moved] });
+    const rowsBefore = await b09Count();
+    const before = await b09Digest();
+    const anchorsBefore = await anchors();
+    fault = 'B08_LAYOUT';
+    const reached = layoutAuditReached;
+    const res = await send('put', '/api/foundation/navigation/builder', d);
+    fault = 'NONE';
+    expect(res.status).toBe(503);
+    expect(layoutAuditReached).toBe(reached + 1); // every INSERT / UPDATE ran on PostgreSQL before the failing B08 row
+    expect(await b09Count()).toBe(rowsBefore);
+    expect(await b09Digest()).toBe(before);
+    expect(await anchors()).toBe(anchorsBefore);
+    expect((await item(link))?.[5]).toBe('true');
+    expect((await auditsOf(rid(res))).filter((a) => a.outcome === 'SUCCESS')).toEqual([]);
+    expect((await storedLayout()).revision).toBe(l.revision);
+    evidence['nb3'] = { status: res.status, rolledBack: true, developCreatedInDraft: l.developAreaId === null };
+  });
+
+  it('NB-4: 409 on a stale revision, 422 on a visible duplicate in one menu, 400 on the anchor sort order — nothing written', async () => {
+    await login();
+    const m = await liveModule();
+    const root = String((await create({ menuTitle: `NB4 ${run}` })).body.item.navigationId);
+    const menu = String((await create({ parentId: root, moduleId: m.moduleId, menuTitle: 'NB4 menu' })).body.item.navigationId);
+    await create({ parentId: menu, moduleId: m.moduleId, functionId: m.orderId, menuTitle: 'NB4 đơn hàng' });
+    const d = draftOf(await storedLayout());
+    d.areas.find((a) => a.id === root)?.menus.find((x) => x.id === menu)?.items.push({ id: null, functionId: m.orderId, title: 'trùng', visible: true });
+    const before = await b09Digest();
+    const dup = await send('put', '/api/foundation/navigation/builder', d);
+    expect(dup.status).toBe(422);
+    expect(dup.body.error.code).toBe('NAVIGATION_LAYOUT_INVALID');
+    expect(dup.body.error.details.fields.some((x: string) => x.startsWith('FUNCTION_DUPLICATE_IN_MENU:'))).toBe(true);
+    expect(await b09Digest()).toBe(before);
+    await create({ parentId: root, menuTitle: 'NB4 thay đổi song song' });
+    const after = await b09Digest();
+    const stale = await send('put', '/api/foundation/navigation/builder', draftOf({ ...(await storedLayout()), revision: d.revision }));
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.code).toBe('NAVIGATION_CONFLICT');
+    expect(await b09Digest()).toBe(after);
+    expect((await send('post', '/api/foundation/navigation/items', { menuTitle: 'x', sortOrder: -2147483648 })).status).toBe(400);
+    expect(await b09Digest()).toBe(after);
+    evidence['nb4'] = { duplicate: dup.status, stale: stale.status };
+  });
+
+  it('NB-5: positive COMMIT on PostgreSQL — INSERT + UPDATE + B08 SUCCESS persisted (read back on a new connection); multi-link served by the menu; fixture area then hidden (no DELETE)', async () => {
+    await login();
+    const m = await liveModule();
+    const orderRead = await az.definePermission(m.moduleKey, 'ORDER', 'READ');
+    const admin = await login(PERM_KEYS, [orderRead]);
+    const root = String((await create({ menuTitle: `NB5 vùng ${run}` })).body.item.navigationId);
+    const menuA = String((await create({ parentId: root, moduleId: m.moduleId, menuTitle: 'NB5 menu A' })).body.item.navigationId);
+    const linkA = String((await create({ parentId: menuA, moduleId: m.moduleId, functionId: m.orderId, menuTitle: 'NB5 đơn hàng A' })).body.item.navigationId);
+    const l = await storedLayout();
+    // The stored layout unchanged (no DEVELOP added: the fixture save must not create the DEVELOP area of the database).
+    const d: DraftJson = {
+      revision: l.revision,
+      areas: l.areas.map((a) => ({ id: a.id, title: a.title, visible: a.visible, develop: a.develop, menus: a.menus.map((x) => ({ id: x.id, title: x.title, visible: x.visible, items: x.items.map((i) => ({ id: i.id, functionId: i.functionId, title: i.title, visible: i.visible })) })) })),
+      legacy: l.legacy.map((x) => ({ id: x.id, visible: x.visible })),
+    };
+    const area = d.areas.find((a) => a.id === root);
+    if (!area) throw new Error('fixture area not in layout');
+    area.title = `NB5 vùng ${run} (đã lưu)`; // UPDATE
+    area.menus[0]?.items.push({ id: null, functionId: m.orderId, title: 'NB5 ẩn', visible: false }); // INSERT hidden duplicate
+    area.menus.push({ id: null, title: 'NB5 menu B', visible: true, items: [{ id: null, functionId: m.orderId, title: 'NB5 đơn hàng B', visible: true }] }); // INSERT menu + 2nd link
+    const rowsBefore = await b09Count();
+    const res = await send('put', '/api/foundation/navigation/builder', d);
+    expect(res.status, JSON.stringify(res.body).slice(0, 400)).toBe(200);
+    expect(res.body.layout.revision).not.toBe(l.revision);
+    expect(res.body.layout.developAreaId).toBe(l.developAreaId);
+
+    // Read back on a NEW connection (committed, not only visible inside the API transaction).
+    const fresh = await AuthFixtures.connect();
+    try {
+      const rows = await fresh.ok(`SELECT n.navigation_id::text, coalesce(n.parent_id::text, ''), coalesce(n.module_id::text, ''), coalesce(n.function_id::text, ''), n.menu_title, n.sort_order::text, n.is_visible::text
+        FROM ${B09} n WHERE n.navigation_id = ${lit(root)} OR n.parent_id = ${lit(root)} OR n.parent_id IN (SELECT navigation_id FROM ${B09} WHERE parent_id = ${lit(root)}) ORDER BY n.created_at, n.navigation_id`);
+      expect(rows.length).toBe(6);
+      expect(rows.find((r) => r[0] === root)?.[4]).toBe(`NB5 vùng ${run} (đã lưu)`);
+      const menuB = rows.find((r) => r[4] === 'NB5 menu B');
+      expect(menuB?.slice(1, 4)).toEqual([root, '', '']); // new menu of a Foundation-wide area: module NULL
+      expect(rows.filter((r) => r[3] === m.orderId && r[6] === 'true').map((r) => r[1]).sort()).toEqual([menuA, menuB?.[0]].sort());
+      expect(rows.find((r) => r[4] === 'NB5 ẩn')?.slice(1, 7)).toEqual([menuA, m.moduleId, m.orderId, 'NB5 ẩn', '1', 'false']);
+      evidence['nb5Fresh'] = { rows: rows.length, b09Before: rowsBefore, b09After: Number((await fresh.ok(`SELECT count(*) FROM ${B09}`))[0]?.[0]) };
+    } finally {
+      await fresh.close();
+    }
+    expect(await b09Count()).toBe(rowsBefore + 3);
+    const audit = await auditsOf(rid(res));
+    expect(audit.map((a) => [a.action, a.outcome, a.targetType])).toEqual([['NAVIGATION.LAYOUT.APPLY', 'SUCCESS', 'NAVIGATION_LAYOUT']]);
+    expect(audit[0]?.metadata).toMatchObject({ revisionBefore: l.revision, inserted: 3, updated: 1, relinked: 0 });
+    expect(await eventsOf(rid(res))).toBe(0);
+
+    // Multi-link on the real evaluator: the same Function from two menus, one route, two identities.
+    const menu = await getMenu(admin.cookie);
+    const orders = flatten(menu.body.navigation).filter((n) => n.functionId === m.orderId);
+    expect(orders.map((n) => n.routePath)).toEqual(['/sales/orders', '/sales/orders']);
+    expect(orders.map((n) => n.navigationId)).toContain(linkA);
+
+    // Fixture cleanup: the fixture area is hidden through the Builder (UPDATE only; B09 has no DELETE, B08 stays).
+    const after = await storedLayout();
+    const hide: DraftJson = {
+      revision: after.revision,
+      areas: after.areas.map((a) => ({ id: a.id, title: a.title, visible: a.id === root ? false : a.visible, develop: a.develop, menus: a.menus.map((x) => ({ id: x.id, title: x.title, visible: x.visible, items: x.items.map((i) => ({ id: i.id, functionId: i.functionId, title: i.title, visible: i.visible })) })) })),
+      legacy: after.legacy.map((x) => ({ id: x.id, visible: x.visible })),
+    };
+    const cleaned = await send('put', '/api/foundation/navigation/builder', hide);
+    expect(cleaned.status).toBe(200);
+    expect((await item(root))?.[5]).toBe('false');
+    expect(flatten((await getMenu(admin.cookie)).body.navigation).some((n) => n.functionId === m.orderId)).toBe(false);
+    expect((await auditsOf(rid(cleaned))).map((a) => [a.action, a.outcome])).toEqual([['NAVIGATION.LAYOUT.APPLY', 'SUCCESS']]);
+    for (const r of await h.ok(`SELECT navigation_id::text FROM ${B09} WHERE parent_id = ${lit(root)} OR parent_id IN (SELECT navigation_id FROM ${B09} WHERE parent_id = ${lit(root)})`)) if (!runItems.includes(r[0] ?? NIL)) runItems.push(r[0] ?? NIL);
+    evidence['nb5'] = { apply: res.status, audit: audit[0]?.metadata, cleanup: cleaned.status, developUnchanged: true };
   });
 
   // FE-01: the TEST administrator (role TALO_SYSTEM_ADMIN) is a legitimate assignment; only fixture assignments must be gone.

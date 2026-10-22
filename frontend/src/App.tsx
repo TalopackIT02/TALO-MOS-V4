@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppShell } from './layouts/AppShell';
 import { FirstChangePage } from './pages/auth/FirstChangePage';
 import { LoginPage } from './pages/auth/LoginPage';
-import { currentPath, pushLocation, pushPath, replacePath, usePopState } from './routes/navigation';
+import { currentPath, mayLeave, pushLocation, pushPath, replacePath, usePopState } from './routes/navigation';
 import type { AppPath, NavState } from './routes/navigation';
 import { SCREENS, toShellPath } from './routes/shellScreens';
 import type { ShellPath } from './routes/shellScreens';
@@ -65,7 +65,14 @@ export function App() {
     void checkSession();
   }, [checkSession]);
 
+  const shellPathRef = useRef(shellPath);
+  shellPathRef.current = shellPath;
   const onPopState = useCallback(() => {
+    // Unsaved Navigation Builder draft: Back / Forward to another screen asks first; "stay" puts the screen back.
+    if (toShellPath(currentPath()) !== shellPathRef.current && !mayLeave()) {
+      window.history.pushState(null, '', shellPathRef.current);
+      return;
+    }
     setShellPath(toShellPath(currentPath()));
     void checkSession();
   }, [checkSession]);
@@ -98,6 +105,7 @@ export function App() {
   // leaves the shell — a transient failure keeps the current screen, since no shell screen depends on the API yet.
   // `state` marks the new entry (e.g. the account workspace remembers the list it was opened from).
   const navigate = useCallback((path: ShellPath, state?: NavState) => {
+    if (path !== shellPathRef.current && !mayLeave()) return;
     pushPath(path, state);
     setShellPath(path);
     void authApi.session().then((result) => {

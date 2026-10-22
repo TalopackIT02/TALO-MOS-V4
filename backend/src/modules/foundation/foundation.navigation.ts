@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { canonicalDigest } from './foundation.json.js';
+import { isDeveloperFunction } from './foundation.navigation.builder.js';
 
 // FBE-06 — Navigation: pure route / IAM-requirement resolution and menu-tree construction (owner decisions N1–N7).
 //   Route (N6): MIC-04 of the ACTIVE version only, after the stored manifest is checked against manifest_hash; exactly one
@@ -10,6 +11,9 @@ import { canonicalDigest } from './foundation.json.js';
 //   Tree (N7): built top-down from the roots, so a node whose parent chain is broken or cyclic is unreachable and never
 //   shown; a hidden node hides its whole branch; a Function item needs an allowed Function of its own module; a group is
 //   kept only with at least one shown descendant. Order: sortOrder, menuTitle, navigationId (code-unit order).
+//   Navigation Builder (22/10/2026): a Developer Function is shown only below the DEVELOP area (registry of
+//   foundation.navigation.builder.ts); the DEVELOP root is returned even when empty (flag developArea) so that the AppShell
+//   can place its system screens there. Several items may open the same Function (each keeps its own title).
 
 export interface NavigationItem {
   readonly navigationId: string;
@@ -50,6 +54,7 @@ export interface MenuFunctionCandidate {
   readonly functionId: string;
   readonly routePath: string;
   readonly screenKey: string | null;
+  readonly developer: boolean;
   readonly requirements: readonly IamRequirement[];
 }
 
@@ -57,6 +62,7 @@ export interface MenuFunction {
   readonly moduleId: string;
   readonly routePath: string;
   readonly screenKey: string | null;
+  readonly developer: boolean;
 }
 
 export interface MenuNode {
@@ -67,6 +73,7 @@ export interface MenuNode {
   readonly sortOrder: number;
   readonly routePath: string | null;
   readonly screenKey: string | null;
+  readonly developArea: boolean;
   readonly children: MenuNode[];
 }
 
@@ -112,7 +119,7 @@ export function menuCandidates(version: ActiveVersionSource, rows: readonly Acti
       requirements.push({ moduleCode: m.moduleCode, resourceCode: m.resourceCode, operation: m.operation, minimumAssuranceLevel: m.minimumAssuranceLevel });
     }
     if (requirements.length === 0) continue;
-    out.push({ moduleId: version.moduleId, functionId, routePath: route.routePath, screenKey: route.screenKey ?? null, requirements });
+    out.push({ moduleId: version.moduleId, functionId, routePath: route.routePath, screenKey: route.screenKey ?? null, developer: isDeveloperFunction(version.moduleKey, f.functionKey), requirements });
   }
   return out;
 }
@@ -121,7 +128,7 @@ const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const order = (a: NavigationItem, b: NavigationItem) =>
   a.sortOrder - b.sortOrder || byCodeUnit(a.menuTitle, b.menuTitle) || byCodeUnit(a.navigationId, b.navigationId);
 
-export function buildMenu(items: readonly NavigationItem[], allowed: ReadonlyMap<string, MenuFunction>): MenuNode[] {
+export function buildMenu(items: readonly NavigationItem[], allowed: ReadonlyMap<string, MenuFunction>, developAreaId: string | null = null): MenuNode[] {
   const children = new Map<string | null, NavigationItem[]>();
   const ids = new Set(items.map((i) => i.navigationId));
   for (const item of items) {
@@ -132,7 +139,7 @@ export function buildMenu(items: readonly NavigationItem[], allowed: ReadonlyMap
     children.set(key, list);
   }
   const visited = new Set<string>();
-  const render = (item: NavigationItem): MenuNode | null => {
+  const render = (item: NavigationItem, inDevelop: boolean): MenuNode | null => {
     if (visited.has(item.navigationId)) return null; // defensive: a node is rendered once
     visited.add(item.navigationId);
     if (!item.isVisible) return null; // hides the whole branch
@@ -141,15 +148,19 @@ export function buildMenu(items: readonly NavigationItem[], allowed: ReadonlyMap
     if (item.functionId !== null) {
       const fn = allowed.get(item.functionId);
       if (fn === undefined || fn.moduleId !== item.moduleId) return null; // hides the branch below a refused Function
+      // A Developer Function outside DEVELOP is never shown — once a DEVELOP area exists (before the first Builder save the
+      // stored menu is kept as it was, so that the module screens reached through it keep working until they are relocated).
+      if (fn.developer && !inDevelop && developAreaId !== null) return null;
       routePath = fn.routePath;
       screenKey = fn.screenKey;
     }
-    const kids = [...(children.get(item.navigationId) ?? [])].sort(order).map(render).filter((n): n is MenuNode => n !== null);
-    if (item.functionId === null && kids.length === 0) return null; // empty group
+    const develop = item.parentId === null && item.navigationId === developAreaId;
+    const kids = [...(children.get(item.navigationId) ?? [])].sort(order).map((c) => render(c, inDevelop || develop)).filter((n): n is MenuNode => n !== null);
+    if (item.functionId === null && kids.length === 0 && !develop) return null; // empty group (DEVELOP kept: system screens)
     return {
       navigationId: item.navigationId, moduleId: item.moduleId, functionId: item.functionId, menuTitle: item.menuTitle, sortOrder: item.sortOrder,
-      routePath, screenKey, children: kids,
+      routePath, screenKey, developArea: develop, children: kids,
     };
   };
-  return [...(children.get(null) ?? [])].sort(order).map(render).filter((n): n is MenuNode => n !== null);
+  return [...(children.get(null) ?? [])].sort(order).map((r) => render(r, false)).filter((n): n is MenuNode => n !== null);
 }

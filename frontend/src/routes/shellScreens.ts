@@ -30,7 +30,7 @@ export interface NavGroup {
 export const SCREENS = {
   home: { id: 'home', path: '/', name: 'Trang chủ', desc: 'Chức năng nghiệp vụ được cấp cho tài khoản và các màn hình quản trị nền tảng.', tabs: ['Chức năng của tôi'] },
   module: { id: 'module', path: '/foundation/modules', name: 'Quản lý Module', desc: 'Đăng ký module, quản lý phiên bản, hồ sơ MIC và vòng đời phê duyệt – kích hoạt.', tabs: ['Module & Phiên bản', 'Đăng ký Module'] },
-  navigation: { id: 'navigation', path: '/foundation/navigation', name: 'Điều hướng', desc: 'Nơi duy nhất quản lý menu chức năng (B09): chọn Module / Chức năng theo tên, tạo nhóm hoặc mục chức năng, sửa tiêu đề, thứ tự, hiển thị.', tabs: ['Menu của tôi', 'Quản trị menu (B09)'] },
+  navigation: { id: 'navigation', path: '/foundation/navigation', name: 'Điều hướng', desc: 'Nơi duy nhất cấu hình menu (B09): vùng → menu → chức năng, kéo-thả, một chức năng ở nhiều menu, vùng Develop; chỉnh trên bản nháp và lưu một lần.', tabs: ['Menu của tôi', 'Quản trị menu (B09)'] },
   accounts: { id: 'accounts', path: '/iam/accounts', name: 'Quản lý tài khoản', desc: 'Tạo tài khoản, khóa / vô hiệu hóa, cấp lại mật khẩu tạm, phiên đăng nhập; vai trò, quyền trực tiếp, quyền hiệu lực và nhật ký IAM.', tabs: ['Danh sách tài khoản', 'Nhật ký IAM'] },
   roles: { id: 'roles', path: '/iam/roles', name: 'Vai trò và quyền', desc: 'Vai trò và quyền theo cây Module → Chức năng → Thao tác; danh mục permission theo MIC-07. Menu (B09) quản lý tại Foundation › Điều hướng.', tabs: ['Vai trò', 'Danh mục Permission'] },
 } as const satisfies Record<AdminScreenId, ShellScreen>;

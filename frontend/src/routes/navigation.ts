@@ -10,8 +10,11 @@ export type AppPath = '/login' | '/first-change' | ShellPath;
 
 // State written into a history entry by a screen that opens a sub-page: the list URL it came from. A "back" button reads
 // it to know that the previous entry is that list (history.back()) instead of guessing.
+// Navigation Builder (multi-link): `navId` = the sidebar link that opened the entry, so that the same path opened from
+// two menus keeps its own active item, open menus and breadcrumb (also on back / forward / reload).
 export interface NavState {
-  readonly returnTo: string;
+  readonly returnTo?: string;
+  readonly navId?: string;
 }
 
 export function currentPath(): string {
@@ -22,15 +25,30 @@ export function replacePath(path: AppPath): void {
   if (window.location.pathname !== path) window.history.replaceState(null, '', path);
 }
 
+// A new entry when the path changes, or when another sidebar link of the same path is opened.
 export function pushPath(path: AppPath, state?: NavState): void {
-  if (window.location.pathname !== path) window.history.pushState(state ?? null, '', path);
+  const otherLink = state?.navId !== undefined && currentNavState()?.navId !== state.navId;
+  if (window.location.pathname !== path || otherLink) window.history.pushState(state ?? null, '', path);
 }
 
 // The current entry's NavState, if this entry was opened by a screen with one.
 export function currentNavState(): NavState | null {
   const state: unknown = window.history.state;
-  if (typeof state === 'object' && state !== null && 'returnTo' in state && typeof state.returnTo === 'string') return { returnTo: state.returnTo };
-  return null;
+  if (typeof state !== 'object' || state === null) return null;
+  const returnTo = 'returnTo' in state && typeof state.returnTo === 'string' ? state.returnTo : undefined;
+  const navId = 'navId' in state && typeof state.navId === 'string' ? state.navId : undefined;
+  if (returnTo === undefined && navId === undefined) return null;
+  return { ...(returnTo !== undefined ? { returnTo } : {}), ...(navId !== undefined ? { navId } : {}) };
+}
+
+// Navigation Builder: a screen with unsaved changes registers a question; in-app navigation asks it first (the browser
+// asks on its own for a reload / tab close through `beforeunload`, registered by that screen).
+let leaveGuard: (() => boolean) | null = null;
+export function setLeaveGuard(guard: (() => boolean) | null): void {
+  leaveGuard = guard;
+}
+export function mayLeave(): boolean {
+  return leaveGuard === null || leaveGuard();
 }
 
 // Keeps the query string of the current entry in step with a screen's state: replaces the entry (no new history entry,
@@ -60,6 +78,6 @@ export function pushLocation(location: string): void {
 // NavState says so — the list comes back with its query), otherwise the list is opened as a new entry. Never a blind
 // history.back(), never a loop.
 export function backOrOpen(listPath: ShellPath, open: OpenPath): void {
-  if (currentNavState()?.returnTo.split('?')[0] === listPath) window.history.back();
+  if (currentNavState()?.returnTo?.split('?')[0] === listPath) window.history.back();
   else open(listPath);
 }

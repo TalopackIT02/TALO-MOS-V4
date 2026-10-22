@@ -49,8 +49,30 @@ export interface MenuNode {
   sortOrder: number;
   routePath: string | null;
   screenKey: string | null;
+  developArea: boolean; // the DEVELOP area (Navigation Builder); the shell shows the system screens inside it
   children: MenuNode[];
 }
+
+// Navigation Builder (GET / PUT /api/foundation/navigation/builder): areas → menus → Function links + legacy rows.
+export interface LayoutLink { id: string; functionId: string; moduleId: string; title: string; visible: boolean }
+export interface LayoutMenu { id: string; moduleId: string | null; title: string; visible: boolean; items: LayoutLink[] }
+export interface LayoutArea { id: string; moduleId: string | null; title: string; visible: boolean; develop: boolean; menus: LayoutMenu[] }
+export type LegacyReason = 'FUNCTION_AT_ROOT' | 'FUNCTION_UNDER_AREA' | 'TOO_DEEP' | 'UNREACHABLE';
+export interface LegacyItem {
+  id: string; kind: 'function' | 'group'; functionId: string | null; moduleId: string | null; title: string; visible: boolean; path: string[]; inDevelop: boolean;
+  reason: LegacyReason;
+}
+export interface NavigationLayout { revision: string; developAreaId: string | null; areas: LayoutArea[]; legacy: LegacyItem[] }
+export type InventoryReason = 'MODULE_DISABLED' | 'NO_ACTIVE_VERSION' | 'NO_ROUTE_OR_PERMISSION';
+export interface InventoryFunction {
+  functionId: string; moduleId: string; moduleKey: string; moduleName: string; functionKey: string; displayName: string;
+  assignable: boolean; reason: InventoryReason | null; developer: boolean;
+}
+// The whole draft sent on preview / save (id null = a new row).
+export interface DraftLink { id: string | null; functionId: string; title: string; visible: boolean }
+export interface DraftMenu { id: string | null; title: string; visible: boolean; items: DraftLink[] }
+export interface DraftArea { id: string | null; title: string; visible: boolean; develop: boolean; menus: DraftMenu[] }
+export interface DraftLayout { revision: string; areas: DraftArea[]; legacy: { id: string; visible: boolean }[] }
 
 export interface ApiFailure {
   ok: false;
@@ -102,7 +124,56 @@ function toNode(v: unknown): MenuNode {
   if (!isObject(v) || typeof v.sortOrder !== 'number' || !Array.isArray(v.children)) throw new Error('menu node');
   return {
     navigationId: req(v, 'navigationId'), moduleId: str(v.moduleId), functionId: str(v.functionId), menuTitle: req(v, 'menuTitle'), sortOrder: v.sortOrder,
-    routePath: str(v.routePath), screenKey: str(v.screenKey), children: v.children.map(toNode),
+    routePath: str(v.routePath), screenKey: str(v.screenKey), developArea: v.developArea === true, children: v.children.map(toNode),
+  };
+}
+
+function bool(v: Json, key: string): boolean {
+  const value = v[key];
+  if (typeof value !== 'boolean') throw new Error(`field ${key}`);
+  return value;
+}
+function arr(v: Json, key: string): unknown[] {
+  const value = v[key];
+  if (!Array.isArray(value)) throw new Error(`field ${key}`);
+  return value;
+}
+function obj(v: unknown, what: string): Json {
+  if (!isObject(v)) throw new Error(what);
+  return v;
+}
+const LEGACY_REASONS: readonly LegacyReason[] = ['FUNCTION_AT_ROOT', 'FUNCTION_UNDER_AREA', 'TOO_DEEP', 'UNREACHABLE'];
+const INVENTORY_REASONS: readonly InventoryReason[] = ['MODULE_DISABLED', 'NO_ACTIVE_VERSION', 'NO_ROUTE_OR_PERMISSION'];
+
+function toLink(u: unknown): LayoutLink {
+  const v = obj(u, 'link');
+  return { id: req(v, 'id'), functionId: req(v, 'functionId'), moduleId: req(v, 'moduleId'), title: req(v, 'title'), visible: bool(v, 'visible') };
+}
+function toMenu(u: unknown): LayoutMenu {
+  const v = obj(u, 'menu');
+  return { id: req(v, 'id'), moduleId: str(v.moduleId), title: req(v, 'title'), visible: bool(v, 'visible'), items: arr(v, 'items').map(toLink) };
+}
+function toArea(u: unknown): LayoutArea {
+  const v = obj(u, 'area');
+  return { id: req(v, 'id'), moduleId: str(v.moduleId), title: req(v, 'title'), visible: bool(v, 'visible'), develop: bool(v, 'develop'), menus: arr(v, 'menus').map(toMenu) };
+}
+function toLegacy(u: unknown): LegacyItem {
+  const v = obj(u, 'legacy');
+  const reason = LEGACY_REASONS.find((r) => r === v.reason);
+  if (reason === undefined || (v.kind !== 'function' && v.kind !== 'group')) throw new Error('legacy');
+  return { id: req(v, 'id'), kind: v.kind, functionId: str(v.functionId), moduleId: str(v.moduleId), title: req(v, 'title'), visible: bool(v, 'visible'), path: strings(v.path), inDevelop: bool(v, 'inDevelop'), reason };
+}
+function toLayout(u: unknown): NavigationLayout {
+  const v = obj(u, 'layout');
+  return { revision: req(v, 'revision'), developAreaId: str(v.developAreaId), areas: arr(v, 'areas').map(toArea), legacy: arr(v, 'legacy').map(toLegacy) };
+}
+function toInventory(u: unknown): InventoryFunction {
+  const v = obj(u, 'function');
+  const reason = v.reason === null ? null : INVENTORY_REASONS.find((r) => r === v.reason);
+  if (reason === undefined) throw new Error('reason');
+  return {
+    functionId: req(v, 'functionId'), moduleId: req(v, 'moduleId'), moduleKey: req(v, 'moduleKey'), moduleName: req(v, 'moduleName'), functionKey: req(v, 'functionKey'),
+    displayName: req(v, 'displayName'), assignable: bool(v, 'assignable'), reason, developer: bool(v, 'developer'),
   };
 }
 
@@ -170,6 +241,10 @@ export const foundationApi = {
     call('POST', '/foundation/navigation/items', input, one('item', toItem)),
   updateItem: (navigationId: string, change: { menuTitle?: string; sortOrder?: number; isVisible?: boolean }) =>
     call('PATCH', `/foundation/navigation/items/${encodeURIComponent(navigationId)}`, change, one('item', toItem)),
+  builderLayout: () => call('GET', '/foundation/navigation/builder', undefined, one('layout', toLayout)),
+  builderFunctions: () => call('GET', '/foundation/navigation/builder/functions', undefined, listOf('functions', toInventory)),
+  builderPreview: (draft: DraftLayout) => call('POST', '/foundation/navigation/builder/preview', draft, listOf('navigation', toNode)),
+  builderApply: (draft: DraftLayout) => call('PUT', '/foundation/navigation/builder', draft, one('layout', toLayout)),
 };
 
 export const isJsonObject = isObject;

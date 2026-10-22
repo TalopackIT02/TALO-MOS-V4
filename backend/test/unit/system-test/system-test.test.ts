@@ -119,8 +119,8 @@ const NO_DB: FoundationDb = {
 };
 
 const menuOf = (routes: readonly string[]): MenuNode[] => [{
-  navigationId: 'g', moduleId: 'm', functionId: null, menuTitle: 'System Test', sortOrder: 0, routePath: null, screenKey: null,
-  children: routes.map((r, i) => ({ navigationId: `n${i}`, moduleId: 'm', functionId: `f${i}`, menuTitle: r, sortOrder: i, routePath: r, screenKey: null, children: [] })),
+  navigationId: 'g', moduleId: 'm', functionId: null, menuTitle: 'System Test', sortOrder: 0, routePath: null, screenKey: null, developArea: false,
+  children: routes.map((r, i) => ({ navigationId: `n${i}`, moduleId: 'm', functionId: `f${i}`, menuTitle: r, sortOrder: i, routePath: r, screenKey: null, developArea: false, children: [] })),
 }];
 
 function build() {

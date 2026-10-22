@@ -231,10 +231,10 @@ describe('FBE-06 permission-filtered menu (N5–N8)', () => {
     const { h, m, tree } = await liveModule();
     const nav = await menu(h);
     expect(nav).toEqual([{
-      navigationId: tree.root, moduleId: null, functionId: null, menuTitle: 'Kinh doanh', sortOrder: 1, routePath: null, screenKey: null,
+      navigationId: tree.root, moduleId: null, functionId: null, menuTitle: 'Kinh doanh', sortOrder: 1, routePath: null, screenKey: null, developArea: false,
       children: [{
-        navigationId: tree.group, moduleId: m.module_id, functionId: null, menuTitle: 'Bán hàng', sortOrder: 0, routePath: null, screenKey: null,
-        children: [{ navigationId: tree.order, moduleId: m.module_id, functionId: fid(h, m, 'ORDER'), menuTitle: 'Đơn hàng', sortOrder: 2, routePath: '/sales/orders', screenKey: 'sales.orders', children: [] }],
+        navigationId: tree.group, moduleId: m.module_id, functionId: null, menuTitle: 'Bán hàng', sortOrder: 0, routePath: null, screenKey: null, developArea: false,
+        children: [{ navigationId: tree.order, moduleId: m.module_id, functionId: fid(h, m, 'ORDER'), menuTitle: 'Đơn hàng', sortOrder: 2, routePath: '/sales/orders', screenKey: 'sales.orders', developArea: false, children: [] }],
       }],
     }]);
   });
@@ -366,7 +366,7 @@ describe('FBE-06 buildMenu (N7) — pure', () => {
   const item = (over: Partial<NavigationItem> & { navigationId: string }): NavigationItem => ({
     parentId: null, moduleId: null, functionId: null, menuTitle: over.navigationId, sortOrder: 0, isVisible: true, createdAt: 't', ...over,
   });
-  const allowed = new Map([['f1', { moduleId: 'm', routePath: '/a', screenKey: null }], ['f2', { moduleId: 'm', routePath: '/b', screenKey: 's' }]]);
+  const allowed = new Map([['f1', { moduleId: 'm', routePath: '/a', screenKey: null, developer: false }], ['f2', { moduleId: 'm', routePath: '/b', screenKey: 's', developer: false }]]);
 
   it('P1 ordering by sortOrder, then menuTitle, then navigationId (stable); a Function of another module than its node is refused', () => {
     const items = [

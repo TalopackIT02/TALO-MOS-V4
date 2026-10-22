@@ -20,6 +20,8 @@ const BY_CODE: Record<string, string> = {
   ACTIVATION_BLOCKED: 'Phiên bản chưa đủ điều kiện để kích hoạt.',
   MODULE_ENABLE_BLOCKED: 'Module chưa đủ điều kiện để bật (cần đúng một phiên bản ACTIVE hợp lệ).',
   NAVIGATION_REFERENCE_INVALID: 'Module, Function hoặc menu cha không hợp lệ cho mục menu này.',
+  NAVIGATION_CONFLICT: 'Cấu hình điều hướng đã được thay đổi từ khi bạn mở. Tải lại để xem cấu hình mới nhất; bản nháp chưa được lưu.',
+  NAVIGATION_LAYOUT_INVALID: 'Cấu hình điều hướng không hợp lệ; không có thay đổi nào được lưu.',
   SESSION_INVALID: 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.',
   PASSWORD_CHANGE_REQUIRED: 'Bạn cần đổi mật khẩu trước khi sử dụng hệ thống.',
   RATE_LIMITED: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.',

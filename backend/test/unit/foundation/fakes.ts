@@ -531,6 +531,19 @@ export class FakeDb implements FoundationDb {
         state.events.push(['EVENT', ...params]);
         return [];
       }
+      case NAVIGATION_SQL.lockLayout:
+        return [{ pg_advisory_xact_lock: '' }]; // transaction-scoped advisory lock: one row, no data
+      case NAVIGATION_SQL.inventory:
+        return state.functions.filter((f) => f.retired_at === null).flatMap((f) => {
+          const m = state.modules.find((x) => x.module_id === f.module_id);
+          if (!m) return [];
+          const v = state.versions.find((x) => x.module_id === m.module_id && x.status === 'ACTIVE');
+          const vf = v ? state.versionFunctions.find((x) => x.version_id === v.version_id && x.function_id === f.function_id) : undefined;
+          return [{
+            function_id: f.function_id, module_id: m.module_id, module_key: m.module_key, module_name: m.module_name, is_enabled: m.is_enabled,
+            function_key: f.function_key, display_name: vf?.display_name ?? null, has_active_version: v !== undefined,
+          }];
+        });
       case NAVIGATION_SQL.functionOfModule:
         return state.functions.filter((f) => f.function_id === params[0] && f.module_id === params[1]).map((f) => ({ function_id: f.function_id }));
       case NAVIGATION_SQL.getItem:

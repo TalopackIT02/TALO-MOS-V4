@@ -55,6 +55,8 @@ async function open(page: Page, profile: Profile) {
     if (path === '/api/iam/admin/permission-tree') return json({ tree: { modules: [], platform: [], unbound: [] } });
     if (path === '/api/iam/admin/foundation/navigation/items') return json({ items: [] });
     if (path === '/api/iam/admin/foundation/modules') return json({ modules: [] });
+    if (path === '/api/foundation/navigation/builder') return json({ layout: { revision: '0'.repeat(64), developAreaId: null, areas: [], legacy: [] } });
+    if (path === '/api/foundation/navigation/builder/functions') return json({ functions: [] });
     // Module (SYSTEM_TEST) screen APIs are not under test here.
     return json({ error: { code: 'NOT_IN_TEST', requestId: 'test' } }, 503);
   });
@@ -108,8 +110,9 @@ test('P3 Foundation view only: Foundation › Quản lý Module only; register t
   await open(page, { caps: ['foundation.module_registry.read', 'foundation.module_version.read'], menu: [] });
   await page.goto('/');
   await expect(page.locator('.cards .card')).toHaveCount(1);
+  await sidebar(page).getByRole('button', { name: 'Develop', exact: true }).click(); // system screens live in DEVELOP
   await sidebar(page).getByRole('button', { name: 'Foundation' }).click();
-  await expect(sidebar(page).locator('.sub button')).toHaveText(['Quản lý Module']);
+  await expect(sidebar(page).locator('.sub .nav-fn')).toHaveText(['Quản lý Module']);
   await expect(sidebar(page).getByRole('button', { name: /IAM/ })).toHaveCount(0);
   await page.goto('/foundation/modules');
   await expect(tabs(page)).toHaveText(['Module & Phiên bản']);
@@ -137,7 +140,7 @@ test('P4 IAM READ only: accounts with server Field Search / sort; roles refused;
     await expect(page.getByRole('button', { name: 'Cấp quyền trực tiếp' })).toHaveCount(0);
   }
   await sidebar(page).getByRole('button', { name: /IAM/ }).click();
-  await expect(sidebar(page).locator('.sub button')).toHaveText(['Quản lý tài khoản']);
+  await expect(sidebar(page).locator('.sub .nav-fn')).toHaveText(['Quản lý tài khoản']);
   await page.goto('/iam/roles');
   await expect(guard(page)).toBeVisible();
 });
@@ -158,8 +161,8 @@ test('P6 root admin: every admin screen; B09 managed in Foundation by name (no U
   await page.goto('/foundation/navigation');
   await expect(tabs(page)).toHaveText(['Menu của tôi', 'Quản trị menu (B09)']);
   await tabs(page).nth(1).click();
-  await expect(page.getByLabel('Loại mục')).toBeVisible();
-  await expect(page.getByLabel('Module', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Kho chức năng' })).toBeVisible(); // Navigation Builder (22/10/2026)
+  await expect(page.getByRole('button', { name: 'Lưu cấu hình' })).toBeVisible();
   await expect(page.locator('#body')).not.toContainText('UUID');
   await page.goto('/iam/roles');
   await expect(tabs(page)).toHaveText(['Vai trò', 'Danh mục Permission']);

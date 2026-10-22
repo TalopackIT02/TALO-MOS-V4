@@ -5,8 +5,8 @@ import type { Page } from '@playwright/test';
 import { DEFAULT_MENU_ICON, FALLBACK_ICON, loadIconNames, resolveIcon } from '../../frontend/src/components/icons/iconLibrary';
 
 // SIDEBAR & ICON MANAGEMENT REFINEMENT — MENU = SVG icon + bold title + hierarchy; FUNCTION = no icon + normal weight +
-// indentation; icon library keys only (fallback for anything else); icon picker in Foundation › Điều hướng for MENU items
-// only (preview — B09 has no icon field, nothing is sent). API intercepted (what the shell renders is under test).
+// indentation; icon library keys only (fallback for anything else); menus keep the default icon (Q13 — no picker, no
+// icon field in B09). System screens live in the DEVELOP area. API intercepted (what the shell renders is under test).
 
 const ALL_CAPS = [
   'foundation.module_registry.read', 'foundation.module_version.read', 'foundation.navigation.manage',
@@ -32,6 +32,8 @@ async function open(page: Page, caps: readonly string[] = ALL_CAPS) {
     if (path === '/api/iam/admin/me/capabilities') return json({ permissions: Object.fromEntries(ALL_CAPS.map((c) => [c, caps.includes(c)])) });
     if (path === '/api/iam/admin/foundation/navigation/items') return json({ items: [] });
     if (path === '/api/iam/admin/foundation/modules') return json({ modules: [] });
+    if (path === '/api/foundation/navigation/builder') return json({ layout: { revision: '0'.repeat(64), developAreaId: null, areas: [], legacy: [] } });
+    if (path === '/api/foundation/navigation/builder/functions') return json({ functions: [] });
     if (path === '/api/foundation/navigation/items' && request.method() === 'POST') {
       posts.push(request.postDataJSON());
       return json({ error: { code: 'NOT_IN_TEST', requestId: 'test' } }, 503);
@@ -53,10 +55,11 @@ test.describe('desktop', () => {
     await page.goto('/');
     await sidebar(page).getByRole('button', { name: 'Test System', exact: true }).click();
     await sidebar(page).getByRole('button', { name: 'Dữ liệu', exact: true }).click();
+    await sidebar(page).getByRole('button', { name: 'Develop', exact: true }).click(); // system screens live in DEVELOP
     await sidebar(page).getByRole('button', { name: 'Foundation', exact: true }).click();
     // 1. Menu icons are library SVGs.
     const icons = await sidebar(page).locator('.nav-menu .nav-icon, .nav-menu-nested .nav-icon').evaluateAll((els) => els.map((e) => [e.getAttribute('data-icon'), getComputedStyle(e).maskImage || getComputedStyle(e).webkitMaskImage]));
-    expect(icons.map(([k]) => k)).toEqual(['home', DEFAULT_MENU_ICON, DEFAULT_MENU_ICON, 'settings', 'shield-lock']);
+    expect(icons.map(([k]) => k)).toEqual(['home', DEFAULT_MENU_ICON, DEFAULT_MENU_ICON, DEFAULT_MENU_ICON, 'settings', 'shield-lock']);
     for (const [key, mask] of icons) expect(mask).toContain(`/assets/icons/navigation/${key}.svg`);
     for (const key of ['home', 'folder', 'settings', 'shield-lock', FALLBACK_ICON]) {
       const res = await page.request.get(`/assets/icons/navigation/${key}.svg`);
@@ -113,37 +116,18 @@ test.describe('desktop', () => {
     await expect(page).toHaveURL(/\/system-test$/);
   });
 
-  test('icon picker: MENU only, search by name, preview, default; nothing about the icon is sent to the B09 API', async ({ page }) => {
-    const posts = await open(page);
+  // Owner decision Q13 (Navigation Builder, 22/10/2026): menus keep the default icon — no icon picker, nothing stored.
+  test('Q13: no icon picker in the Navigation Builder; menus keep the default library icon', async ({ page }) => {
+    await open(page);
     await page.goto('/foundation/navigation');
     await page.locator('#tabs button').nth(1).click();
-    // Function kind (default): no icon field.
+    await expect(page.getByRole('heading', { name: 'Kho chức năng' })).toBeVisible();
     await expect(page.getByRole('group', { name: /Icon của menu/ })).toHaveCount(0);
-    await page.getByLabel('Loại mục').selectOption('group');
-    const picker = page.getByRole('group', { name: /Icon của menu/ });
-    await expect(picker).toBeVisible();
-    await expect(page.getByText('chỉ xem trước, CHƯA lưu', { exact: false })).toBeVisible();
-    await expect(picker.locator('.icon-picker-preview b')).toHaveText(DEFAULT_MENU_ICON);
-    await picker.getByLabel('Tìm icon theo tên').fill('shield-lock');
-    await expect(picker.getByRole('option', { name: 'shield-lock', exact: true })).toBeVisible();
-    await picker.getByLabel('Tìm icon theo tên').fill('khong-ton-tai-xyz');
-    await expect(picker.getByText('Không có icon nào khớp')).toBeVisible();
-    await picker.getByLabel('Tìm icon theo tên').fill('shield-lock');
-    await picker.getByRole('option', { name: 'shield-lock', exact: true }).click();
-    await expect(picker.locator('.icon-picker-preview b')).toHaveText('shield-lock');
-    await expect(picker.locator('.icon-picker-preview .nav-icon')).toHaveAttribute('data-icon', 'shield-lock');
-    await picker.getByRole('button', { name: 'Dùng icon mặc định' }).click();
-    await expect(picker.locator('.icon-picker-preview b')).toHaveText(DEFAULT_MENU_ICON);
-    // No path / file name input anywhere in the form.
+    await expect(page.getByLabel('Tìm icon theo tên')).toHaveCount(0);
     await expect(page.locator('#body')).not.toContainText('.svg');
-    // Create a group: the request carries no icon field (B09 contract unchanged).
-    await page.getByLabel('Tiêu đề hiển thị').fill('Nhóm thử icon');
-    await page.getByRole('button', { name: 'Tạo nhóm menu' }).click();
-    await expect.poll(() => posts.length).toBe(1);
-    expect(Object.keys(Object(posts[0])).sort()).toEqual(['functionId', 'isVisible', 'menuTitle', 'moduleId', 'parentId', 'sortOrder']);
-    // Back to a Function item: the picker disappears.
-    await page.getByLabel('Loại mục').selectOption('function');
-    await expect(page.getByRole('group', { name: /Icon của menu/ })).toHaveCount(0);
+    const icons = await page.locator('.nb-tree .nav-icon').evaluateAll((els) => els.map((e) => e.getAttribute('data-icon')));
+    expect(icons.length).toBeGreaterThan(0);
+    expect(new Set(icons)).toEqual(new Set([DEFAULT_MENU_ICON]));
   });
 
   test('IAM still decides: without admin capabilities no admin menu appears (icons do not change visibility)', async ({ page }) => {
