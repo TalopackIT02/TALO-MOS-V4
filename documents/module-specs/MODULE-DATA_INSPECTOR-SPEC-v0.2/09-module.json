@@ -1,0 +1,33 @@
+{
+  "packageFormat": "TALO-MODULE-PACKAGE-1",
+  "moduleKey": "DATA_INSPECTOR",
+  "name": "Trình xem PostgreSQL chỉ đọc (admin)",
+  "packageVersion": "0.1.0",
+  "contractVersion": "MIC-1.0",
+  "hostProtocol": "TALO-MODULE-HOST-1",
+  "backendEntry": "backend/index.ts",
+  "frontendEntry": "frontend/index.tsx",
+  "micEntry": "mic/data-inspector.mic.ts",
+  "frontend": {
+    "screens": [
+      {
+        "screenKey": "data.inspector",
+        "name": "Trình xem PostgreSQL",
+        "description": "Chỉ tài khoản username admin, trình xem toàn bộ bảng PostgreSQL trong database hiện tại, không ghi dữ liệu.",
+        "tabs": [
+          {
+            "label": "Xem dữ liệu",
+            "path": "/data-inspector"
+          }
+        ]
+      }
+    ]
+  },
+  "requiredCapabilities": [
+    "session",
+    "authorize",
+    "lifecycle",
+    "readOnly",
+    "logger"
+  ]
+}
