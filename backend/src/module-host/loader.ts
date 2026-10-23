@@ -22,15 +22,20 @@ export function handshake(pkg: InstalledModule): string[] {
 }
 
 export function mountModules(packages: readonly InstalledModule[], deps: HostDeps, logger: Logger): Router[] {
-  const routers: Router[] = [];
+  return [...mountModuleMap(packages, deps, logger).values()];
+}
+
+// FMI-03: the same mount, keyed by module (the installer's postcheck calls the router this process really runs).
+export function mountModuleMap(packages: readonly InstalledModule[], deps: HostDeps, logger: Logger): Map<string, Router> {
+  const routers = new Map<string, Router>();
   for (const pkg of packages) {
     const problems = handshake(pkg);
     if (problems.length > 0) {
       logger.warn('module package not loaded', { moduleKey: pkg.manifest.moduleKey, problems: problems.join(', ') });
       continue;
     }
-    routers.push(pkg.entry.createModule(createHostCapabilities(pkg.manifest.moduleKey, deps)).router);
-    logger.info('module package loaded', { moduleKey: pkg.manifest.moduleKey, packageVersion: pkg.manifest.packageVersion, contract: pkg.manifest.contractVersion });
+    routers.set(pkg.manifest.moduleKey, pkg.entry.createModule(createHostCapabilities(pkg.manifest.moduleKey, deps)).router);
+    logger.info('module package loaded', { moduleKey: pkg.manifest.moduleKey, packageVersion: pkg.manifest.packageVersion, packageHash: pkg.manifest.packageHash ?? null, contract: pkg.manifest.contractVersion });
   }
   return routers;
 }

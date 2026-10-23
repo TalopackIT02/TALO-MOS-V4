@@ -56,3 +56,14 @@
   .app-shell .ms-bar{grid-template-columns:110px 1fr 28px}
   .app-shell .ms-dl{grid-template-columns:1fr}
 }
+/* FMI-02 / FMI-03 installer panel */
+.app-shell .ms-installer h3{margin:0 0 8px}
+.app-shell .ms-runtime{margin:6px 0 10px}
+.app-shell .ms-runtime summary{cursor:pointer}
+.app-shell .ms-candidates{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.app-shell .ms-candidate{border-top:1px solid #e3e6ee;padding-top:8px}
+.app-shell .ms-plan{margin-top:10px;border-top:1px solid #e3e6ee;padding-top:8px}
+.app-shell .ms-steps li{margin:3px 0}
+.app-shell .ms-installer .ms-checks li{flex-wrap:wrap;align-items:center}
+.app-shell .ms-installer .ms-checks li > .fx-btn{margin-left:auto}
+.app-shell .ms-installer .ms-checks li > .ms-issue{flex-basis:100%}

@@ -48,7 +48,7 @@ export class ModuleScanError extends Error {
 // ------------------------------------------------------------------------------------------------- Registry (SELECT)
 export const MODULE_SCAN_SQL = {
   registry: `
-    SELECT m.module_key, v.module_version, v.status,
+    SELECT m.module_key, m.is_enabled, v.module_version, v.status,
            CASE WHEN v.status = 'ACTIVE' THEN v.manifest_json -> 'mic04Navigation' END AS navigation
       FROM foundation.fnd_modules AS m
       LEFT JOIN foundation.fnd_module_versions AS v ON v.module_id = m.module_id
@@ -56,7 +56,7 @@ export const MODULE_SCAN_SQL = {
 } as const;
 
 const STATUSES: readonly VersionStatus[] = ['DRAFT', 'IN_REVIEW', 'APPROVED', 'ACTIVE', 'RETIRED', 'REJECTED'];
-const registryRow = z.object({ module_key: z.string(), module_version: z.string().nullable(), status: z.string().nullable(), navigation: z.unknown() });
+const registryRow = z.object({ module_key: z.string(), is_enabled: z.boolean(), module_version: z.string().nullable(), status: z.string().nullable(), navigation: z.unknown() });
 
 function routesOf(navigation: unknown): string[] | null {
   if (navigation === null || navigation === undefined) return null;
@@ -75,7 +75,7 @@ export class SqlModuleScanRegistry implements ModuleScanRegistry {
       if (r.module_version === null || r.status === null) continue;
       const status = STATUSES.find((s) => s === r.status);
       if (status === undefined) throw new Error('unknown version status');
-      versions.push({ moduleKey: r.module_key, moduleVersion: r.module_version, status, activeRoutes: status === 'ACTIVE' ? routesOf(r.navigation) : null });
+      versions.push({ moduleKey: r.module_key, moduleVersion: r.module_version, status, activeRoutes: status === 'ACTIVE' ? routesOf(r.navigation) : null, moduleEnabled: r.is_enabled });
     }
     return { moduleKeys, versions };
   }
@@ -150,6 +150,12 @@ export class ModuleScanService {
     const found = this.snapshots.get(scanId);
     if (!found) throw new ModuleScanError(404, 'SCAN_NOT_FOUND');
     return found.report;
+  }
+
+  // FMI-02: the stored snapshot for the installer service, which authorises its own request first (never scans).
+  stored(scanId: string): ScanReport | null {
+    this.prune();
+    return this.snapshots.get(scanId)?.report ?? null;
   }
 
   private async run(actor: Actor, started: number): Promise<ScanReport> {

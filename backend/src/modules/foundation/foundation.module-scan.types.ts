@@ -82,6 +82,8 @@ export interface RegisteredVersion {
   readonly moduleVersion: string;
   readonly status: VersionStatus;
   readonly activeRoutes: readonly string[] | null;
+  // FMI-02/03: B01.is_enabled of the module (absent = unknown → treated as enabled, fail closed).
+  readonly moduleEnabled?: boolean;
 }
 
 export interface RegistryFacts {

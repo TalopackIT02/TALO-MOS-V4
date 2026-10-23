@@ -1,5 +1,12 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import type { Router } from 'express';
+import { moduleInstallerRouter } from './foundation.installer.routes.js';
+import { ModuleInstallerService } from './foundation.installer.service.js';
+import type { IamCatalog, InstallerRuntime } from './foundation.installer.service.js';
+import { InstallerStore } from './foundation.installer.store.js';
+import type { Exec, PreflightEnvironment, PreflightPaths } from './foundation.preflight.js';
 import type { Logger } from '../../core/logging/logger.js';
 import type { PrismaClient } from '../../infrastructure/prisma/generated/client.js';
 import type { AuthService } from '../auth/auth.service.js';
@@ -43,6 +50,29 @@ export interface FoundationModuleOptions {
   readonly navigationRepository?: NavigationRepository;
   readonly moduleScanRegistry?: ModuleScanRegistry;
   readonly moduleScanRoot?: string;
+  // FMI-02 / FMI-03: Candidate Workspace, Preflight and Installer — mounted only when the server provides it.
+  readonly installer?: InstallerOptions;
+}
+
+export interface InstallerOptions {
+  readonly runtime: InstallerRuntime;
+  readonly iam: IamCatalog | null;
+  readonly environment: PreflightEnvironment;
+  readonly allowedDatabase?: string;
+  readonly paths?: Partial<PreflightPaths>;
+  readonly storeRoot?: string;
+  readonly exec?: Exec;
+  readonly now?: () => number;
+  readonly planTtlMs?: number;
+}
+
+// <repo>/backend from this file (src/… and dist/… have the same depth).
+const BACKEND_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+export function defaultInstallerPaths(): PreflightPaths {
+  return {
+    backendDir: BACKEND_DIR, frontendDir: resolve(BACKEND_DIR, '../frontend'), modulesRoot: resolve(BACKEND_DIR, '../modules'),
+    releasesDir: resolve(BACKEND_DIR, 'module-releases'), lockFile: resolve(BACKEND_DIR, 'module-deployments.json'),
+  };
 }
 
 export interface FoundationModule {
@@ -53,6 +83,7 @@ export interface FoundationModule {
   readonly lifecycleService: ModuleLifecycleService;
   readonly navigationService: NavigationService;
   readonly moduleScanService: ModuleScanService;
+  readonly installerService: ModuleInstallerService | null;
 }
 
 export function createFoundationModule(options: FoundationModuleOptions): FoundationModule {
@@ -83,5 +114,17 @@ export function createFoundationModule(options: FoundationModuleOptions): Founda
   router.use(moduleLifecycleRouter({ authService: options.authService, service: lifecycleService, secureCookie: options.secureCookie }));
   router.use(navigationRouter({ authService: options.authService, service: navigationService, secureCookie: options.secureCookie }));
   router.use(moduleScanRouter({ authService: options.authService, service: moduleScanService, secureCookie: options.secureCookie }));
-  return { router, service, versionService, manifestService, lifecycleService, navigationService, moduleScanService };
+  let installerService: ModuleInstallerService | null = null;
+  if (options.installer) {
+    const i = options.installer;
+    const paths = { ...defaultInstallerPaths(), ...(options.moduleScanRoot ? { modulesRoot: options.moduleScanRoot } : {}), ...i.paths };
+    installerService = new ModuleInstallerService({
+      access: repository, db, registry: options.moduleScanRegistry ?? new SqlModuleScanRegistry(db), scans: moduleScanService, modules: service,
+      versions: versionService, manifests: manifestService, lifecycle: lifecycleService, navigation: navigationService, iam: i.iam, runtime: i.runtime,
+      paths, store: new InstallerStore(i.storeRoot), environment: i.environment, allowedDatabase: i.allowedDatabase ?? 'talo_mos_v4_test', logger: options.logger,
+      ...(i.exec ? { exec: i.exec } : {}), ...(i.now ? { now: i.now } : {}), ...(i.planTtlMs ? { planTtlMs: i.planTtlMs } : {}),
+    });
+    router.use(moduleInstallerRouter({ authService: options.authService, service: installerService, secureCookie: options.secureCookie }));
+  }
+  return { router, service, versionService, manifestService, lifecycleService, navigationService, moduleScanService, installerService };
 }

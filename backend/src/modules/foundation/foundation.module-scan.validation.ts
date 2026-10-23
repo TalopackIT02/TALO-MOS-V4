@@ -201,8 +201,18 @@ export function evaluatePackage(facts: PackageFacts, ctx: EvaluationContext): Sc
       }
       const others = [...(ctx.folderRoutes.get(r) ?? [])].filter((k) => k !== moduleKey);
       if (others.length > 0) c.fail('MS-16', 'FAIL', 'MODULE_ROUTE_CONFLICT', `Route ${r} trùng với package ${others.join(', ')}.`, { path: `${folder}/module.json`, actual: r });
-      const activeOthers = (ctx.registry?.versions ?? []).filter((v) => v.moduleKey !== moduleKey && (v.activeRoutes ?? []).includes(r)).map((v) => v.moduleKey);
-      if (activeOthers.length > 0) c.fail('MS-16', 'FAIL', 'MODULE_ROUTE_CONFLICT', `Route ${r} đang được module ACTIVE ${[...new Set(activeOthers)].join(', ')} sử dụng.`, { path: `${folder}/module.json`, actual: r });
+      // FMI-02/03: an ACTIVE + ENABLED module of another key takes the route (menu, inventory, lifecycle) → FAIL. An ACTIVE but
+      // DISABLED one is not offered anywhere (navigation and the Host serve enabled modules only), yet ENABLE would bring
+      // the conflict back → WARN with its key, never silently ignored.
+      const holders = (ctx.registry?.versions ?? []).filter((v) => v.moduleKey !== moduleKey && (v.activeRoutes ?? []).includes(r));
+      const enabledHolders = [...new Set(holders.filter((v) => v.moduleEnabled !== false).map((v) => v.moduleKey))];
+      const disabledHolders = [...new Set(holders.filter((v) => v.moduleEnabled === false).map((v) => v.moduleKey))];
+      if (enabledHolders.length > 0) c.fail('MS-16', 'FAIL', 'MODULE_ROUTE_CONFLICT', `Route ${r} đang được module ACTIVE ${enabledHolders.join(', ')} sử dụng.`, { path: `${folder}/module.json`, actual: r });
+      if (disabledHolders.length > 0) {
+        c.fail('MS-16', 'WARN', 'ROUTE_RESERVED_BY_DISABLED_MODULE', `Route ${r} còn khai báo trong MIC ACTIVE của module đang TẮT ${disabledHolders.join(', ')}: không phục vụ, nhưng bật lại module đó sẽ gây xung đột.`, {
+          path: `${folder}/module.json`, actual: r, remediation: 'Không bật lại module đó; RETIRE phiên bản ACTIVE của nó khi chủ dự án phê duyệt.',
+        });
+      }
     }
     if (!c.checks.has('MS-16')) c.set('MS-16', 'PASS', 'ROUTES_FREE', routes.length > 0 ? `Không xung đột: ${routes.join(', ')} (route của chính module được phép dùng lại khi nâng cấp).` : 'Package không khai báo route.');
   }

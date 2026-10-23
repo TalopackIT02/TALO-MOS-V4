@@ -25,6 +25,7 @@ export interface InstalledModule {
     readonly moduleKey: string;
     readonly name: string;
     readonly packageVersion: string;
+    readonly packageHash?: string | null;
     readonly contractVersion: string;
     readonly hostProtocol: string;
     readonly requiredCapabilities: readonly string[];

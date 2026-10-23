@@ -1,0 +1,1 @@
+No extra module-specific configuration is required. The Host provides session, IAM, readOnly PostgreSQL, Foundation navigation, MIC validation and regressionResults capabilities. No command execution / arbitrary SQL capability is requested.

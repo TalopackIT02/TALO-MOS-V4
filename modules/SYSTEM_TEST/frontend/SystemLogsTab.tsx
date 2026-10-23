@@ -14,9 +14,14 @@ interface Logs {
 }
 function isRecord(x:unknown):x is Record<string,unknown>{return typeof x==='object'&&x!==null&&!Array.isArray(x);}
 function valid(x:unknown):x is Logs {
-  if(!isRecord(x) || x.scope!=='RECORDED_AUDIT_ONLY'||!Array.isArray(x.events)||!isRecord(x.sources)||typeof x.complete!=='boolean')return false;
-  return ['FOUNDATION','IAM'].every(k=>isRecord(x.sources[k])&&['AVAILABLE','UNAVAILABLE','NOT_REQUESTED'].includes(String((x.sources[k] as Record<string,unknown>).state)))
-    && x.events.every(v=>isRecord(v)&&typeof v.eventId==='string'&&typeof v.actionCode==='string'&&typeof v.occurredAt==='string'&&typeof v.outcome==='string');
+  if(!isRecord(x) || x.scope!=='RECORDED_AUDIT_ONLY'||!Array.isArray(x.events)||typeof x.complete!=='boolean')return false;
+  // Capture the narrowed record before the callback; TS does not preserve a property guard on x.sources inside .every().
+  const sources=x.sources;
+  if(!isRecord(sources))return false;
+  return (['FOUNDATION','IAM'] as const).every(k=>{
+    const source=sources[k];
+    return isRecord(source)&&['AVAILABLE','UNAVAILABLE','NOT_REQUESTED'].includes(String(source.state));
+  }) && x.events.every(v=>isRecord(v)&&typeof v.eventId==='string'&&typeof v.actionCode==='string'&&typeof v.occurredAt==='string'&&typeof v.outcome==='string');
 }
 const time=(iso:string)=>new Date(iso).toLocaleString('vi-VN');
 export function SystemLogsTab({onSessionLost}:{onSessionLost:()=>void}){

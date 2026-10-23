@@ -164,3 +164,201 @@ export const moduleScanApi = {
   scan: () => call('POST', '/foundation/module-packages/scan'),
   snapshot: (scanId: string) => call('GET', `/foundation/module-packages/scans/${encodeURIComponent(scanId)}`),
 };
+
+// ------------------------------------------------------------------------------------------------------------------
+// FMI-02 / FMI-03 — Candidate Workspace, "Kiểm tra & Chạy thử" (preflight) and "Cài đặt & Kích hoạt" (installer).
+// Bodies carry ids and fixed values only. Polling of a run is driven by the screen (bounded); nothing here scans
+// modules/ or retries by itself. 200 bodies are validated field by field (UNEXPECTED_RESPONSE + field path).
+export type CandidateStatus = 'SCANNED' | 'VALIDATING' | 'NEEDS_FIX' | 'READY' | 'INVALIDATED' | 'CANCELLED' | 'ERROR';
+export type PreflightStatus = 'PASS' | 'WARN' | 'FAIL' | 'NOT_TESTED' | 'UNAVAILABLE';
+export interface Candidate {
+  candidateId: string; moduleKey: string; moduleName: string; packageVersion: string; folder: string; scanId: string; sourceHash: string;
+  classification: string; status: CandidateStatus; createdAt: string; updatedAt: string; latestRunId: string | null; readyRunId: string | null;
+}
+export interface CheckIssueView { message: string; path: string | null; field: string | null; expected: string | null; actual: string | null }
+export interface PreflightCheckView {
+  id: string; key: string; label: string; status: PreflightStatus; detail: string; startedAt: string | null; finishedAt: string | null; durationMs: number;
+  exitCode: number | null; logHash: string | null; issues: CheckIssueView[]; limitations: string[];
+}
+export interface PreflightRunView {
+  runId: string; candidateId: string; moduleKey: string; packageVersion: string; packageHash: string; status: 'RUNNING' | 'COMPLETED' | 'ERROR';
+  result: 'READY' | 'NEEDS_FIX' | 'INVALIDATED' | null; startedAt: string; finishedAt: string | null; environment: { database: string; nodeEnv: string };
+  checks: PreflightCheckView[]; reportHash: string | null; limitations: string[];
+}
+export type InstallState = 'PREPARED' | 'BLOCKED' | 'PREPARING' | 'STAGED' | 'PUBLISHING' | 'AWAITING_RESTART' | 'CUTTING_OVER' | 'POSTCHECK'
+  | 'INSTALLED_ACTIVE' | 'RECOVERY_REQUIRED' | 'FAILED_SAFE' | 'EXPIRED';
+export interface Installation {
+  installId: string; candidateId: string; moduleKey: string; packageVersion: string; packageHash: string; classification: string; state: InstallState;
+  expiresAt: string; blockers: { code: string; message: string }[]; warnings: string[];
+  steps: { key: string; label: string; status: 'PENDING' | 'DONE' | 'SKIPPED' | 'FAILED'; at: string | null; detail: string }[];
+  postcheck: { key: string; status: 'PASS' | 'FAIL'; detail: string }[]; recovery: string[];
+}
+export interface ReleaseView { moduleKey: string; packageVersion: string; packageHash: string | null }
+export interface RuntimeReleaseView {
+  backend: ReleaseView[]; frontend: ReleaseView[]; lock: ReleaseView[]; matches: boolean; environment: { database: string; nodeEnv: string }; supervisor: string;
+}
+
+const CANDIDATE_STATUSES: readonly CandidateStatus[] = ['SCANNED', 'VALIDATING', 'NEEDS_FIX', 'READY', 'INVALIDATED', 'CANCELLED', 'ERROR'];
+const PF_STATUSES: readonly PreflightStatus[] = ['PASS', 'WARN', 'FAIL', 'NOT_TESTED', 'UNAVAILABLE'];
+const INSTALL_STATES: readonly InstallState[] = ['PREPARED', 'BLOCKED', 'PREPARING', 'STAGED', 'PUBLISHING', 'AWAITING_RESTART', 'CUTTING_OVER', 'POSTCHECK',
+  'INSTALLED_ACTIVE', 'RECOVERY_REQUIRED', 'FAILED_SAFE', 'EXPIRED'];
+const strs = (x: Json, k: string, at: string): string[] => arr(x, k, at).map((v, i) => {
+  if (typeof v !== 'string') throw new ContractError(`${at}.${k}[${i}]`);
+  return v;
+});
+const numOrNull = (x: Json, k: string, at: string): number | null => {
+  const v = x[k];
+  if (v === null) return null;
+  if (typeof v !== 'number') throw new ContractError(`${at}.${k}`);
+  return v;
+};
+
+export function parseCandidate(v: unknown, at = 'candidate'): Candidate {
+  const x = obj(v, at);
+  return {
+    candidateId: str(x, 'candidateId', at), moduleKey: str(x, 'moduleKey', at), moduleName: str(x, 'moduleName', at), packageVersion: str(x, 'packageVersion', at),
+    folder: str(x, 'folder', at), scanId: str(x, 'scanId', at), sourceHash: str(x, 'sourceHash', at), classification: str(x, 'classification', at),
+    status: oneOf(x, 'status', CANDIDATE_STATUSES, at), createdAt: str(x, 'createdAt', at), updatedAt: str(x, 'updatedAt', at),
+    latestRunId: strOrNull(x, 'latestRunId', at), readyRunId: strOrNull(x, 'readyRunId', at),
+  };
+}
+
+export function parseRun(v: unknown, at = 'run'): PreflightRunView {
+  const x = obj(v, at);
+  const env = obj(x['environment'], `${at}.environment`);
+  const result = x['result'] === null ? null : oneOf(x, 'result', ['READY', 'NEEDS_FIX', 'INVALIDATED'] as const, at);
+  return {
+    runId: str(x, 'runId', at), candidateId: str(x, 'candidateId', at), moduleKey: str(x, 'moduleKey', at), packageVersion: str(x, 'packageVersion', at),
+    packageHash: str(x, 'packageHash', at), status: oneOf(x, 'status', ['RUNNING', 'COMPLETED', 'ERROR'] as const, at), result,
+    startedAt: str(x, 'startedAt', at), finishedAt: strOrNull(x, 'finishedAt', at), reportHash: strOrNull(x, 'reportHash', at),
+    environment: { database: str(env, 'database', `${at}.environment`), nodeEnv: str(env, 'nodeEnv', `${at}.environment`) },
+    limitations: strs(x, 'limitations', at),
+    checks: arr(x, 'checks', at).map((c, i) => {
+      const p = `${at}.checks[${i}]`;
+      const o = obj(c, p);
+      return {
+        id: str(o, 'id', p), key: str(o, 'key', p), label: str(o, 'label', p), status: oneOf(o, 'status', PF_STATUSES, p), detail: str(o, 'detail', p),
+        startedAt: strOrNull(o, 'startedAt', p), finishedAt: strOrNull(o, 'finishedAt', p), durationMs: num(o, 'durationMs', p), exitCode: numOrNull(o, 'exitCode', p),
+        logHash: strOrNull(o, 'logHash', p), limitations: strs(o, 'limitations', p),
+        issues: arr(o, 'issues', p).map((s, j) => {
+          const q = `${p}.issues[${j}]`;
+          const io = obj(s, q);
+          return { message: str(io, 'message', q), path: opt(io, 'path', q), field: opt(io, 'field', q), expected: opt(io, 'expected', q), actual: opt(io, 'actual', q) };
+        }),
+      };
+    }),
+  };
+}
+
+export function parseInstallation(v: unknown, at = 'installation'): Installation {
+  const x = obj(v, at);
+  return {
+    installId: str(x, 'installId', at), candidateId: str(x, 'candidateId', at), moduleKey: str(x, 'moduleKey', at), packageVersion: str(x, 'packageVersion', at),
+    packageHash: str(x, 'packageHash', at), classification: str(x, 'classification', at), state: oneOf(x, 'state', INSTALL_STATES, at), expiresAt: str(x, 'expiresAt', at),
+    blockers: arr(x, 'blockers', at).map((b, i) => {
+      const o = obj(b, `${at}.blockers[${i}]`);
+      return { code: str(o, 'code', `${at}.blockers[${i}]`), message: str(o, 'message', `${at}.blockers[${i}]`) };
+    }),
+    warnings: strs(x, 'warnings', at),
+    steps: arr(x, 'steps', at).map((s, i) => {
+      const p = `${at}.steps[${i}]`;
+      const o = obj(s, p);
+      return { key: str(o, 'key', p), label: str(o, 'label', p), status: oneOf(o, 'status', ['PENDING', 'DONE', 'SKIPPED', 'FAILED'] as const, p), at: strOrNull(o, 'at', p), detail: str(o, 'detail', p) };
+    }),
+    postcheck: arr(x, 'postcheck', at).map((s, i) => {
+      const p = `${at}.postcheck[${i}]`;
+      const o = obj(s, p);
+      return { key: str(o, 'key', p), status: oneOf(o, 'status', ['PASS', 'FAIL'] as const, p), detail: str(o, 'detail', p) };
+    }),
+    recovery: strs(x, 'recovery', at),
+  };
+}
+
+function release(v: unknown, at: string): ReleaseView {
+  const o = obj(v, at);
+  return { moduleKey: str(o, 'moduleKey', at), packageVersion: str(o, 'packageVersion', at), packageHash: strOrNull(o, 'packageHash', at) };
+}
+export function parseRuntime(v: unknown, at = 'runtime'): RuntimeReleaseView {
+  const x = obj(v, at);
+  const env = obj(x['environment'], `${at}.environment`);
+  return {
+    backend: arr(x, 'backend', at).map((r, i) => release(r, `${at}.backend[${i}]`)), frontend: arr(x, 'frontend', at).map((r, i) => release(r, `${at}.frontend[${i}]`)),
+    lock: arr(x, 'lock', at).map((r, i) => release(r, `${at}.lock[${i}]`)), matches: bool(x, 'matches', at), supervisor: str(x, 'supervisor', at),
+    environment: { database: str(env, 'database', `${at}.environment`), nodeEnv: str(env, 'nodeEnv', `${at}.environment`) },
+  };
+}
+
+async function jsonCall<T>(method: 'GET' | 'POST', path: string, body: object | undefined, parse: (payload: Json) => T): Promise<ApiResult<T>> {
+  const endpoint = `${method} /api${path}`;
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      method, credentials: 'same-origin', cache: 'no-store',
+      headers: method === 'GET' ? { Accept: 'application/json' } : { 'Content-Type': 'application/json', Accept: 'application/json' },
+      ...(method === 'POST' ? { body: JSON.stringify(body ?? {}) } : {}),
+    });
+  } catch {
+    return { ok: false, status: 0, code: 'NETWORK', details: [], requestId: '' };
+  }
+  let payload: unknown = null;
+  try { payload = await response.json(); } catch { payload = null; }
+  const requestId = response.headers.get('x-request-id') ?? '';
+  if (response.ok) {
+    try {
+      return { ok: true, data: parse(obj(payload, 'body')) };
+    } catch (error) {
+      const field = error instanceof ContractError ? error.field : 'body';
+      console.warn('[FMI-02/03] installer API contract mismatch', { endpoint, field, requestId }); // developer diagnostics: no values
+      return { ok: false, status: response.status, code: 'UNEXPECTED_RESPONSE', details: [endpoint, field], requestId };
+    }
+  }
+  const error = isJson(payload) && isJson(payload['error']) ? payload['error'] : {};
+  const det = isJson(error['details']) ? error['details'] : {};
+  const details = [...(Array.isArray(det['blockers']) ? det['blockers'] : []), ...(Array.isArray(det['fields']) ? det['fields'] : [])].filter((d): d is string => typeof d === 'string');
+  return { ok: false, status: response.status, code: typeof error['code'] === 'string' ? error['code'] : 'UNKNOWN', details, requestId: typeof error['requestId'] === 'string' ? error['requestId'] : requestId };
+}
+
+// Report download (same-origin session): the file is handed to the browser as an attachment.
+async function download(path: string): Promise<ApiResult<string>> {
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, { credentials: 'same-origin', cache: 'no-store' });
+  } catch {
+    return { ok: false, status: 0, code: 'NETWORK', details: [], requestId: '' };
+  }
+  if (!response.ok) {
+    let code = 'UNKNOWN';
+    try {
+      const p: unknown = await response.json();
+      if (isJson(p) && isJson(p['error']) && typeof p['error']['code'] === 'string') code = p['error']['code'];
+    } catch { /* not JSON */ }
+    return { ok: false, status: response.status, code, details: [], requestId: response.headers.get('x-request-id') ?? '' };
+  }
+  const name = /filename="([^"]+)"/.exec(response.headers.get('content-disposition') ?? '')?.[1] ?? 'report.txt';
+  const url = URL.createObjectURL(await response.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return { ok: true, data: name };
+}
+
+const CANDIDATES = '/foundation/module-candidates';
+const enc = encodeURIComponent;
+export const installerApi = {
+  createCandidate: (scanId: string, moduleKey: string) => jsonCall('POST', CANDIDATES, { scanId, moduleKey }, (b) => parseCandidate(b['candidate'])),
+  listCandidates: () => jsonCall('GET', CANDIDATES, undefined, (b) => arr(b, 'candidates', 'body').map((c, i) => parseCandidate(c, `candidates[${i}]`))),
+  getCandidate: (id: string) => jsonCall('GET', `${CANDIDATES}/${enc(id)}`, undefined, (b) => parseCandidate(b['candidate'])),
+  startPreflight: (id: string) => jsonCall('POST', `${CANDIDATES}/${enc(id)}/preflight`, {}, (b) => ({ runId: str(b, 'runId', 'body') })),
+  getRun: (id: string, runId: string) => jsonCall('GET', `${CANDIDATES}/${enc(id)}/preflight/${enc(runId)}`, undefined, (b) => parseRun(b['run'])),
+  downloadRunReport: (id: string, runId: string, kind: 'txt' | 'json') => download(`${CANDIDATES}/${enc(id)}/preflight/${enc(runId)}/report.${kind}`),
+  prepare: (id: string) => jsonCall('POST', `${CANDIDATES}/${enc(id)}/install/prepare`, {}, (b) => parseInstallation(b['installation'])),
+  commit: (id: string, planId: string) => jsonCall('POST', `${CANDIDATES}/${enc(id)}/install/commit`, { planId, acknowledge: true }, (b) => parseInstallation(b['installation'])),
+  getInstallation: (installId: string) => jsonCall('GET', `/foundation/module-installations/${enc(installId)}`, undefined, (b) => parseInstallation(b['installation'])),
+  continueInstall: (installId: string) => jsonCall('POST', `/foundation/module-installations/${enc(installId)}/continue`, {}, (b) => parseInstallation(b['installation'])),
+  downloadInstallReport: (installId: string) => download(`/foundation/module-installations/${enc(installId)}/report.txt`),
+  runtimeRelease: () => jsonCall('GET', '/foundation/runtime-release', undefined, (b) => parseRuntime(b['runtime'])),
+};

@@ -1,0 +1,25 @@
+{
+  "packageFormat": "TALO-MODULE-PACKAGE-1",
+  "moduleKey": "SYSTEM_TEST",
+  "name": "System Test & Diagnostics",
+  "packageVersion": "1.1.1",
+  "contractVersion": "MIC-1.0",
+  "hostProtocol": "TALO-MODULE-HOST-1",
+  "backendEntry": "backend/index.ts",
+  "frontendEntry": "frontend/SystemTestScreen.tsx",
+  "micEntry": "mic/system-test.mic.ts",
+  "frontend": {
+    "screens": [
+      {
+        "screenKey": "system.test",
+        "name": "System Test & Diagnostics",
+        "description": "Trung tâm chẩn đoán hệ thống, giám sát module và tổng hợp kết quả kiểm thử theo ba mức.",
+        "tabs": [
+          { "label": "System Diagnostics", "path": "/system-test" },
+          { "label": "Test Runner & Results", "path": "/system-test/runner" }
+        ]
+      }
+    ]
+  },
+  "requiredCapabilities": ["session", "authorize", "evaluate", "lifecycle", "readOnly", "menuRoutes", "inspectManifest", "sqlstate", "regressionResults", "logger"]
+}

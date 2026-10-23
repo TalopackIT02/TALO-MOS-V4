@@ -46,7 +46,8 @@ export function RunnerTab({onSessionLost}:{onSessionLost:()=>void}) {
         :<div className="st-empty st-empty-compact">Chưa có Quick Test của tài khoản trong phiên backend hiện tại.</div>}
     </section>
     <section className="st-section"><div className="st-section-head"><div><span className="st-eyebrow">02 / CLI REGRESSION ARTIFACT</span>
-      <h2>Full regression history</h2></div><small className="st-note-inline">Nguồn: Host regressionResults()</small></div>
+      <h2>Full regression history</h2></div><div className="st-section-tools"><small className="st-note-inline">Nguồn: Host regressionResults()</small>
+      <button type="button" className="st-button" disabled={!results} onClick={()=>{if(results)downloadTxt(resultsReportTxt(results),'TALO_TEST_RUNNER');}}>↓ Xuất TXT đầy đủ</button></div></div>
       <div className="st-command-bar"><span><b>SAFE EXECUTION</b> Full Regression không khởi chạy qua giao diện hoặc HTTP API.</span>
         <code>{CLI}</code><button type="button" className="st-button" onClick={()=>void load()}>Tải kết quả</button></div>
       {!reg?<div className="st-empty st-empty-compact">{failed?'Không đọc được kết quả từ API. Không hiển thị trạng thái nào.':'Đang đọc kết quả.'}</div>

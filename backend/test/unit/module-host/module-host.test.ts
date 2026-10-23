@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import express from 'express';
 import { afterAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { HOST_CAPABILITIES as SCRIPT_CAPABILITIES, parseDeployments, syncModules, validateManifest } from '../../../scripts/modules-sync.mjs';
+import {
+  HOST_CAPABILITIES as SCRIPT_CAPABILITIES, checkRelease, parseDeployments, releaseDir, syncModules, validateManifest, writeDeployments, writeRelease,
+} from '../../../scripts/modules-sync.mjs';
 import { hashPackage, walkPackage } from '../../../scripts/module-package.mjs';
 import { createLogger } from '../../../src/core/logging/logger.js';
 import { INSTALLED_MODULES } from '../../../src/installed-modules/registry.js';
@@ -150,12 +152,14 @@ describe('module-host loader (runtime handshake + mount)', () => {
   });
 
   // FMI-01: modules/ may also hold candidate packages (scanned, not deployed). The installed set is the deployment lock.
+  // FMI-02/03: a deployed package lives in the release store (module-releases/<KEY>/<version>), not in modules/.
   it('every DEPLOYED package (module-deployments.json) is valid and installed: an invalid deployed package fails here', () => {
-    const modulesDir = join(import.meta.dirname, '..', '..', '..', '..', 'modules');
+    const releases = join(import.meta.dirname, '..', '..', '..', 'module-releases');
     const lock = parseDeployments(JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', '..', 'module-deployments.json'), 'utf8')));
     const deployed = [...lock.keys()].sort();
     for (const f of deployed) {
-      expect([f, validateManifest(JSON.parse(readFileSync(join(modulesDir, f, 'module.json'), 'utf8')), f, join(modulesDir, f))]).toEqual([f, []]);
+      const dir = releaseDir(releases, f, lock.get(f)?.packageVersion ?? '');
+      expect([f, validateManifest(JSON.parse(readFileSync(join(dir, 'module.json'), 'utf8')), f, dir)]).toEqual([f, []]);
     }
     expect(INSTALLED_MODULES.map((m) => m.manifest.moduleKey).sort()).toEqual(deployed);
     expect(INSTALLED_MODULES.map((m) => `${m.manifest.moduleKey}@${m.manifest.packageVersion}`).sort()).toEqual(deployed.map((k) => `${k}@${lock.get(k)?.packageVersion}`));
@@ -242,17 +246,90 @@ describe('FMI-01 deployment lock (modules:sync runtime guard)', () => {
 
   it('the real repository: the lock pins exactly the installed SYSTEM_TEST 1.1.1 + DATA_INSPECTOR 0.1.0 and reproduces today\'s registry', () => {
     const repo = join(import.meta.dirname, '..', '..', '..', '..');
+    const releases = join(repo, 'backend', 'module-releases');
     const deployments = JSON.parse(readFileSync(join(repo, 'backend', 'module-deployments.json'), 'utf8'));
     const lock = parseDeployments(deployments);
     expect([...lock.entries()].map(([k, v]) => `${k}@${v.packageVersion}`).sort()).toEqual(['DATA_INSPECTOR@0.1.0', 'SYSTEM_TEST@1.1.1']);
     for (const [k, v] of lock) {
-      const dir = join(repo, 'modules', k);
+      const dir = releaseDir(releases, k, v.packageVersion);
       expect([k, hashPackage(dir, walkPackage(dir)).hash]).toEqual([k, v.packageHash]);
     }
     for (const target of ['backend', 'frontend'] as const) {
       const out = join(root, `fmi01-real-${target}`, 'installed-modules');
-      expect(syncModules({ target, modulesDir: join(repo, 'modules'), outDir: out, deployments, log: () => undefined })).toEqual(['DATA_INSPECTOR', 'SYSTEM_TEST']);
+      expect(syncModules({ target, releasesDir: releases, outDir: out, deployments, log: () => undefined })).toEqual(['DATA_INSPECTOR', 'SYSTEM_TEST']);
       expect(readFileSync(join(out, 'registry.ts'), 'utf8')).toBe(readFileSync(join(repo, target, 'src', 'installed-modules', 'registry.ts'), 'utf8'));
     }
+  });
+});
+
+// FMI-02/03 RT-01 / RT-02 / RT-04 — installed release store: the Host build (modules:sync) reads ONLY
+// module-releases/<KEY>/<version> pinned by the lock; modules/ (candidates) is never read, a release is immutable.
+describe('FMI-02/03 installed release store (runtime isolation)', () => {
+  const store = (name: string) => {
+    const base = join(root, `rel-${name}`);
+    const candidates = join(base, 'modules');
+    const releases = join(base, 'module-releases');
+    const out = join(base, 'backend', 'installed-modules');
+    pkg(candidates, 'LIVE_PKG');
+    const src = join(candidates, 'LIVE_PKG');
+    const hash = hashPackage(src, walkPackage(src)).hash ?? '';
+    writeRelease({ releasesDir: releases, moduleKey: 'LIVE_PKG', packageVersion: '0.1.0', sourceDir: src, expectedHash: hash });
+    const deployments = { format: 'TALO-MODULE-DEPLOYMENT-1', modules: [{ moduleKey: 'LIVE_PKG', packageVersion: '0.1.0', packageHash: hash }] };
+    return { base, candidates, releases, out, hash, deployments };
+  };
+
+  it('RT-02: the sync installs the locked release; candidate folders (new key, new version over the live folder) are never read', () => {
+    const s = store('isolated');
+    pkg(s.candidates, 'CANDIDATE_PKG');
+    pkg(s.candidates, 'LIVE_PKG', { packageVersion: '0.2.0' }, { 'backend/index.ts': 'export const CANDIDATE = true;\n' });
+    expect(syncModules({ target: 'backend', releasesDir: s.releases, outDir: s.out, deployments: s.deployments, log: () => undefined })).toEqual(['LIVE_PKG']);
+    expect(readFileSync(join(s.out, 'LIVE_PKG', 'backend', 'index.ts'), 'utf8')).not.toContain('CANDIDATE');
+    const registry = readFileSync(join(s.out, 'registry.ts'), 'utf8');
+    expect(registry).not.toContain('CANDIDATE_PKG');
+    expect(registry).toContain(`"packageHash":"${s.hash}"`); // the running release is identifiable
+  });
+
+  it('RT-04: a release is immutable — same version with other content is refused, same content is idempotent; a tampered release stops the sync', () => {
+    const s = store('immutable');
+    const changed = join(s.base, 'changed');
+    pkg(changed, 'LIVE_PKG', {}, { 'backend/index.ts': 'export const OTHER = 1;\n' });
+    const other = hashPackage(join(changed, 'LIVE_PKG'), walkPackage(join(changed, 'LIVE_PKG'))).hash ?? '';
+    expect(() => writeRelease({ releasesDir: s.releases, moduleKey: 'LIVE_PKG', packageVersion: '0.1.0', sourceDir: join(changed, 'LIVE_PKG'), expectedHash: other })).toThrow(/immutable/);
+    expect(() => writeRelease({ releasesDir: s.releases, moduleKey: 'LIVE_PKG', packageVersion: '0.1.0', sourceDir: join(changed, 'LIVE_PKG'), expectedHash: s.hash })).toThrow(/source hash/);
+    expect(writeRelease({ releasesDir: s.releases, moduleKey: 'LIVE_PKG', packageVersion: '0.1.0', sourceDir: join(s.candidates, 'LIVE_PKG'), expectedHash: s.hash }).created).toBe(false);
+    syncModules({ target: 'backend', releasesDir: s.releases, outDir: s.out, deployments: s.deployments, log: () => undefined });
+    writeFileSync(join(releaseDir(s.releases, 'LIVE_PKG', '0.1.0'), 'backend', 'index.ts'), 'export const TAMPERED = 1;\n');
+    expect(checkRelease(releaseDir(s.releases, 'LIVE_PKG', '0.1.0'), 'LIVE_PKG', { packageVersion: '0.1.0', packageHash: s.hash }).problem).toMatch(/hash/);
+    expect(() => syncModules({ target: 'backend', releasesDir: s.releases, outDir: s.out, deployments: s.deployments, log: () => undefined })).toThrow(/left unchanged/);
+    expect(readFileSync(join(s.out, 'LIVE_PKG', 'backend', 'index.ts'), 'utf8')).not.toContain('TAMPERED');
+  });
+
+  it('RT-02: a locked release missing from the store, or a store without a lock, stops the sync (nothing removed, no empty allowlist)', () => {
+    const s = store('missing');
+    syncModules({ target: 'backend', releasesDir: s.releases, outDir: s.out, deployments: s.deployments, log: () => undefined });
+    const lock = { ...s.deployments, modules: [...s.deployments.modules, { moduleKey: 'GONE_PKG', packageVersion: '1.0.0', packageHash: s.hash }] };
+    expect(() => syncModules({ target: 'backend', releasesDir: s.releases, outDir: s.out, deployments: lock, log: () => undefined })).toThrow(/GONE_PKG 1\.0\.0: release folder missing/);
+    expect(() => syncModules({ target: 'frontend', releasesDir: s.releases, outDir: s.out, log: () => undefined })).toThrow(/needs a deployment lock/);
+    expect(readFileSync(join(s.out, 'registry.ts'), 'utf8')).toContain('LIVE_PKG');
+  });
+
+  it('RT-02 CLI: `modules-sync backend` reads the release store; `adopt` stores only the hash already pinned in the lock', () => {
+    const s = store('cli');
+    const lockFile = join(s.base, 'module-deployments.json');
+    writeDeployments(lockFile, s.deployments.modules);
+    const script = join(import.meta.dirname, '..', '..', '..', 'scripts', 'modules-sync.mjs');
+    pkg(s.candidates, 'LIVE_PKG', { packageVersion: '0.2.0' });
+    execFileSync(process.execPath, [script, 'backend', '--releases', s.releases, '--deployments', lockFile, '--out', s.out, '--modules', s.candidates], { stdio: 'pipe' });
+    expect(readFileSync(join(s.out, 'registry.ts'), 'utf8')).toContain('"packageVersion":"0.1.0"');
+    // adopt of the 0.2.0 candidate (hash ≠ pinned) is refused, the store is unchanged.
+    expect(() => execFileSync(process.execPath, [script, 'adopt', 'LIVE_PKG', '--from', join(s.candidates, 'LIVE_PKG'), '--releases', s.releases, '--deployments', lockFile], { stdio: 'pipe' })).toThrow();
+    expect(existsSync(releaseDir(s.releases, 'LIVE_PKG', '0.2.0'))).toBe(false);
+    expect(parseDeployments(JSON.parse(readFileSync(lockFile, 'utf8'))).get('LIVE_PKG')?.packageVersion).toBe('0.1.0');
+  });
+
+  it('RT-01: the real npm scripts call the sync without --modules (so the release store is the only source)', () => {
+    const repo = join(import.meta.dirname, '..', '..', '..', '..');
+    const scripts = [JSON.parse(readFileSync(join(repo, 'backend', 'package.json'), 'utf8')).scripts['modules:sync'], JSON.parse(readFileSync(join(repo, 'frontend', 'package.json'), 'utf8')).scripts['modules:sync']];
+    for (const s of scripts) expect([s, String(s).includes('--modules')]).toEqual([s, false]);
   });
 });

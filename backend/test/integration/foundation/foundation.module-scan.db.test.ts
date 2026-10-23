@@ -17,6 +17,7 @@ import type { ScanReport } from '../../../src/modules/foundation/foundation.modu
 import { TEST_ORIGIN } from '../../helpers/testApp.js';
 import { checkSmokeUrl } from '../../smoke/dbSmoke.js';
 import { AuthFixtures } from '../../support/authFixtures.js';
+import { hashPackage, walkPackage } from '../../../scripts/module-package.mjs';
 import { PsqlSession, lit, uuidArray } from '../sc5/harness.js';
 
 // FMI-01 — Manual Module Scan on PostgreSQL 18.6 (talo_mos_v4_test). Runs only with TALO_FOUNDATION_DB=1. The real app
@@ -125,7 +126,18 @@ describe.skipIf(!enabled)('FMI-01 Manual Module Scan — PostgreSQL (talo_mos_v4
     expect(report.registryAvailable).toBe(true);
     const lock: { modules: { moduleKey: string; packageVersion: string; packageHash: string }[] } = JSON.parse(readFileSync(join(repo, 'backend', 'module-deployments.json'), 'utf8'));
     for (const d of lock.modules) {
+      // FMI-02/03: the deployed package is the release in the store (exact pinned hash); modules/<KEY> is the candidate
+      // drop zone and may already hold a newer package of the same key (e.g. SYSTEM_TEST 1.2.0 while 1.1.1 runs).
+      const rel = join(repo, 'backend', 'module-releases', d.moduleKey, d.packageVersion);
+      expect([d.moduleKey, hashPackage(rel, walkPackage(rel)).hash]).toEqual([d.moduleKey, d.packageHash]);
       const m = report.modules.find((x) => x.folder === d.moduleKey);
+      if (m?.packageHash !== d.packageHash) {
+        expect([d.moduleKey, m?.packageVersion === d.packageVersion]).toEqual([d.moduleKey, false]);
+        // the candidate must carry no error (the route-holding FBET fixture is DISABLED: WARN with its key, never silent)
+        expect((m?.issues ?? []).filter((i) => i.severity === 'ERROR').map((i) => i.code)).toEqual([]);
+        evidence[`${d.moduleKey}Candidate`] = `${m?.packageVersion ?? '?'}:${m?.classification ?? '?'}:${m?.scanStatus ?? '?'}`;
+        continue;
+      }
       const [row] = await h.ok(`SELECT v.status FROM foundation.fnd_module_versions v JOIN foundation.fnd_modules m ON m.module_id = v.module_id WHERE m.module_key = ${lit(d.moduleKey)} AND v.module_version = ${lit(d.packageVersion)}`);
       expect([d.moduleKey, m?.packageVersion, m?.packageHash, m?.micFormat]).toEqual([d.moduleKey, d.packageVersion, d.packageHash, 'LEGACY_TS']);
       expect([d.moduleKey, m?.classification, m?.foundationVersionStatus]).toEqual([d.moduleKey, row ? 'EXISTING_VERSION' : m?.classification, row?.[0] ?? null]);

@@ -115,7 +115,7 @@ function Bars({ report }: { report: ScanReport }) {
   );
 }
 
-export function ModuleScanResults({ state, lastScanId, onReopen }: { state: ScanState; lastScanId: string | null; onReopen: () => void }) {
+export function ModuleScanResults({ state, lastScanId, onReopen, onPreflight }: { state: ScanState; lastScanId: string | null; onReopen: () => void; onPreflight?: (scanId: string, moduleKey: string) => void }) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<'ALL' | CheckStatus>('ALL');
   const [detail, setDetail] = useState<ScannedModule | null>(null);
@@ -177,7 +177,12 @@ export function ModuleScanResults({ state, lastScanId, onReopen }: { state: Scan
                           <td>{n('PASS')} / {n('WARN')} / {n('FAIL')}{n('UNAVAILABLE') > 0 ? ` · ${n('UNAVAILABLE')} chưa xác minh` : ''}</td>
                           <td><StatusTag status={m.scanStatus} /></td>
                           <td>{m.eligibleForPreflight ? 'Đủ điều kiện' : 'Chưa'}</td>
-                          <td><button type="button" className="fx-btn" onClick={() => setDetail(m)} aria-label={`Chi tiết ${m.folder}`}>Chi tiết</button></td>
+                          <td>
+                            <button type="button" className="fx-btn" onClick={() => setDetail(m)} aria-label={`Chi tiết ${m.folder}`}>Chi tiết</button>
+                            {onPreflight && m.eligibleForPreflight && m.moduleKey !== null && state.kind === 'DONE' && (
+                              <button type="button" className="fx-btn primary" onClick={() => onPreflight(report.scanId, m.moduleKey ?? '')}>Kiểm tra &amp; Chạy thử</button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}

@@ -9,6 +9,8 @@ import { DataTable, NameCode } from '../../components/DataTable';
 import type { Column } from '../../components/DataTable';
 import { useShellData } from '../../contexts/ShellData';
 import { ModuleScanButton, ModuleScanResults, SCAN_PERMISSIONS, useModuleScan } from './ModuleScan';
+import { ModuleInstaller } from './ModuleInstaller';
+import type { CandidateRequest } from './ModuleInstaller';
 
 // FE-03 — Module Registry: list (GET /foundation/modules), registration (POST), ENABLE / DISABLE (lifecycle API) and the
 // versions of the selected module. Tab 0 = list + versions (+ FMI-01 "Quét Module"), tab 1 = registration form.
@@ -35,6 +37,10 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
   // FMI-01: manual module scan — shown only with BOTH registry permissions (the server checks them again).
   const canScan = SCAN_PERMISSIONS.every((p) => can(p));
   const scanner = useModuleScan(onSessionLost);
+  // FMI-02 / FMI-03: candidate requested from a scanned package; install buttons need foundation.module_version.activate
+  // (the server checks every permission again, and each lifecycle step checks its own).
+  const [candidateRequest, setCandidateRequest] = useState<CandidateRequest | null>(null);
+  const canInstall = can('foundation.module_version.activate');
 
   const load = useCallback(async () => {
     const data = settle(await foundationApi.listModules(), onSessionLost, setFeedback);
@@ -80,7 +86,9 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
         <span className="muted">Dữ liệu lấy trực tiếp từ Foundation Backend.</span>
       </div>
       <FeedbackLine feedback={feedback} />
-      {canScan && <ModuleScanResults state={scanner.state} lastScanId={scanner.lastScanId} onReopen={() => void scanner.reopen()} />}
+      {canScan && <ModuleScanResults state={scanner.state} lastScanId={scanner.lastScanId} onReopen={() => void scanner.reopen()}
+        onPreflight={(scanId, moduleKey) => setCandidateRequest({ scanId, moduleKey, nonce: Date.now() })} />}
+      {canScan && <ModuleInstaller request={candidateRequest} canInstall={canInstall} onSessionLost={onSessionLost} />}
       <div ref={versionsRef} className="fx-version-area">
         {selected
           ? <VersionPanel key={selected.moduleId} module={selected} onSessionLost={onSessionLost} onChanged={() => void load()} />

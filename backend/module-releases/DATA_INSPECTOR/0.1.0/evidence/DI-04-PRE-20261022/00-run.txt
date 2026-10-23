@@ -1,0 +1,22 @@
+run: DI-04-PRE-20261022
+started: 2026-10-22T16:57:54+07:00
+repo HEAD: 3d043ca9f911278feafc64adaf5c5d4bd15e31ca (feat/iam-management-foundation-20261019)
+working tree (uncommitted at run time):
+   M modules/DATA_INSPECTOR/mic/data-inspector.mic.ts
+   M modules/DATA_INSPECTOR/tests/data-inspector.test.ts
+  ?? modules/DATA_INSPECTOR/evidence/DI-03B-FBET_DI_MVJD8RZ44461/
+  ?? modules/DATA_INSPECTOR/evidence/DI-04-PRE-20261022/
+  ?? modules/DATA_INSPECTOR/tests/data-inspector.iam.db.test.ts
+working tree diff sha256 (tracked files): a36eb250d7584c784a4740d063405c2827f623b17a6e4bebfc63974fd8f53789
+node: v24.18.0  os: MINGW64_NT-10.0-26300 3.6.10-710e5275.x86_64
+01-module-unit | Module unit + Host-compat tests (mock DB) | exit=0 | 2026-10-22T16:57:55+07:00 → 2026-10-22T16:57:59+07:00 | cmd: (cd backend) npm run modules:sync && npx vitest run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose |  Test Files 1 passed | 2 skipped (3); Tests 37 passed | 19 skipped (56);
+02-module-db | PostgreSQL TEST read-only (talo_mos_v4_test / talo_app) | exit=0 | 2026-10-22T16:57:59+07:00 → 2026-10-22T16:58:03+07:00 | cmd: (cd backend) TALO_DATA_INSPECTOR_DB=1 node --env-file=../.env ./node_modules/vitest/vitest.mjs run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose |  Test Files 2 passed | 1 skipped (3); Tests 48 passed | 8 skipped (56);
+03-masking | FIX-01 masking subset (unit + TEST DB) | exit=0 | 2026-10-22T16:58:03+07:00 → 2026-10-22T16:58:06+07:00 | cmd: (cd backend) TALO_DATA_INSPECTOR_DB=1 node --env-file=../.env ./node_modules/vitest/vitest.mjs run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose -t FIX-01 |  Test Files 2 passed | 1 skipped (3); Tests 10 passed | 46 skipped (56);
+04-mic | MIC-1.0 validation + MIC/module.json consistency | exit=0 | 2026-10-22T16:58:06+07:00 → 2026-10-22T16:58:09+07:00 | cmd: (cd backend) npx vitest run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose -t 'MIC|module.json|syncs into a Host' |  Test Files 1 passed | 2 skipped (3); Tests 6 passed | 50 skipped (56);
+05-host-handshake | Host loader + multi-module handshake (DI-01) | exit=0 | 2026-10-22T16:58:09+07:00 → 2026-10-22T16:58:11+07:00 | cmd: (cd backend) npx vitest run test/unit/module-host/module-host.test.ts --reporter=verbose |  Test Files 1 passed (1); Tests 8 passed (8);
+06-typecheck-backend | Backend typecheck (src + test) | exit=0 | 2026-10-22T16:58:12+07:00 → 2026-10-22T16:58:14+07:00 | cmd: (cd backend) npm run typecheck | 
+07-typecheck-frontend | Frontend typecheck (app + node) | exit=0 | 2026-10-22T16:58:14+07:00 → 2026-10-22T16:58:16+07:00 | cmd: (cd frontend) npm run typecheck | 
+08-typecheck-module-tests | Module test typecheck | exit=0 | 2026-10-22T16:58:16+07:00 → 2026-10-22T16:58:18+07:00 | cmd: (cd backend) npx tsc -p ../modules/DATA_INSPECTOR/tests/tsconfig.json && echo TSC_OK | 
+09-backend-regression | Backend regression (npm test, DB suites gated off) | exit=0 | 2026-10-22T16:58:18+07:00 → 2026-10-22T16:58:29+07:00 | cmd: (cd backend) npm test |  Test Files 26 passed | 21 skipped (47); Tests 347 passed | 161 skipped (508);
+10-evidence-verify | MIC-10 candidate references resolve to successful steps | exit=0 | 2026-10-22T16:58:29+07:00 → 2026-10-22T16:58:32+07:00 | cmd: (cd backend) TALO_DI_EVIDENCE_VERIFY=1 npx vitest run --config ../modules/DATA_INSPECTOR/tests/vitest.config.mjs --reporter=verbose -t 'evidence files' |  Test Files 1 passed | 2 skipped (3); Tests 1 passed | 55 skipped (56);
+finished: 2026-10-22T16:58:32+07:00

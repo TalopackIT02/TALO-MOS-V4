@@ -229,6 +229,27 @@ describe('FMI-01 scan — package rules (MS-01 … MS-20)', () => {
     expect(check(up, 'MS-18')).toMatchObject({ status: 'PASS', code: 'MIC_COMPATIBILITY_VALID' });
   });
 
+  // FMI-02/03 CL-03 / CL-05: a fixture claiming a product route is flagged (FAIL while enabled, WARN with its key once
+  // disabled — never silently ignored); a fixture in its own namespace does not touch the product module.
+  it('CL-03 / CL-05: route held by an ENABLED fixture → FAIL; by a DISABLED fixture → WARN naming it; a namespaced fixture → no conflict', async () => {
+    const modules = tmpRoot();
+    const mic = validMic('SYS_UP', '1.2.0');
+    writePackage(modules, 'SYS_UP', { version: '1.2.0', routes: ['/sys-up'], mic: { ...mic, mic09Compatibility: { kind: 'CHANGE', fromVersion: '1.0.0', changes: ['Nâng cấp'] } } });
+    const own = { moduleKey: 'SYS_UP', moduleVersion: '1.0.0', status: 'ACTIVE' as const, activeRoutes: ['/sys-up'] };
+    const holder = { moduleKey: 'FBET_ST_RUN1', moduleVersion: '1.1.1', status: 'ACTIVE' as const, activeRoutes: ['/sys-up'] };
+    const enabled = one(await scan(modules, { registry: registryOf([own, { ...holder, moduleEnabled: true }]) }), 'SYS_UP');
+    expect(check(enabled, 'MS-16')).toMatchObject({ status: 'FAIL', code: 'MODULE_ROUTE_CONFLICT' });
+    expect(enabled.eligibleForPreflight).toBe(false);
+    const unknown = one(await scan(modules, { registry: registryOf([own, holder]) }), 'SYS_UP');
+    expect(check(unknown, 'MS-16')?.status).toBe('FAIL'); // enabled state unknown → fail closed
+    const disabled = one(await scan(modules, { registry: registryOf([own, { ...holder, moduleEnabled: false }]) }), 'SYS_UP');
+    expect(check(disabled, 'MS-16')).toMatchObject({ status: 'WARN', code: 'ROUTE_RESERVED_BY_DISABLED_MODULE' });
+    expect(disabled.issues.find((i) => i.code === 'ROUTE_RESERVED_BY_DISABLED_MODULE')?.message).toContain('FBET_ST_RUN1');
+    expect(disabled.eligibleForPreflight).toBe(true);
+    const isolated = one(await scan(modules, { registry: registryOf([own, { ...holder, activeRoutes: ['/fbet-st-run1/sys-up'], moduleEnabled: true }]) }), 'SYS_UP');
+    expect(check(isolated, 'MS-16')?.status).toBe('PASS');
+  });
+
   it('MS-18 MIC-09: CHANGE from a version that does not exist / INITIAL_REGISTRATION while versions exist → FAIL (MIC is not corrected)', async () => {
     const modules = tmpRoot();
     const a = validMic('COMPAT_A', '1.1.0');

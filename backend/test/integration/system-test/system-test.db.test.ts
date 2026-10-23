@@ -57,8 +57,20 @@ const FOUNDATION_TABLES = ['fnd_actions', 'fnd_audit_logs', 'fnd_compatibility_c
 const CHECK_STATUSES = ['PASS', 'FAIL', 'WARN', 'NOT_TESTED', 'UNAVAILABLE'];
 const EVIDENCE = [{ name: 'MOD-TEST-01 fixture', result: 'PASS' as const, reference: 'test/integration/system-test/system-test.db.test.ts' }];
 
+// FMI-02/03 (02_FBET_CLEANUP.md): the fixture's MIC-04 routes live in its own namespace /fbet-st-<run>/…, never the
+// product routes of SYSTEM_TEST — an aborted run (FBET_ST_MVJQQP1S_0383C3, 2026-10-22) can no longer leave an ACTIVE
+// fixture claiming /system-test. The module code reads its routes from its own MIC, so the checks are unchanged.
+const fixtureNamespace = (moduleKey: string) => `/${moduleKey.toLowerCase().replace(/_/g, '-')}`;
+function isolated<T extends { mic04Navigation: readonly { routePath?: string | undefined }[] }>(mic: T, moduleKey: string): T {
+  const ns = fixtureNamespace(moduleKey);
+  return { ...mic, mic04Navigation: mic.mic04Navigation.map((n) => (n.routePath ? { ...n, routePath: `${ns}${n.routePath}` } : n)) };
+}
+
 // The 1.0.x shape of the MIC (Data Viewer included), as the fixture's first version: INITIAL_REGISTRATION 1.0.0.
 function legacyMic(moduleKey: string) {
+  return isolated(legacyShape(moduleKey), moduleKey);
+}
+function legacyShape(moduleKey: string) {
   const mic = systemTestMic(moduleKey, EVIDENCE);
   return {
     ...mic,
@@ -74,7 +86,7 @@ function legacyMic(moduleKey: string) {
 // The package MIC 1.1.1, CHANGE of the fixture's 1.0.0 (the real one is a CHANGE of SYSTEM_TEST 1.0.3).
 function packageMic(moduleKey: string) {
   const mic = systemTestMic(moduleKey, EVIDENCE);
-  return { ...mic, mic09Compatibility: { ...mic.mic09Compatibility, fromVersion: '1.0.0' } };
+  return isolated({ ...mic, mic09Compatibility: { ...mic.mic09Compatibility, fromVersion: '1.0.0' } }, moduleKey);
 }
 
 class AuthzFixtures {
@@ -257,12 +269,16 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST 1.1.1 module — PostgreSQL (
   type MenuJson = { navigationId: string; moduleId: string | null; routePath: string | null; children: MenuJson[] };
   const flatten = (nodes: MenuJson[]): MenuJson[] => nodes.flatMap((n) => [n, ...flatten(n.children)]);
   let fixtureModuleId = '';
-  // Routes of the FIXTURE module in the account's menu (the registered SYSTEM_TEST module has the same paths).
+  let adminCookie = '';
+  // Routes of the FIXTURE module in the account's menu, every one inside the run's namespace (asserted), returned
+  // without it so that they compare with the module's own paths.
   async function routes(as: string): Promise<string[]> {
     const res = await get('/foundation/navigation', as);
     expect(res.status).toBe(200);
-    return flatten(res.body.navigation).filter((n) => n.moduleId === fixtureModuleId).map((n) => n.routePath)
-      .filter((r): r is string => r !== null && MODULE_ROUTES.includes(r)).sort();
+    const ns = fixtureNamespace(moduleKey);
+    const mine = flatten(res.body.navigation).filter((n) => n.moduleId === fixtureModuleId).map((n) => n.routePath).filter((r): r is string => r !== null);
+    expect(mine.filter((r) => !r.startsWith(`${ns}/`))).toEqual([]);
+    return mine.map((r) => r.slice(ns.length)).filter((r) => MODULE_ROUTES.includes(r)).sort();
   }
   async function auditsOf(requestId: string) {
     return (await h.ok(`SELECT action_code, outcome, target_type, coalesce(target_id, '<null>'), coalesce(module_id::text, '<null>'), metadata::text
@@ -316,6 +332,17 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST 1.1.1 module — PostgreSQL (
   });
 
   afterEach(async () => {
+    // Safety net (FMI-02/03): a run stopped before ST-11 retires ITS OWN fixture version through the lifecycle API (the
+    // state ST-12 expects), while the run's admin session still exists — never another module, never by SQL.
+    if (adminCookie !== '') {
+      const active = await h.ok(`SELECT m.module_id, v.version_id FROM foundation.fnd_modules m JOIN foundation.fnd_module_versions v ON v.module_id = m.module_id
+        WHERE m.module_key = ${lit(moduleKey)} AND v.status = 'ACTIVE'`);
+      for (const [mid, vid] of active) {
+        const res = await send('post', `/foundation/modules/${mid ?? ''}/versions/${vid ?? ''}/retire`, adminCookie);
+        console.log(`[mod-test-01] safety net: fixture ${moduleKey} version ${vid ?? ''} retire → ${res.status}`);
+      }
+      adminCookie = '';
+    }
     for (const [k, v] of Object.entries(await az.cleanup())) deletedTotals[`authz.${k}`] = (deletedTotals[`authz.${k}`] ?? 0) + v;
     for (const [k, v] of Object.entries(await fx.cleanup())) deletedTotals[`auth.${k}`] = (deletedTotals[`auth.${k}`] ?? 0) + v;
   });
@@ -333,6 +360,7 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST 1.1.1 module — PostgreSQL (
   it('ST-01 … ST-11: 1.0.x → 1.1.1 CHANGE through Foundation (real Activation Gate), navigation, IAM, retired viewer, checks, results, lifecycle', async () => {
     // ST-01 — registration; 1.0.0 (1.0.x shape) SUBMIT → APPROVE → ACTIVATE → ENABLE through the Foundation API.
     const admin = await login(PERM_KEYS.map((k) => perm[k]));
+    adminCookie = admin.cookie;
     const reg = await send('post', '/foundation/modules', admin.cookie, { moduleKey, moduleName: 'System Test & Diagnostics', moduleType: 'INTERNAL' });
     expect(reg.status).toBe(201);
     const moduleId = String(reg.body.module.moduleId);

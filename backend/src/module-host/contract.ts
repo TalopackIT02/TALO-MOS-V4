@@ -60,6 +60,8 @@ export interface InstalledManifest {
   readonly moduleKey: string;
   readonly name: string;
   readonly packageVersion: string;
+  // FMI-02/03: TALO-PACKAGE-HASH-1 of the release the copy was made from (generated registry; absent in test fixtures).
+  readonly packageHash?: string | null;
   readonly contractVersion: string;
   readonly hostProtocol: string;
   readonly requiredCapabilities: readonly string[];

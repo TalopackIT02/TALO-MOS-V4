@@ -14,7 +14,8 @@ import { connectProvisioner } from './modules/iam-admin/iam.admin.provisioner.js
 import type { ProvisionerConnection } from './modules/iam-admin/iam.admin.provisioner.js';
 import { iamAdminRouter } from './modules/iam-admin/iam.admin.routes.js';
 import { INSTALLED_MODULES } from './installed-modules/registry.js';
-import { mountModules } from './module-host/loader.js';
+import { mountModuleMap } from './module-host/loader.js';
+import { createIamCatalog } from './modules/foundation/foundation.installer.iam.js';
 import { prismaFoundationDb, SqlFoundationRepository } from './modules/foundation/foundation.repository.js';
 
 async function main(): Promise<void> {
@@ -39,17 +40,27 @@ async function main(): Promise<void> {
       prisma: getPrismaClient(config.databaseUrl), logger, production: config.nodeEnv === 'production',
     });
     apiRouters.push(auth.router);
-    // Foundation Module Registry (FBE-01A): sessions are validated by the auth service only.
-    const foundation = createFoundationModule({
-      prisma: getPrismaClient(config.databaseUrl), authService: auth.service, logger, secureCookie: config.nodeEnv === 'production',
-      environment: compatibilityEnvironment(config.nodeEnv),
-    });
-    apiRouters.push(foundation.router);
     // IAM Management is additive: independent routes, sharing the existing Auth and IAM evaluator. IAM-NEXT B1: it
     // reads / writes IAM through its own role (IAM_ADMIN_DATABASE_URL, talo_iam_admin); talo_app never writes IAM.
     iamAdmin = await connectIamAdmin({
       iamUrl: config.iamAdminDatabaseUrl, apiClient: getPrismaClient(config.databaseUrl), createClient: createPrismaClient, logger,
     });
+    // FMI-02 / FMI-03: the installer sees what THIS process runs (generated registry + the routers mounted below).
+    const moduleRouters = new Map<string, Router>();
+    const runtime = {
+      modules: INSTALLED_MODULES.map((m) => ({ moduleKey: m.manifest.moduleKey, packageVersion: m.manifest.packageVersion, packageHash: m.manifest.packageHash ?? null })),
+      routers: moduleRouters,
+    };
+    // Foundation Module Registry (FBE-01A): sessions are validated by the auth service only.
+    const foundation = createFoundationModule({
+      prisma: getPrismaClient(config.databaseUrl), authService: auth.service, logger, secureCookie: config.nodeEnv === 'production',
+      environment: compatibilityEnvironment(config.nodeEnv),
+      installer: {
+        runtime, iam: iamAdmin.dedicated ? createIamCatalog(iamAdmin.db, config.iamRootAdminAccountId ?? null) : null,
+        environment: { label: 'TEST', database: describeDatabaseUrl(config.databaseUrl)?.database ?? 'unknown', nodeEnv: config.nodeEnv },
+      },
+    });
+    apiRouters.push(foundation.router);
     // IAM Phase B: account creation / re-issue from the AppShell only when the owner enabled it AND talo_provisioner checks out.
     provisioner = await connectProvisioner({
       enabled: config.iamUiTemporaryCredentials, url: config.provisionerDatabaseUrl, apiClient: getPrismaClient(config.databaseUrl),
@@ -63,10 +74,12 @@ async function main(): Promise<void> {
     // MOD-TEST-02: module packages of modules/ (generated registry), mounted through the Host capabilities; every module
     // request is still checked for Session + IAM + ACTIVE + ENABLED by those capabilities.
     const db = prismaFoundationDb(getPrismaClient(config.databaseUrl));
-    apiRouters.push(...mountModules(INSTALLED_MODULES, {
+    const mounted = mountModuleMap(INSTALLED_MODULES, {
       db, access: new SqlFoundationRepository(db), authService: auth.service, navigation: foundation.navigationService, logger,
       secureCookie: config.nodeEnv === 'production',
-    }, logger));
+    }, logger);
+    for (const [key, router] of mounted) moduleRouters.set(key, router);
+    apiRouters.push(...mounted.values());
   } else {
     logger.warn('DATABASE_URL not configured: /api/auth/* is not mounted');
   }
