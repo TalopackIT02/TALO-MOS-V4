@@ -5,12 +5,14 @@ export const SYSTEM_TEST_MODULE_KEY = 'SYSTEM_TEST';
 export interface SystemTestBinding {
   readonly moduleKey: string;
   readonly diagnosticsRead: PermissionRef;
+  readonly auditRead: PermissionRef;
   readonly testRunnerExecute: PermissionRef;
 }
 
 export const SYSTEM_TEST_BINDING: SystemTestBinding = {
   moduleKey: SYSTEM_TEST_MODULE_KEY,
   diagnosticsRead: { permissionCode: 'system_test.diagnostics.read', moduleCode: SYSTEM_TEST_MODULE_KEY, resourceCode: 'DIAGNOSTICS', operation: 'READ' },
+  auditRead: { permissionCode: 'system_test.audit.read', moduleCode: SYSTEM_TEST_MODULE_KEY, resourceCode: 'AUDIT_LOG', operation: 'READ' },
   testRunnerExecute: { permissionCode: 'system_test.test_runner.execute', moduleCode: SYSTEM_TEST_MODULE_KEY, resourceCode: 'TEST_RUNNER', operation: 'EXECUTE' },
 };
 export const SYSTEM_TEST_ACTION = {

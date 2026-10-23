@@ -1,0 +1,521 @@
+{
+  "mic01Identity": {
+    "moduleKey": "SYSTEM_TEST",
+    "moduleName": "System Control Center",
+    "moduleVersion": "1.2.0",
+    "micStandard": "MIC-1.0"
+  },
+  "mic02Functions": [
+    {
+      "functionKey": "DIAGNOSTICS",
+      "name": "System Diagnostics",
+      "description": "Chạy các phép kiểm tra chỉ đọc trên Auth, IAM, PostgreSQL, Foundation và module fleet."
+    },
+    {
+      "functionKey": "TEST_RUNNER",
+      "name": "Test Runner & Results",
+      "description": "Xem kết quả kiểm tra nhanh và Full Regression đã chạy từ CLI an toàn của Host."
+    },
+    {
+      "functionKey": "CATALOG",
+      "name": "Danh sách và cấu trúc bảng",
+      "description": "Liệt kê toàn bộ bảng PostgreSQL mọi schema và tra cứu cột, chỉ đọc"
+    },
+    {
+      "functionKey": "ROWS",
+      "name": "Xem nội dung bảng",
+      "description": "Đọc các trang dữ liệu bảng có sẵn SQL SELECT, không thay đổi dữ liệu"
+    },
+    {
+      "functionKey": "AUDIT_LOG",
+      "name": "System Audit Logs",
+      "description": "Xem audit Foundation/IAM; admin-only, read-only, báo thiếu quyền theo từng nguồn."
+    }
+  ],
+  "mic03Actions": [
+    {
+      "functionKey": "DIAGNOSTICS",
+      "actionKey": "READ",
+      "name": "Xem và chạy kiểm tra chỉ đọc",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "TEST_RUNNER",
+      "actionKey": "EXECUTE",
+      "name": "Xem kết quả test/khởi tạo quick check (không chạy CLI qua API)",
+      "nature": "EXECUTE"
+    },
+    {
+      "functionKey": "CATALOG",
+      "actionKey": "READ",
+      "name": "Xem danh sách và cột",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "ROWS",
+      "actionKey": "READ",
+      "name": "Xem các dòng dữ liệu",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "AUDIT_LOG",
+      "actionKey": "READ",
+      "name": "Xem audit sự kiện",
+      "nature": "READ"
+    }
+  ],
+  "mic04Navigation": [
+    {
+      "menuLabel": "System Control Center"
+    },
+    {
+      "menuLabel": "System Diagnostics",
+      "routePath": "/system-test",
+      "screenKey": "system.test",
+      "functionKey": "DIAGNOSTICS"
+    },
+    {
+      "menuLabel": "Test Runner & Results",
+      "routePath": "/system-test/runner",
+      "screenKey": "system.test",
+      "functionKey": "TEST_RUNNER"
+    },
+    {
+      "menuLabel": "Data Inspector",
+      "routePath": "/system-test/data",
+      "screenKey": "system.test",
+      "functionKey": "CATALOG"
+    },
+    {
+      "menuLabel": "System Logs",
+      "routePath": "/system-test/logs",
+      "screenKey": "system.test",
+      "functionKey": "AUDIT_LOG"
+    }
+  ],
+  "mic05Api": [
+    {
+      "method": "GET",
+      "path": "/api/system-test/health",
+      "functionKey": "DIAGNOSTICS",
+      "actionKey": "READ",
+      "errors": [
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/system-test/checks/run",
+      "functionKey": "DIAGNOSTICS",
+      "actionKey": "READ",
+      "errors": [
+        "VALIDATION_ERROR",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-test/results",
+      "functionKey": "TEST_RUNNER",
+      "actionKey": "EXECUTE",
+      "errors": [
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-test/data/tables",
+      "functionKey": "CATALOG",
+      "actionKey": "READ",
+      "errors": [
+        "SESSION_INVALID",
+        "FORBIDDEN",
+        "SERVICE_BUSY",
+        "QUERY_TIMEOUT"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-test/data/tables/{tableKey}/columns",
+      "functionKey": "CATALOG",
+      "actionKey": "READ",
+      "errors": [
+        "SESSION_INVALID",
+        "FORBIDDEN",
+        "TABLE_NOT_FOUND",
+        "CATALOG_CHANGED",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-test/data/tables/{tableKey}/rows",
+      "functionKey": "ROWS",
+      "actionKey": "READ",
+      "errors": [
+        "SESSION_INVALID",
+        "FORBIDDEN",
+        "VALIDATION_ERROR",
+        "TABLE_NOT_FOUND",
+        "TABLE_NOT_READABLE",
+        "CATALOG_CHANGED",
+        "QUERY_TIMEOUT",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-test/audit/logs",
+      "functionKey": "AUDIT_LOG",
+      "actionKey": "READ",
+      "errors": [
+        "VALIDATION_ERROR",
+        "FORBIDDEN",
+        "SERVICE_BUSY"
+      ]
+    }
+  ],
+  "mic06DataResources": [
+    {
+      "resourceKey": "SYSTEM_STATUS",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "component",
+          "type": "text",
+          "required": true,
+          "primaryKey": true
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": true,
+          "description": "PASS / WARN / FAIL / NOT_TESTED / UNAVAILABLE"
+        },
+        {
+          "name": "detail",
+          "type": "text",
+          "description": "Kiểm tra thực tế; không chứa dữ liệu dòng hoặc bí mật"
+        },
+        {
+          "name": "checked_at",
+          "type": "timestamptz",
+          "required": true
+        },
+        {
+          "name": "fleet",
+          "type": "jsonb",
+          "description": "Metadata tóm tắt của các module đã đăng ký; không xác nhận code deploy"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "DIAGNOSTICS",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "TEST_RESULTS",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "run_id",
+          "type": "text",
+          "required": true,
+          "primaryKey": true
+        },
+        {
+          "name": "suite_key",
+          "type": "text",
+          "required": true,
+          "primaryKey": true
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": true,
+          "description": "PASS / FAIL / TIMEOUT / NOT_RUN"
+        },
+        {
+          "name": "exit_code",
+          "type": "integer"
+        },
+        {
+          "name": "duration_ms",
+          "type": "integer",
+          "required": true
+        },
+        {
+          "name": "finished_at",
+          "type": "timestamptz",
+          "required": true
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "TEST_RUNNER",
+          "actionKey": "EXECUTE",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "TABLE_CATALOG",
+      "ownerKey": "SYSTEM_TEST",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "table_key",
+          "type": "text",
+          "required": true,
+          "primaryKey": true,
+          "description": "Khóa bảng do backend sinh, không phải chứng chỉ quyền truy cập"
+        },
+        {
+          "name": "schema_name",
+          "type": "text",
+          "required": true,
+          "description": "Tên trong toàn bộ schema của database kết nối (không app-only allowlist)"
+        },
+        {
+          "name": "table_name",
+          "type": "text",
+          "required": true,
+          "description": "Tên trong toàn bộ schema của database kết nối (không app-only allowlist)"
+        },
+        {
+          "name": "read_status",
+          "type": "text",
+          "required": true,
+          "description": "Trạng thái khả năng đọc thực tế theo SQL privileges/RLS, không cấp quyền mới"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "CATALOG",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "COLUMN_CATALOG",
+      "ownerKey": "SYSTEM_TEST",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "table_key",
+          "type": "text",
+          "required": true,
+          "primaryKey": true,
+          "description": "Khóa bảng được kiểm tra lại"
+        },
+        {
+          "name": "columns",
+          "type": "jsonb",
+          "required": true,
+          "description": "Metadata cột tất cả bảng theo pg_catalog, chỉ đọc"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "CATALOG",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "TABLE_PAGE",
+      "ownerKey": "SYSTEM_TEST",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "table_key",
+          "type": "text",
+          "required": true,
+          "primaryKey": true,
+          "description": "Khóa bảng được kiểm tra lại"
+        },
+        {
+          "name": "page",
+          "type": "integer",
+          "required": true,
+          "description": "Trang hiện hành"
+        },
+        {
+          "name": "page_size",
+          "type": "integer",
+          "required": true,
+          "description": "Mặc định 50; tối đa 100"
+        },
+        {
+          "name": "rows",
+          "type": "jsonb",
+          "required": true,
+          "description": "Giá trị thực tế có quyền SELECT theo current DB role/RLS; không cấp thêm quyền"
+        },
+        {
+          "name": "has_next",
+          "type": "boolean",
+          "required": true,
+          "description": "Có bản ghi trong trang tiếp theo"
+        },
+        {
+          "name": "ordering",
+          "type": "jsonb",
+          "required": true,
+          "description": "Chế độ sắp xếp, cảnh báo tính nhất quán"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ROWS",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "AUDIT_EVENTS",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "event_id",
+          "type": "text",
+          "required": true,
+          "primaryKey": true
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamptz",
+          "required": true
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "action_code",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "outcome",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "actor_account_id",
+          "type": "text"
+        },
+        {
+          "name": "target_type",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "AUDIT_LOG",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    }
+  ],
+  "mic07IamMapping": [
+    {
+      "functionKey": "DIAGNOSTICS",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_TEST",
+      "resourceCode": "DIAGNOSTICS",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "TEST_RUNNER",
+      "actionKey": "EXECUTE",
+      "moduleCode": "SYSTEM_TEST",
+      "resourceCode": "TEST_RUNNER",
+      "operation": "EXECUTE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CATALOG",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_TEST",
+      "resourceCode": "CATALOG",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ROWS",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_TEST",
+      "resourceCode": "ROWS",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "AUDIT_LOG",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_TEST",
+      "resourceCode": "AUDIT_LOG",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    }
+  ],
+  "mic08EventsAudit": {
+    "eventCodes": [],
+    "auditActionCodes": [
+      "SYSTEM_TEST.DIAGNOSTICS.READ",
+      "SYSTEM_TEST.TEST_RUNNER.EXECUTE",
+      "SYSTEM_TEST.CATALOG.READ",
+      "SYSTEM_TEST.ROWS.READ",
+      "SYSTEM_TEST.AUDIT_LOG.READ",
+      "SYSTEM_TEST.ACCESS_DENIED"
+    ]
+  },
+  "mic09Compatibility": {
+    "kind": "CHANGE",
+    "fromVersion": "1.0.3",
+    "changes": [
+      "Mở rộng kiểm tra sức khỏe module fleet, PostgreSQL stats, B08 audit, regression; giao diện drawer và ba mức",
+      "Hợp nhất chức năng của DATA_INSPECTOR vào SYSTEM_TEST 1.2.0, thêm tab audit Foundation/IAM và xuất báo cáo TXT",
+      "Các chức năng/đường dẫn của DATA_INSPECTOR cũ chỉ được retired sau khi bản mới được nghiệm thu"
+    ]
+  },
+  "mic10Manifest": {
+    "manifestVersion": "MIC-1.0",
+    "hashAlgorithm": "SHA-256",
+    "testEvidence": [
+      {
+        "name": "SYSTEM_TEST 1.2 merged diagnostics, inspector and audit acceptance on TEST",
+        "result": "NOT_TESTED",
+        "reference": "PENDING: real Foundation integration and runtime acceptance"
+      }
+    ]
+  }
+}

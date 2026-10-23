@@ -1,30 +1,16 @@
-# Host test / Foundation migration notes — required before declaring integration PASS
+# Host Test Migration — SYSTEM_TEST unified 1.2.0
 
-This package is **source-complete but not yet accepted on TEST**. The existing Host test suites were authored for SYSTEM_TEST 1.0.0 and explicitly depend on the removed data viewer. The current GitHub branch had:
+The backend Host tests written for earlier SYSTEM_TEST v1.0.x/v1.1.1 may expect the retired DATA_VIEWER function, fewer tabs, or the old module version. They must be updated, not deleted or bypassed.
 
-- `backend/test/unit/system-test/system-test.test.ts` importing `system-test.tables.ts`, testing `service.tables/rows` and the old three Functions / five routes.
-- `backend/test/integration/system-test/system-test.db.test.ts` importing `VIEWER_TABLES`, registering `SYSTEM_TEST` fixture 1.0.0, asserting the DATA_VIEWER menu/API and checking B01–B14 table previews.
+Expect now: one `SYSTEM_TEST` moduleKey and Host protocol `TALO-MODULE-HOST-1`; tabs `/system-test`, `/system-test/runner`, `/system-test/data`, `/system-test/logs`; 5 functions, 5 actions, 7 API declarations. Existing DIAGNOSTICS, RUNNER and original Data Inspector read-only semantics remain; new logs are read-only from IAM+B08 with admin gate. Verify no old `/api/data-inspector/*` new routes are published by the merged package. The still-installed legacy DATA_INSPECTOR may expose them until a separate retirement after acceptance.
 
-These tests must be migrated by the repository maintainer as part of the **1.1.0 version-change acceptance**. Do not comment out whole suites or weaken Host's valid protections. Recommended mapping:
+Required runtime tests:
+- Host handshake + backend/frontend registries + screen routes.
+- IAM and lifecycle checks for each 5-action permission.
+- Exact admin login gate for Data Inspector and Logs.
+- Data Inspector masking/RLS/pagination unchanged.
+- Logs both AVAILABLE and UNAVAILABLE paths, filtering, no raw metadata.
+- Quick Check/Regression response envelopes and full TXT exports.
+- MIC-1.0 schema, B05/B06, MIC09 fromVersion actual B02, MIC10 PASS only with evidence.
 
-| Old test | New coverage |
-|---|---|
-| Data Viewer table allowlist, filtering/paging | Removed endpoint must return 404; DATA_INSPECTOR has separate table-viewing tests |
-| IAM DATA_VIEWER.READ | Only DIAGNOSTICS.READ and TEST_RUNNER.EXECUTE, test DENIED/ALLOW, lifecycle |
-| MIC INITIAL_REGISTRATION 1.0.0 | MIC CHANGE from 1.0.0, new 1.1.0 with 2 Functions and 3 API endpoints |
-| 12 health components | 22 components including fleet/pg_stat_database/B08/regression |
-| Old GET tables / rows fixture HTTP tests | Module fleet diagnostics GET health / POST quick checks / GET results and 404 for retired APIs |
-| Tests of arbitrary SQL/data leaked via viewer | Verify absent routes, absent data-viewer module exports, use DATA_INSPECTOR-specific security tests |
-| Runner output | Validate source artifact and drawer behavior; API still cannot execute CLI |
-
-Existing PostgreSQL integration suites may create fixture Foundation versions permanently (append-only): only run on the approved TEST database, with their dedicated harness and cleanup procedure. Do not simply repoint them to production.
-
-## Deployment / navigation
-
-- Module stays `SYSTEM_TEST`; package goes into `modules/SYSTEM_TEST/`.
-- Replace code only after local backup of the old folder and a Git diff check.
-- Foundation requires a **new Version 1.1.0** with a compatible MIC and genuine MIC10 PASS evidence before ACTIVATE.
-- B09 old `/system-test/data` menu should be hidden with authorized Navigation API, as existing navigation's PATCH cannot change its Function target.
-- `DATA_INSPECTOR` is a separate module; it is not upgraded or touched by this package.
-
-Until both new and migrated tests, real Host handshake, MIC validator, IAM/menu and AppShell browser run have passed, mark `INTEGRATION: NOT_TESTED` (not PASS). There is no SQL GRANT, migration or automatic IAM provisioning in this ZIP.
+Retain test assertions on permission failures, unauthorized access and module lifecycle. Do not edit the Host's global protocols just to fit this package.

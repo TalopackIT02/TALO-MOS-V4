@@ -1,7 +1,8 @@
-Source-level Vitest tests (run under TALO backend's installed dependencies):
+# Unified module tests
 
-    cd backend
-    npm run modules:sync
-    npx vitest run --config ../modules/SYSTEM_TEST/tests/vitest.config.mjs
+From `backend/` after the module is staged in `modules/SYSTEM_TEST/` and dependencies installed:
 
-Tests here use synthetic facts; actual integration requires existing Host/Foundation runtime checks on TEST. No database writes or SQL GRANT.
+`npx vitest run --config ../modules/SYSTEM_TEST/tests/vitest.config.mjs`
+
+The bundled unit tests cover MIC mapping and TXT reports. They do **not** establish TEST DB/Host runtime acceptance.
+The imported legacy test suites are under `legacy-tests-*/` for reference; they are NOT run by this config and require updating for v1.2.0.

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { systemTestApi } from './systemTestApi';
+import { diagnosticsReportTxt, downloadTxt } from './reportTxt';
 import type { CheckResult, Health, QuickCheckRun } from './systemTestApi';
 import { CheckTable, DetailDrawer, FeedbackLine, GROUP_LABELS, CHECK_GROUPS, StatusBars, StatusBadge, checkCounts, formatTime, settleSt } from './common';
 import type { DrawerData, Feedback, Level } from './common';
@@ -51,7 +52,7 @@ export function DiagnosticsTab({onSessionLost}:{onSessionLost:()=>void}) {
   return <div className="st-console">
     <header className="st-hero">
       <div className="st-hero-head"><span className="st-eyebrow">TALO / OPS CONTROL <span className="st-online-dot"/> DIAGNOSTICS</span>
-        <span className="st-hero-version">SYSTEM_TEST · V1.1.1</span></div>
+        <span className="st-hero-version">SYSTEM_TEST · V1.2.0</span></div>
       <div className="st-hero-main"><div>
         <h1>System health <span>monitor.</span></h1>
         <p>Quan sát Foundation, IAM, PostgreSQL và các module vừa đăng ký. Phân loại dựa trên dữ kiện thực tế, không giả lập kết quả.</p>
@@ -75,7 +76,8 @@ export function DiagnosticsTab({onSessionLost}:{onSessionLost:()=>void}) {
     <section className="st-section">
       <div className="st-section-head"><div><span className="st-eyebrow">01 / SYSTEM CHECKLIST</span><h2>Kiểm tra vận hành</h2></div>
         <div className="st-section-tools"><span className="st-section-count">{filtered.length} / {results.length} mục</span>
-          <button type="button" className="st-button" disabled={!run} onClick={()=>void copyReport()}>⧉ Sao chép báo cáo</button></div></div>
+          <button type="button" className="st-button" disabled={!run} onClick={()=>{ if(run) downloadTxt(diagnosticsReportTxt(run),'TALO_SYSTEM_DIAGNOSTICS'); }}>↓ Xuất TXT đầy đủ</button>
+          <button type="button" className="st-button" disabled={!run} onClick={()=>void copyReport()}>⧉ Sao chép JSON</button></div></div>
       <div className="st-filters"><label className="st-search-label"><span aria-hidden="true">⌕</span>
         <input aria-label="Tìm phép kiểm tra" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Tìm phép kiểm tra, trạng thái, mã lỗi…"/></label>
         <select aria-label="Lọc nhóm kiểm tra" value={group} onChange={e=>setGroup(e.target.value)}>

@@ -1,8 +1,8 @@
 {
   "packageFormat": "TALO-MODULE-PACKAGE-1",
   "moduleKey": "SYSTEM_TEST",
-  "name": "System Test & Diagnostics",
-  "packageVersion": "1.1.1",
+  "name": "System Control Center",
+  "packageVersion": "1.2.0",
   "contractVersion": "MIC-1.0",
   "hostProtocol": "TALO-MODULE-HOST-1",
   "backendEntry": "backend/index.ts",
@@ -12,14 +12,39 @@
     "screens": [
       {
         "screenKey": "system.test",
-        "name": "System Test & Diagnostics",
-        "description": "Trung tâm chẩn đoán hệ thống, giám sát module và tổng hợp kết quả kiểm thử theo ba mức.",
+        "name": "System Control Center",
+        "description": "Chẩn đoán, kiểm thử, xem PostgreSQL chỉ đọc và nhật ký hệ thống cho quản trị viên.",
         "tabs": [
-          { "label": "System Diagnostics", "path": "/system-test" },
-          { "label": "Test Runner & Results", "path": "/system-test/runner" }
+          {
+            "label": "System Diagnostics",
+            "path": "/system-test"
+          },
+          {
+            "label": "Test Runner & Results",
+            "path": "/system-test/runner"
+          },
+          {
+            "label": "Data Inspector",
+            "path": "/system-test/data"
+          },
+          {
+            "label": "System Logs",
+            "path": "/system-test/logs"
+          }
         ]
       }
     ]
   },
-  "requiredCapabilities": ["session", "authorize", "evaluate", "lifecycle", "readOnly", "menuRoutes", "inspectManifest", "sqlstate", "regressionResults", "logger"]
+  "requiredCapabilities": [
+    "session",
+    "authorize",
+    "evaluate",
+    "lifecycle",
+    "readOnly",
+    "menuRoutes",
+    "inspectManifest",
+    "sqlstate",
+    "regressionResults",
+    "logger"
+  ]
 }

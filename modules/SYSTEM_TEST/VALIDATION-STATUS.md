@@ -1,37 +1,21 @@
-# Validation status at package generation
+# Validation status — SYSTEM_TEST 1.2.0 combined candidate
 
-**Source prepared:** SYSTEM_TEST 1.1.0, 22 checks, 3-status-bar UI, diagnostics/detail drawer, two tabs, no table-browser API.
+## Completed in offline artifact session
 
-| Check | Status |
-| --- | --- |
-| ZIP entrypoints and `module.json` structure | Static check PASS |
-| Relative TypeScript imports resolve inside module | Static check PASS |
-| TypeScript/TSX syntax parse (`typescript.transpileModule`) | PASS |
-| Semantic typecheck using stand-in declarations for React/Zod/Express/Vitest | PASS for local source; **not** equivalent to Host compilation |
-| Fixed API inventory, no Data Viewer source/API/MIC function | Static check PASS |
-| Vitest tests in `tests/` | **NOT_RUN**: Host's dependencies not present in this isolated environment |
-| Backend/frontend build in TALO repository | **NOT_RUN** |
-| Host loader handshake and Foundation MIC validator | **NOT_RUN** |
-| PostgreSQL TEST, IAM and AppShell/browser acceptance | **NOT_RUN** |
-| Existing Host tests written for SYSTEM_TEST 1.0.0 | **KNOWN INCOMPATIBILITY** — migration required; see `HOST-TEST-MIGRATION.md` |
+- Read both supplied ZIP archives. Preserved original SYSTEM_TEST diagnostics/runner code and DATA_INSPECTOR catalog/columns/rows code.
+- Added tab integration, merged router, new read-only audit service/route, and TXT exports.
+- Compiled MIC JSON directly from the package TypeScript declarations, verified identity/version, 5 K05 IAM action mappings, 4 navigation paths, 7 API declarations, and linked resources.
+- Static TypeScript/TSX transpilation: 28 files, zero syntax diagnostic errors.
+- Strict TS isolated check: frontend TXT exporter and SYSTEM_TEST API types PASS.
+- Relative import and manifest entry consistency checks PASS.
 
-The package is a **real implementation**, not an HTML prototype, but it must not be represented as deployed or production-ready without Host/runtime integration. It does not register or activate itself, and does not modify IAM, Foundation, Host or PostgreSQL privileges.
+## NOT TESTED / NOT CLAIMED
 
-## 1.1.1 acceptance run (22/10/2026, TALO repository, PostgreSQL TEST)
+- Full `npm run typecheck`, `npm test`, `npm run build` in the user's actual repository.
+- Actual Vitest execution and Host handshake with installed versions.
+- Session + IAM + admin-only behavior with real credentials.
+- Actual PostgreSQL TEST audit source privilege, query correctness and rows.
+- Real browser download, Navigation B09 setup, lifecycle, MIC-10 pre-activation evidence.
+- Frontend/Backend integration and rollback with both originally ACTIVE modules.
 
-1.1.0 is APPROVED on TEST with `NOT_TESTED` evidence (immutable, never activatable). **1.1.1** carries the same content
-(`MIC09 CHANGE fromVersion 1.0.3`, the ACTIVE version) and the real MIC-10 evidence. Host suites migrated
-(`backend/test/unit/system-test`, `backend/test/integration/system-test`, Playwright specs); `tests/tsconfig.json` added.
-
-| Check | Status |
-| --- | --- |
-| Module tests (`tests/`) + their typecheck | PASS (14/14) |
-| Host loader / handshake | PASS (8/8) |
-| Host compatibility unit (migrated) | PASS (15/15) |
-| Backend regression + typecheck | PASS (365 passed, DB suites gated) |
-| PostgreSQL TEST: 1.0.x → 1.1.1 CHANGE, real Activation Gate, IAM, navigation, retired viewer 404, 22 checks, lifecycle | PASS (2/2, fixture `FBET_ST_*`) |
-| Frontend build + AppShell browser (Playwright, mock API) | PASS |
-| Foundation validator on the real version history + Activation Gate dry run | OK / no blocker (B13 simulation vs 1.0.3: WARN) |
-| Real browser session against the live API of the registered SYSTEM_TEST | NOT_RUN (not part of the MIC-10 evidence) |
-
-Evidence logs: `TALO-MOS-V4_exports/SYSTEM_TEST-1.1.1-MIC10-20261022-231558/` (outside the repository).
+This package is intentionally **NOT READY FOR ACTIVATION**. MIC10 defaults to NOT_TESTED. Reconfirm in the user's TEST environment before any state transition.
