@@ -322,6 +322,11 @@ describe('Navigation Builder model', () => {
     ].sort());
     expect(JSON.stringify(l)).not.toContain(n(5));
     expect(l.legacy.filter((x) => x.inDevelop)).toEqual([]);
+    // effectiveVisible: the row and every ancestor visible (FMI-CLEAN-01 — hidden branches are not listed by default).
+    expect(l.legacy.find((x) => x.id === n(9))?.effectiveVisible).toBe(true);
+    const hiddenRoot = readLayout(ITEMS.map((i) => (i.navigationId === n(8) ? { ...i, isVisible: false } : i)));
+    expect(hiddenRoot.legacy.find((x) => x.id === n(9))).toMatchObject({ visible: true, effectiveVisible: false });
+    expect(l.legacy.filter((x) => x.reason === 'UNREACHABLE').every((x) => !x.effectiveVisible)).toBe(true);
     const deep = readLayout([...ITEMS, row(13, 6, { moduleId: DEV_MOD, functionId: DEV_FN }), row(14, 13)]);
     expect(deep.legacy.find((x) => x.id === n(14))).toMatchObject({ reason: 'TOO_DEEP', inDevelop: true, path: ['Develop', 'R6', 'R13'] });
     expect(developAreaId(ITEMS.map((i) => (i.navigationId === n(5) ? { ...i, isVisible: true } : i)))).toBeNull();

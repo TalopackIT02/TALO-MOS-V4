@@ -474,6 +474,9 @@ describe.skipIf(!enabled)('FBE-07 Foundation end-to-end acceptance — PostgreSQ
     const [acl] = await prisma.$queryRawUnsafe<{ ins: boolean; upd: boolean; del: boolean }[]>(`SELECT has_any_column_privilege('iam.iam_permissions', 'INSERT') AS ins,
       has_any_column_privilege('iam.iam_permissions', 'UPDATE') AS upd, has_table_privilege('iam.iam_permissions', 'DELETE') AS del`);
     expect(acl).toEqual({ ins: false, upd: false, del: false });
+    // FMI-CLEAN-01: the fixture group is hidden at the end (B09 has no DELETE; the rows stay) so that it does not fill the
+    // TEST Navigation Builder.
+    expect((await send('patch', `/foundation/navigation/items/${groupId}`, admin.cookie, { isVisible: false })).status).toBe(200);
     evidence['ac'] = { moduleId, versionId, itemId, audits: audits.length, events: events.length, permissionCode: code?.[0] };
   });
 

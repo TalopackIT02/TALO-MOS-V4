@@ -59,7 +59,7 @@ export interface LayoutMenu { id: string; moduleId: string | null; title: string
 export interface LayoutArea { id: string; moduleId: string | null; title: string; visible: boolean; develop: boolean; menus: LayoutMenu[] }
 export type LegacyReason = 'FUNCTION_AT_ROOT' | 'FUNCTION_UNDER_AREA' | 'TOO_DEEP' | 'UNREACHABLE';
 export interface LegacyItem {
-  id: string; kind: 'function' | 'group'; functionId: string | null; moduleId: string | null; title: string; visible: boolean; path: string[]; inDevelop: boolean;
+  id: string; kind: 'function' | 'group'; functionId: string | null; moduleId: string | null; title: string; visible: boolean; path: string[]; inDevelop: boolean; effectiveVisible: boolean;
   reason: LegacyReason;
 }
 export interface NavigationLayout { revision: string; developAreaId: string | null; areas: LayoutArea[]; legacy: LegacyItem[] }
@@ -161,7 +161,7 @@ function toLegacy(u: unknown): LegacyItem {
   const v = obj(u, 'legacy');
   const reason = LEGACY_REASONS.find((r) => r === v.reason);
   if (reason === undefined || (v.kind !== 'function' && v.kind !== 'group')) throw new Error('legacy');
-  return { id: req(v, 'id'), kind: v.kind, functionId: str(v.functionId), moduleId: str(v.moduleId), title: req(v, 'title'), visible: bool(v, 'visible'), path: strings(v.path), inDevelop: bool(v, 'inDevelop'), reason };
+  return { id: req(v, 'id'), kind: v.kind, functionId: str(v.functionId), moduleId: str(v.moduleId), title: req(v, 'title'), visible: bool(v, 'visible'), path: strings(v.path), inDevelop: bool(v, 'inDevelop'), effectiveVisible: bool(v, 'effectiveVisible'), reason };
 }
 function toLayout(u: unknown): NavigationLayout {
   const v = obj(u, 'layout');

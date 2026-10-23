@@ -52,7 +52,8 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
   const [draft, setDraft] = useState<BDraft | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
-  const [showHidden, setShowHidden] = useState(true);
+  // Removed / hidden rows (and branches below a hidden row) are not shown unless asked for (view only, the draft is unchanged).
+  const [showHidden, setShowHidden] = useState(false);
   const [filter, setFilter] = useState('');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [serverIssues, setServerIssues] = useState<string[]>([]);
@@ -283,8 +284,15 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
   // ----------------------------------------------------------------------------------------------- tree
   const q = filter.trim().toLocaleLowerCase('vi');
   const hit = (title: string) => q === '' || title.toLocaleLowerCase('vi').includes(q);
-  const devCount = draft.areas.filter((a) => !a.develop).flatMap((a) => a.menus.flatMap((m) => m.items)).filter((l) => l.visible && facts.get(l.functionId)?.developer).length
-    + layout.legacy.filter((row) => !row.inDevelop && row.functionId && facts.get(row.functionId)?.developer && draft.legacy.find((l) => l.id === row.id)?.visible).length;
+  // Developer Functions shown outside DEVELOP (visible branch only). Only those that can be relocated (Function still
+  // assignable: ACTIVE version with a MIC-04 route) are counted for the button; the others open nothing and are reported apart.
+  const misplaced = [
+    ...draft.areas.filter((a) => !a.develop && a.visible).flatMap((a) => a.menus.filter((m) => m.visible).flatMap((m) => m.items)).filter((l) => l.visible).map((l) => l.functionId),
+    ...layout.legacy.filter((row) => !row.inDevelop && row.effectiveVisible && draft.legacy.find((l) => l.id === row.id)?.visible).flatMap((row) => (row.functionId ? [row.functionId] : [])),
+  ].filter((fid) => facts.get(fid)?.developer);
+  const devCount = misplaced.filter((fid) => facts.get(fid)?.assignable).length;
+  const devStale = misplaced.length - devCount;
+  const hiddenCount = draft.areas.filter((a) => !a.visible).length;
 
   function rowClass(key: string, visible: boolean, extra = '') {
     return ['nb-row', extra, selected === key && 'selected', !visible && 'hidden-row', dropKey === key && 'drop', issueKeys.has(key) && 'invalid'].filter(Boolean).join(' ');
@@ -488,16 +496,19 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
           <button type="button" className="fx-btn" onClick={relocate}>Chuyển Developer Function vào Develop</button>
         </div>
       )}
+      {devStale > 0 && (
+        <p className="muted nb-devstale" role="note">{devStale} liên kết Developer Function ngoài Develop trỏ tới chức năng không còn route trong phiên bản ACTIVE: Sidebar không hiển thị chúng; giữ nguyên (không xóa), có thể gỡ trong cây nếu không cần.</p>
+      )}
       <div className="nb-panes">
         <section className="nb-left" aria-label="Cây điều hướng">
           <div className="fx-toolbar">
             <input className="nb-search" placeholder="Lọc theo tiêu đề…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Lọc cây theo tiêu đề" />
-            <label className="muted"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Hiện mục đã gỡ</label>
+            <label className="muted"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Hiện mục đã gỡ / ẩn{hiddenCount > 0 ? ` (${hiddenCount})` : ''}</label>
             <button type="button" className="fx-btn" onClick={() => setOpen(new Set(draft.areas.flatMap((a) => [a.key, ...a.menus.map((m) => m.key)])))}>Mở tất cả</button>
             <button type="button" className="fx-btn" onClick={() => setOpen(new Set())}>Thu gọn</button>
           </div>
           {tree}
-          <LegacyList legacy={layout.legacy} draft={draft} facts={facts} onChange={(id, visible) => update(setLegacy(draft, id, visible))} />
+          <LegacyList legacy={layout.legacy} draft={draft} facts={facts} showHidden={showHidden} onChange={(id, visible) => update(setLegacy(draft, id, visible))} />
         </section>
         <section className="nb-right" aria-label="Chi tiết và kho chức năng">
           {panel}
@@ -586,17 +597,23 @@ function Inventory({ inventory, draft, target, facts, onDragStart, onAdd }: Inve
   const [query, setQuery] = useState('');
   const [module, setModule] = useState('');
   const [showTest, setShowTest] = useState(false);
+  // Default: only Functions that can be configured now (ACTIVE version, ENABLED module, MIC-04 route, IAM mapping).
+  const [scope, setScope] = useState<'available' | 'assigned' | 'unassigned' | 'history'>('available');
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const modules = [...new Map(inventory.map((f) => [f.moduleId, f])).values()].filter((f) => showTest || !isTestModuleKey(f.moduleKey));
   const q = query.trim().toLocaleLowerCase('vi');
-  const rows = inventory.filter((f) => (showTest || !isTestModuleKey(f.moduleKey)) && (!module || f.moduleId === module)
-    && (q === '' || `${f.displayName} ${f.functionKey} ${f.moduleKey} ${f.moduleName}`.toLocaleLowerCase('vi').includes(q)));
   // Where each Function is linked now (visible links of the draft).
   const placed = new Map<string, string[]>();
   for (const a of draft.areas) for (const m of a.menus) for (const l of m.items) {
     if (!l.visible || !a.visible || !m.visible) continue;
     placed.set(l.functionId, [...(placed.get(l.functionId) ?? []), `${a.title} › ${m.title}`]);
   }
+  const inScope = (f: InventoryFunction) => (scope === 'history' ? !f.assignable
+    : scope === 'assigned' ? f.assignable && placed.has(f.functionId) : scope === 'unassigned' ? f.assignable && !placed.has(f.functionId) : f.assignable);
+  const visibleBase = inventory.filter((f) => showTest || !isTestModuleKey(f.moduleKey));
+  const rows = visibleBase.filter((f) => inScope(f) && (!module || f.moduleId === module)
+    && (q === '' || `${f.displayName} ${f.functionKey} ${f.moduleKey} ${f.moduleName}`.toLocaleLowerCase('vi').includes(q)));
+  const counts = { available: visibleBase.filter((f) => f.assignable).length, history: visibleBase.filter((f) => !f.assignable).length };
   const chosen = rows.filter((f) => picked.has(f.functionId));
   const flip = (id: string) => setPicked((cur) => {
     const next = new Set(cur);
@@ -611,6 +628,12 @@ function Inventory({ inventory, draft, target, facts, onDragStart, onAdd }: Inve
         <select value={module} onChange={(e) => setModule(e.target.value)} aria-label="Lọc theo module">
           <option value="">Mọi module</option>
           {modules.map((m) => <option key={m.moduleId} value={m.moduleId}>{m.moduleName || m.moduleKey} ({m.moduleKey})</option>)}
+        </select>
+        <select value={scope} onChange={(e) => setScope(e.target.value === 'assigned' ? 'assigned' : e.target.value === 'unassigned' ? 'unassigned' : e.target.value === 'history' ? 'history' : 'available')} aria-label="Phạm vi chức năng">
+          <option value="available">Chức năng khả dụng ({counts.available})</option>
+          <option value="assigned">Khả dụng, đã gán menu</option>
+          <option value="unassigned">Khả dụng, chưa gán menu</option>
+          <option value="history">Lịch sử / không khả dụng ({counts.history})</option>
         </select>
         <label className="muted"><input type="checkbox" checked={showTest} onChange={(e) => setShowTest(e.target.checked)} /> Module kiểm thử (FBET_)</label>
       </div>
@@ -646,14 +669,18 @@ function Inventory({ inventory, draft, target, facts, onDragStart, onAdd }: Inve
   );
 }
 
-function LegacyList({ legacy, draft, facts, onChange }: { legacy: readonly LegacyItem[]; draft: BDraft; facts: Facts; onChange: (id: string, visible: boolean) => void }) {
+function LegacyList({ legacy, draft, facts, showHidden, onChange }: { legacy: readonly LegacyItem[]; draft: BDraft; facts: Facts; showHidden: boolean; onChange: (id: string, visible: boolean) => void }) {
+  // By default only rows the sidebar may still show (row + ancestors visible), or rows changed in this draft.
+  const changed = (row: LegacyItem) => (draft.legacy.find((l) => l.id === row.id)?.visible ?? row.visible) !== row.visible;
+  const rows = legacy.filter((row) => showHidden || row.effectiveVisible || changed(row));
   if (legacy.length === 0) return null;
   return (
     <details className="nb-legacy">
-      <summary>Cấu trúc cũ ngoài mô hình 3 cấp ({legacy.length}) — giữ nguyên, chỉ đổi hiển thị</summary>
-      <p className="muted">Các mục này được tạo trước Navigation Builder (chức năng ở gốc, dưới vùng, hoặc sâu hơn 3 cấp). Không tự xóa; Sidebar vẫn hiển thị chúng nếu đang bật.</p>
+      <summary>Cấu trúc cũ ngoài mô hình 3 cấp ({rows.length}{rows.length !== legacy.length ? ` đang hiện / ${legacy.length}` : ''}) — giữ nguyên, chỉ đổi hiển thị</summary>
+      <p className="muted">Các mục này được tạo trước Navigation Builder (chức năng ở gốc, dưới vùng, hoặc sâu hơn 3 cấp). Không tự xóa; Sidebar vẫn hiển thị chúng nếu đang bật.
+        {rows.length !== legacy.length ? ' Mục đã gỡ / nằm dưới nhánh đã gỡ đang được ẩn khỏi danh sách (bật “Hiện mục đã gỡ / ẩn” để xem).' : ''}</p>
       <ul>
-        {legacy.map((row) => {
+        {rows.map((row) => {
           const visible = draft.legacy.find((l) => l.id === row.id)?.visible ?? row.visible;
           const fn = row.functionId ? facts.get(row.functionId) : undefined;
           const lockShow = fn?.developer === true && !row.inDevelop && !row.visible;

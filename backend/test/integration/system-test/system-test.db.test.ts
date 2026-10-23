@@ -240,7 +240,7 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST 1.1.1 module — PostgreSQL (
     if (!value || !value.startsWith('talo_sid=') || value === 'talo_sid=') throw new Error('no session cookie');
     return value;
   };
-  const send = (method: 'post' | 'put', url: string, as: string, body: unknown = {}) =>
+  const send = (method: 'post' | 'put' | 'patch', url: string, as: string, body: unknown = {}) =>
     request(app)[method](`/api${url}`).set('User-Agent', fx.userAgent).set('Origin', TEST_ORIGIN).set('Content-Type', 'application/json').set('Cookie', as).send(JSON.stringify(body));
   const get = (url: string, as?: string) => {
     const r = request(app).get(`/api${url}`).set('User-Agent', fx.userAgent);
@@ -485,6 +485,9 @@ describe.skipIf(!enabled)('MOD-TEST-01 SYSTEM_TEST 1.1.1 module — PostgreSQL (
     expect((await send('post', `${v2.base}/retire`, admin.cookie)).status).toBe(200);
     expect(await routes(full.cookie)).toEqual([]);
     expect(await all()).toEqual([503, 503, 503]);
+    // FMI-CLEAN-01: the fixture group is hidden at the end (B09 has no DELETE; the rows stay — ST-12) so that it does not fill
+    // the TEST Navigation Builder.
+    expect((await send('patch', `/foundation/navigation/items/${groupId}`, admin.cookie, { isVisible: false })).status).toBe(200);
     evidence['st'] = { moduleId, versions: [v1.versionId, blocked.versionId, v2.versionId], groupId, permissionCodes: [d.ref.permissionCode, r.ref.permissionCode] };
   });
 

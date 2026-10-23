@@ -70,6 +70,7 @@ export interface LegacyItem {
   readonly visible: boolean;
   readonly path: string[]; // titles of the ancestors (root first)
   readonly inDevelop: boolean; // below the DEVELOP area (a Developer Function may be shown there only)
+  readonly effectiveVisible: boolean; // the row and every ancestor are visible (a hidden ancestor hides the branch)
   readonly reason: 'FUNCTION_AT_ROOT' | 'FUNCTION_UNDER_AREA' | 'TOO_DEEP' | 'UNREACHABLE';
 }
 
@@ -120,7 +121,7 @@ export function readLayout(items: readonly NavigationItem[]): Layout {
   const seen = new Set<string>();
   const addLegacy = (i: NavigationItem, path: string[], reason: LegacyItem['reason']) => {
     seen.add(i.navigationId);
-    legacy.push({ id: i.navigationId, kind: i.functionId === null ? 'group' : 'function', functionId: i.functionId, moduleId: i.moduleId, title: i.menuTitle, visible: i.isVisible, path, inDevelop: insideDevelop(i, byId, develop), reason });
+    legacy.push({ id: i.navigationId, kind: i.functionId === null ? 'group' : 'function', functionId: i.functionId, moduleId: i.moduleId, title: i.menuTitle, visible: i.isVisible, path, inDevelop: insideDevelop(i, byId, develop), effectiveVisible: chainVisible(i, byId), reason });
   };
   const deep = (i: NavigationItem, path: string[]) => { // everything below level 3 (or below a legacy row) is legacy
     for (const c of kids(i.navigationId)) {
@@ -413,4 +414,17 @@ export function previewItems(items: readonly NavigationItem[], plan: Plan): Navi
     out.push({ navigationId: `draft:${n}`, parentId, moduleId: r.moduleId, functionId: r.functionId, menuTitle: r.title, sortOrder: r.sortOrder, isVisible: r.visible, createdAt: '9999-12-31T00:00:00.000000Z' });
   });
   return out;
+}
+
+// Visible as the sidebar would treat it: the row and every ancestor visible (a cycle / broken parent → not visible).
+function chainVisible(item: NavigationItem, byId: ReadonlyMap<string, NavigationItem>): boolean {
+  let cur: NavigationItem | undefined = item;
+  const seen = new Set<string>();
+  while (cur !== undefined) {
+    if (!cur.isVisible || seen.has(cur.navigationId)) return false;
+    seen.add(cur.navigationId);
+    if (cur.parentId === null) return true;
+    cur = byId.get(cur.parentId);
+  }
+  return false;
 }

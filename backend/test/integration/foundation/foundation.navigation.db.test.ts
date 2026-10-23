@@ -217,6 +217,7 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
   const deletedTotals: Record<string, number> = {};
   const evidence: Record<string, unknown> = {};
   const runItems: string[] = [];
+  const runRoots: string[] = []; // FMI-CLEAN-01: root groups of this run, hidden in afterAll
 
   const rid = (res: Response): string => {
     const value = res.headers['x-request-id'];
@@ -262,6 +263,7 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
     const res = await send('post', '/api/foundation/navigation/items', body);
     expect(res.status, JSON.stringify(res.body)).toBe(status);
     if (status === 201) runItems.push(String(res.body.item.navigationId));
+    if (status === 201 && (body['parentId'] === undefined || body['parentId'] === null)) runRoots.push(String(res.body.item.navigationId));
     return res;
   }
   async function item(id: string) {
@@ -319,6 +321,19 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
   });
 
   afterAll(async () => {
+    // FMI-CLEAN-01: B09 has no DELETE (append-only, C2) — the root groups created by this run are HIDDEN at the end through
+    // the API, so that the TEST Navigation Builder / sidebar is not filled with fixtures. The rows themselves stay (V6).
+    if (h && fx && az && runRoots.length > 0) { // h / fx / az exist only when beforeAll (app included) completed
+      try {
+        const keeper = await login(['navigation']);
+        let hidden = 0;
+        for (const id of runRoots) if ((await send('patch', `/api/foundation/navigation/items/${id}`, { isVisible: false }, keeper.cookie)).status === 200) hidden += 1;
+        evidence['runRootsHidden'] = { roots: runRoots.length, hidden };
+      } finally {
+        for (const [k, v] of Object.entries(await az.cleanup())) deletedTotals[`authz.${k}`] = (deletedTotals[`authz.${k}`] ?? 0) + v;
+        for (const [k, v] of Object.entries(await fx.cleanup())) deletedTotals[`auth.${k}`] = (deletedTotals[`auth.${k}`] ?? 0) + v;
+      }
+    }
     const remaining = fx ? await fx.remaining() : -1;
     if (h) {
       const ids = uuidArray(runItems.length ? runItems : [NIL]);

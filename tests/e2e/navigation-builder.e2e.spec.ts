@@ -34,7 +34,7 @@ const LAYOUT = {
     ] },
     { id: ID.develop, moduleId: null, title: 'Phát triển', visible: true, develop: true, menus: [] },
   ],
-  legacy: [{ id: ID.legacy, kind: 'function', functionId: FN.catalog, moduleId: DI, title: 'Data Inspector', visible: true, path: [], inDevelop: false, reason: 'FUNCTION_AT_ROOT' }],
+  legacy: [{ id: ID.legacy, kind: 'function', functionId: FN.catalog, moduleId: DI, title: 'Data Inspector', visible: true, path: [], inDevelop: false, effectiveVisible: true, reason: 'FUNCTION_AT_ROOT' }],
 };
 const fn = (functionId: string, moduleId: string, moduleKey: string, moduleName: string, functionKey: string, displayName: string, extra: Record<string, unknown> = {}) => ({
   functionId, moduleId, moduleKey, moduleName, functionKey, displayName, assignable: true, reason: null, developer: false, ...extra,
@@ -147,13 +147,17 @@ test('NAV-05 / NAV-12 multi-link: each link keeps its own active item and crumb;
 test('NAV-03 / NAV-04 / NAV-07 inventory: real Functions with module + key and where linked; "Đã có trong menu"; not assignable / Developer blocked outside Develop', async ({ page }) => {
   await open(page);
   await builder(page);
-  await expect(page.locator('.nb-fn')).toHaveCount(4);
+  // FMI-CLEAN-01: by default only configurable Functions (REPORT has no route → "Lịch sử / không khả dụng").
+  await expect(page.locator('.nb-fn')).toHaveCount(3);
+  await expect(fnRow(page, 'Báo cáo')).toHaveCount(0);
   await expect(fnRow(page, 'Đơn hàng')).toContainText('SALES · ORDER');
   await expect(fnRow(page, 'Đơn hàng')).toContainText('Đang gắn: Kinh doanh › Bán hàng');
   await row(page, 'Bán hàng').click();
   await expect(fnRow(page, 'Đơn hàng')).toContainText('Đã có trong menu');
   await expect(fnRow(page, 'Đơn hàng').getByRole('checkbox')).toBeDisabled();
+  await page.getByLabel('Phạm vi chức năng').selectOption('history');
   await expect(fnRow(page, 'Báo cáo').getByRole('checkbox')).toBeDisabled();
+  await page.getByLabel('Phạm vi chức năng').selectOption('available');
   await expect(fnRow(page, 'Chạy test').getByRole('checkbox')).toBeDisabled();
   await expect(fnRow(page, 'Chạy test')).toContainText('Developer Function chỉ được đặt trong Develop');
   // Inside Develop the Developer Function is allowed.
@@ -274,4 +278,28 @@ test('NAV-15 conflict and leaving: 409 keeps the draft and offers a reload; leav
   page.once('dialog', (d) => void d.accept());
   await sidebar(page).getByRole('button', { name: 'Trang chủ' }).click();
   await expect(page).toHaveURL(/\/$/);
+});
+
+test('FMI-CLEAN-01 removed areas and their branch are hidden by default, shown on demand; inventory scopes available / assigned / unassigned / history', async ({ page }) => {
+  const hidden = { id: uuid(20), moduleId: null, title: 'Khóa MVC1BI5A_6E9C95', visible: false, develop: false, menus: [] };
+  const underHidden = { id: uuid(21), kind: 'function', functionId: FN.order, moduleId: SALES, title: 'Mục dưới nhánh đã gỡ', visible: true, path: ['Khóa MVC1BI5A_6E9C95'], inDevelop: false, effectiveVisible: false, reason: 'FUNCTION_UNDER_AREA' };
+  await open(page);
+  await page.route('**/api/foundation/navigation/builder', (route) => (route.request().method() === 'GET'
+    ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ layout: { ...LAYOUT, areas: [...LAYOUT.areas, hidden], legacy: [...LAYOUT.legacy, underHidden] } }) })
+    : route.fallback()));
+  await builder(page);
+  await expect(page.locator('.nb-row', { hasText: 'Khóa MVC1BI5A_6E9C95' })).toHaveCount(0);
+  await page.locator('.nb-legacy summary').click();
+  await expect(page.locator('.nb-legacy')).not.toContainText('Mục dưới nhánh đã gỡ');
+  await expect(page.locator('.nb-legacy summary')).toContainText('1 đang hiện / 2');
+  await page.getByLabel(/Hiện mục đã gỡ \/ ẩn/).check();
+  await expect(page.locator('.nb-row', { hasText: 'Khóa MVC1BI5A_6E9C95' })).toHaveCount(1);
+  await expect(page.locator('.nb-legacy')).toContainText('Mục dưới nhánh đã gỡ');
+  await expect(page.locator('.nb-unsaved')).toHaveCount(0); // a view toggle never changes the draft
+  await page.getByLabel('Phạm vi chức năng').selectOption('assigned');
+  await expect(page.locator('.nb-fn .nb-fn-name')).toHaveText(['Đơn hàng']);
+  await page.getByLabel('Phạm vi chức năng').selectOption('unassigned');
+  await expect(page.locator('.nb-fn .nb-fn-name')).toHaveText(['Danh mục bảng', 'Chạy test']);
+  await page.getByLabel('Phạm vi chức năng').selectOption('history');
+  await expect(page.locator('.nb-fn .nb-fn-name')).toHaveText(['Báo cáo']);
 });
