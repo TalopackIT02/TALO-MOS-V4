@@ -1,0 +1,58 @@
+/* FMI-01 — Manual Module Scan (Foundation › Quản lý Module). Scoped under .app-shell, AppShell values only. */
+.app-shell .ms-panel{margin:0 0 16px}
+.app-shell .ms-empty{display:flex;gap:14px;align-items:flex-start;border:1px dashed #cfdbe4;border-radius:9px;padding:14px 16px;background:#fbfdfe;font-size:13px;color:#4c5d70}
+.app-shell .ms-empty p{margin:0 0 8px;line-height:1.6}
+.app-shell .ms-empty-icon{font-size:24px;color:var(--green);line-height:1}
+.app-shell .ms-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:12.5px;color:#4c5d70;margin:4px 0 10px}
+.app-shell .ms-tag{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;background:#eef2f5;color:#4c5d70;border:1px solid transparent}
+.app-shell .ms-tag.ms-pass{background:#e6f6ec;color:#0b6b3c;border-color:#bfe3cd}
+.app-shell .ms-tag.ms-warn{background:#fff6df;color:#8a5a00;border-color:#f1d899}
+.app-shell .ms-tag.ms-fail{background:#fdecea;color:#9b2c22;border-color:#f1cfca}
+.app-shell .ms-tag.ms-unavailable{background:#eef0f6;color:#46506a;border-color:#d4d9e6}
+.app-shell .ms-bars{display:grid;gap:6px;max-width:640px;margin-bottom:10px}
+.app-shell .ms-bar{display:grid;grid-template-columns:130px 1fr 34px;gap:10px;align-items:center;font-size:12.5px}
+.app-shell .ms-bar-track{height:10px;border-radius:99px;background:#eef2f5;overflow:hidden}
+.app-shell .ms-bar-fill{display:block;height:100%;border-radius:99px}
+.app-shell .ms-bar-fail .ms-bar-fill{background:#d14334}
+.app-shell .ms-bar-warn .ms-bar-fill{background:#e3a21a}
+.app-shell .ms-bar-pass .ms-bar-fill{background:var(--green)}
+.app-shell .ms-bar b{text-align:right}
+.app-shell .ms-unavailable{margin:2px 0 0;font-size:12px;color:#46506a}
+.app-shell .ms-filters input,.app-shell .ms-filters select{border:1px solid #d1dbe5;border-radius:7px;padding:7px 10px;font-size:12px;min-width:0}
+.app-shell .ms-filters input{flex:1 1 220px}
+.app-shell .ms-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:9px;background:#fff}
+.app-shell .ms-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.app-shell .ms-table th{text-align:left;font-weight:600;color:#506176;background:#f7fafc;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.app-shell .ms-table td{padding:9px 10px;border-bottom:1px solid #f0f3f6;vertical-align:top}
+.app-shell .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.app-shell .ms-spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:ms-spin .8s linear infinite;vertical-align:-2px}
+@keyframes ms-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.app-shell .ms-spinner{animation:none}}
+.app-shell .ms-overlay{position:fixed;inset:0;z-index:95;background:rgba(15,25,35,.32);display:flex;justify-content:flex-end}
+.app-shell .ms-drawer{width:40vw;min-width:360px;max-width:680px;height:100%;background:#fff;display:flex;flex-direction:column;box-shadow:-14px 0 30px #10223822}
+.app-shell .ms-drawer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.app-shell .ms-drawer-head h3{margin:2px 0 0;font-size:16px;color:var(--green)}
+.app-shell .ms-close{border:1px solid var(--line);background:#fff;border-radius:7px;width:32px;height:32px;font-size:20px;line-height:1;color:#4c5d70;cursor:pointer}
+.app-shell .ms-close:hover{background:#f2f8f4;border-color:#bddecb}
+.app-shell .ms-drawer-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 18px;font-size:13px}
+.app-shell .ms-drawer-body h4{margin:16px 0 8px;font-size:13px;color:#1c2937}
+.app-shell .ms-drawer-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end}
+.app-shell .ms-dl{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;margin:0}
+.app-shell .ms-dl dt{color:#66778a}
+.app-shell .ms-dl dd{margin:0;word-break:break-word}
+.app-shell .ms-checks,.app-shell .ms-issues,.app-shell .ms-versions{list-style:none;margin:0;padding:0}
+.app-shell .ms-checks li{display:grid;grid-template-columns:auto auto auto 1fr;gap:6px;align-items:baseline;padding:5px 0;border-bottom:1px solid #f1f4f6;font-size:12.5px}
+.app-shell .ms-checks code,.app-shell .ms-issues code{font-size:11.5px;background:#f3f6f8;border-radius:4px;padding:1px 5px;word-break:break-all}
+.app-shell .ms-issue{border:1px solid var(--line);border-left-width:4px;border-radius:7px;padding:8px 10px;margin-bottom:8px}
+.app-shell .ms-issue p{margin:4px 0}
+.app-shell .ms-sev-error{border-left-color:#d14334}
+.app-shell .ms-sev-warning{border-left-color:#e3a21a}
+.app-shell .ms-sev-unavailable{border-left-color:#7d88a6}
+.app-shell .ms-fix{margin-top:4px;color:#0b6b3c}
+.app-shell .ms-hash{word-break:break-all}
+.app-shell .ms-note{margin-top:14px}
+@media (max-width:760px){
+  .app-shell .ms-drawer{width:100vw;min-width:0;max-width:none}
+  .app-shell .ms-bar{grid-template-columns:110px 1fr 28px}
+  .app-shell .ms-dl{grid-template-columns:1fr}
+}

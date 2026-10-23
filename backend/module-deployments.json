@@ -1,0 +1,7 @@
+{
+  "format": "TALO-MODULE-DEPLOYMENT-1",
+  "modules": [
+    { "moduleKey": "DATA_INSPECTOR", "packageVersion": "0.1.0", "packageHash": "45c4a3a06901074d474d25da3271b193b73ac5deec22b36e1a1a2eb30b14f8cc" },
+    { "moduleKey": "SYSTEM_TEST", "packageVersion": "1.1.1", "packageHash": "4cc97571bbc67dbbffa0b73fbe6ccfcd5cf34f5470801106482d9bcefc8566b6" }
+  ]
+}

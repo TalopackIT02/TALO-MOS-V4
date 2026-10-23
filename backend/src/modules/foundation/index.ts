@@ -16,6 +16,9 @@ import { SqlManifestRepository } from './foundation.manifest.repository.js';
 import type { ManifestRepository } from './foundation.manifest.repository.js';
 import { moduleManifestRouter } from './foundation.manifest.routes.js';
 import { ModuleManifestService } from './foundation.manifest.service.js';
+import { moduleScanRouter } from './foundation.module-scan.routes.js';
+import { ModuleScanService, SqlModuleScanRegistry } from './foundation.module-scan.service.js';
+import type { ModuleScanRegistry } from './foundation.module-scan.types.js';
 import { prismaFoundationDb, SqlFoundationRepository } from './foundation.repository.js';
 import type { FoundationRepository } from './foundation.repository.js';
 import { foundationRouter } from './foundation.routes.js';
@@ -38,6 +41,8 @@ export interface FoundationModuleOptions {
   readonly manifestRepository?: ManifestRepository;
   readonly lifecycleRepository?: LifecycleRepository;
   readonly navigationRepository?: NavigationRepository;
+  readonly moduleScanRegistry?: ModuleScanRegistry;
+  readonly moduleScanRoot?: string;
 }
 
 export interface FoundationModule {
@@ -47,6 +52,7 @@ export interface FoundationModule {
   readonly manifestService: ModuleManifestService;
   readonly lifecycleService: ModuleLifecycleService;
   readonly navigationService: NavigationService;
+  readonly moduleScanService: ModuleScanService;
 }
 
 export function createFoundationModule(options: FoundationModuleOptions): FoundationModule {
@@ -65,11 +71,17 @@ export function createFoundationModule(options: FoundationModuleOptions): Founda
   const navigationService = new NavigationService({
     access: repository, navigation: options.navigationRepository ?? new SqlNavigationRepository(db), logger: options.logger,
   });
+  // FMI-01: Manual Module Scan (read-only preview of modules/, triggered only by the user).
+  const moduleScanService = new ModuleScanService({
+    access: repository, registry: options.moduleScanRegistry ?? new SqlModuleScanRegistry(db), logger: options.logger,
+    ...(options.moduleScanRoot ? { modulesRoot: options.moduleScanRoot } : {}),
+  });
   const router = express.Router();
   router.use(foundationRouter({ authService: options.authService, service, secureCookie: options.secureCookie }));
   router.use(moduleVersionRouter({ authService: options.authService, service: versionService, secureCookie: options.secureCookie }));
   router.use(moduleManifestRouter({ authService: options.authService, service: manifestService, secureCookie: options.secureCookie }));
   router.use(moduleLifecycleRouter({ authService: options.authService, service: lifecycleService, secureCookie: options.secureCookie }));
   router.use(navigationRouter({ authService: options.authService, service: navigationService, secureCookie: options.secureCookie }));
-  return { router, service, versionService, manifestService, lifecycleService, navigationService };
+  router.use(moduleScanRouter({ authService: options.authService, service: moduleScanService, secureCookie: options.secureCookie }));
+  return { router, service, versionService, manifestService, lifecycleService, navigationService, moduleScanService };
 }

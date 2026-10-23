@@ -1,5 +1,6 @@
 // MOD-TEST-02 — Host module loader, build-time part (Foundation side; no module is named here).
-//   node backend/scripts/modules-sync.mjs <backend|frontend> [--modules <dir>] [--out <dir>]
+//   node backend/scripts/modules-sync.mjs <backend|frontend> [--modules <dir>] [--out <dir>] [--deployments <file>]
+//   node backend/scripts/modules-sync.mjs hash <MODULE_KEY>        (read only: version + package hash for the lock)
 // Discovers the packages in <repo>/modules/*/module.json, validates each manifest (package format, Host protocol, required
 // capabilities, entries inside the package, screen routes), copies the valid package's backend + mic (backend target) or
 // frontend (frontend target) files into <app>/src/installed-modules/<moduleKey>/ and writes a static registry.ts that
@@ -8,6 +9,7 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hashPackage, walkPackage } from './module-package.mjs';
 
 export const PACKAGE_FORMAT = 'TALO-MODULE-PACKAGE-1';
 export const HOST_PROTOCOL = 'TALO-MODULE-HOST-1';
@@ -65,13 +67,51 @@ function copyTree(from, to) {
 
 const importPath = (entry, target) => `./${entry.replace(/\.(ts|tsx)$/, target === 'backend' ? '.js' : '')}`;
 
-export function syncModules({ target, modulesDir, outDir, log = (line) => process.stdout.write(`${line}\n`) }) {
+// FMI-01 — deployment lock (backend/module-deployments.json, committed): the packages the Host may load, pinned by
+// moduleKey + packageVersion + packageHash (TALO-PACKAGE-HASH-1, module-package.mjs). `modules/` is also the drop zone of
+// candidate packages (Foundation › Quét Module reads every folder); with a lock, a folder that is not listed is skipped
+// (candidate only), and a listed package whose folder no longer matches its pinned version / hash stops the sync BEFORE
+// installed-modules is touched — the previously installed code keeps running. Without a lock (tests / legacy) every
+// valid package is loaded, as before.
+export const DEPLOYMENT_FORMAT = 'TALO-MODULE-DEPLOYMENT-1';
+const HEX64 = /^[0-9a-f]{64}$/;
+
+export function parseDeployments(value) {
+  if (typeof value !== 'object' || value === null || value.format !== DEPLOYMENT_FORMAT || !Array.isArray(value.modules)) {
+    throw new Error(`deployment lock: format must be ${DEPLOYMENT_FORMAT} with a modules list`);
+  }
+  const map = new Map();
+  for (const d of value.modules) {
+    if (typeof d !== 'object' || d === null || !MODULE_KEY.test(String(d.moduleKey)) || !SEMVER.test(String(d.packageVersion)) || !HEX64.test(String(d.packageHash))) {
+      throw new Error('deployment lock: each entry needs moduleKey (K01), packageVersion (SemVer) and packageHash (64 hex)');
+    }
+    if (map.has(d.moduleKey)) throw new Error(`deployment lock: ${d.moduleKey} listed twice`);
+    map.set(d.moduleKey, { packageVersion: d.packageVersion, packageHash: d.packageHash });
+  }
+  return map;
+}
+
+export function syncModules({ target, modulesDir, outDir, deployments, log = (line) => process.stdout.write(`${line}\n`) }) {
   if (target !== 'backend' && target !== 'frontend') throw new Error('target must be backend or frontend');
   if (basename(outDir) !== 'installed-modules') throw new Error('refused: output directory must be named installed-modules');
+  const lock = deployments === undefined ? null : parseDeployments(deployments);
+  const plan = planSync({ modulesDir, lock, log });
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
-  const loaded = [];
+  for (const { folder, manifest } of plan) {
+    const dir = join(modulesDir, folder);
+    for (const sub of target === 'backend' ? ['backend', 'mic'] : ['frontend']) copyTree(join(dir, sub), join(outDir, folder, sub));
+    log(`[modules] ${target}: ${manifest.moduleKey} ${manifest.packageVersion} (${manifest.contractVersion}, ${manifest.hostProtocol})`);
+  }
+  writeFileSync(join(outDir, 'registry.ts'), registrySource(target, plan.map((p) => p.manifest)));
+  return plan.map((p) => p.manifest.moduleKey);
+}
+
+// Every check happens here, before installed-modules is removed; a lock mismatch throws (nothing is changed).
+function planSync({ modulesDir, lock, log }) {
+  const plan = [];
   const routes = new Set();
+  const mismatches = [];
   const folders = existsSync(modulesDir) ? readdirSync(modulesDir).filter((f) => lstatSync(join(modulesDir, f)).isDirectory()).sort() : [];
   for (const folder of folders) {
     const dir = join(modulesDir, folder);
@@ -95,13 +135,33 @@ export function syncModules({ target, modulesDir, outDir, log = (line) => proces
       log(`[modules] skip ${folder}: ${problems.join('; ')}`);
       continue;
     }
+    if (lock !== null) {
+      const pinned = lock.get(manifest.moduleKey);
+      if (pinned === undefined) {
+        log(`[modules] skip ${folder}: not in the deployment lock (candidate only — scan it in Foundation › Quét Module)`);
+        continue;
+      }
+      if (manifest.packageVersion !== pinned.packageVersion) {
+        mismatches.push(`${folder}: packageVersion ${manifest.packageVersion} ≠ deployed ${pinned.packageVersion}`);
+        continue;
+      }
+      const walk = walkPackage(dir);
+      const { hash } = hashPackage(dir, walk);
+      if (hash !== pinned.packageHash) {
+        mismatches.push(`${folder}: package content differs from the deployed ${pinned.packageVersion} (hash ${hash === null ? 'unavailable' : hash.slice(0, 12)})`);
+        continue;
+      }
+    }
     for (const r of paths) routes.add(r);
-    for (const sub of target === 'backend' ? ['backend', 'mic'] : ['frontend']) copyTree(join(dir, sub), join(outDir, folder, sub));
-    loaded.push(manifest);
-    log(`[modules] ${target}: ${manifest.moduleKey} ${manifest.packageVersion} (${manifest.contractVersion}, ${manifest.hostProtocol})`);
+    plan.push({ folder, manifest });
   }
-  writeFileSync(join(outDir, 'registry.ts'), registrySource(target, loaded));
-  return loaded.map((m) => m.moduleKey);
+  if (lock !== null) {
+    for (const key of lock.keys()) if (!plan.some((p) => p.manifest.moduleKey === key) && !mismatches.some((m) => m.startsWith(`${key}:`))) mismatches.push(`${key}: deployed package folder missing or invalid`);
+    if (mismatches.length > 0) {
+      throw new Error(`deployment lock mismatch — installed-modules left unchanged: ${mismatches.join('; ')}`);
+    }
+  }
+  return plan;
 }
 
 function registrySource(target, loaded) {
@@ -122,9 +182,25 @@ if (isMain) {
     return i >= 0 ? rest[i + 1] : undefined;
   };
   const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-  const app = target === 'frontend' ? 'frontend' : 'backend';
+  const modulesDir = resolve(arg('--modules') ?? join(repo, 'modules'));
   try {
-    syncModules({ target, modulesDir: resolve(arg('--modules') ?? join(repo, 'modules')), outDir: resolve(arg('--out') ?? join(repo, app, 'src', 'installed-modules')) });
+    if (target === 'hash') {
+      // Read only: prints what a maintainer pins in module-deployments.json after the package has been accepted.
+      const folder = rest[0] ?? '';
+      if (!MODULE_KEY.test(folder)) throw new Error('usage: modules-sync.mjs hash <MODULE_KEY>');
+      const dir = join(modulesDir, folder);
+      const manifest = JSON.parse(readFileSync(join(dir, 'module.json'), 'utf8'));
+      const walk = walkPackage(dir);
+      const { hash, changed } = hashPackage(dir, walk);
+      if (hash === null) throw new Error(`no stable hash for ${folder}: ${changed ? 'package changed while reading' : walk.issues.map((i) => `${i.code} ${i.path}`).join('; ')}`);
+      process.stdout.write(`${JSON.stringify({ moduleKey: manifest.moduleKey, packageVersion: manifest.packageVersion, packageHash: hash })}\n`);
+    } else {
+      const app = target === 'frontend' ? 'frontend' : 'backend';
+      const lockFile = resolve(arg('--deployments') ?? join(repo, 'backend', 'module-deployments.json'));
+      if (!existsSync(lockFile)) throw new Error(`deployment lock ${basename(lockFile)} missing — refusing to sync (installed-modules left unchanged)`);
+      const deployments = JSON.parse(readFileSync(lockFile, 'utf8'));
+      syncModules({ target, modulesDir, outDir: resolve(arg('--out') ?? join(repo, app, 'src', 'installed-modules')), deployments });
+    }
   } catch (error) {
     process.stderr.write(`[modules] ${error instanceof Error ? error.message : 'sync failed'}\n`);
     process.exit(1);

@@ -8,9 +8,10 @@ import { VersionPanel } from './VersionPanel';
 import { DataTable, NameCode } from '../../components/DataTable';
 import type { Column } from '../../components/DataTable';
 import { useShellData } from '../../contexts/ShellData';
+import { ModuleScanButton, ModuleScanResults, SCAN_PERMISSIONS, useModuleScan } from './ModuleScan';
 
 // FE-03 — Module Registry: list (GET /foundation/modules), registration (POST), ENABLE / DISABLE (lifecycle API) and the
-// versions of the selected module. Tab 0 = list + versions, tab 1 = registration form.
+// versions of the selected module. Tab 0 = list + versions (+ FMI-01 "Quét Module"), tab 1 = registration form.
 
 const isTestModule = (m: ModuleRecord) => m.moduleKey.startsWith('FBET_');
 
@@ -31,6 +32,9 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
   const [showTestModules, setShowTestModules] = useState(false);
   const versionsRef = useRef<HTMLDivElement>(null);
   const { can } = useShellData();
+  // FMI-01: manual module scan — shown only with BOTH registry permissions (the server checks them again).
+  const canScan = SCAN_PERMISSIONS.every((p) => can(p));
+  const scanner = useModuleScan(onSessionLost);
 
   const load = useCallback(async () => {
     const data = settle(await foundationApi.listModules(), onSessionLost, setFeedback);
@@ -70,11 +74,13 @@ export function ModuleScreen({ tab, onSessionLost }: ScreenProps) {
     <>
       <div className="fx-toolbar">
         <button type="button" className="fx-btn" onClick={() => void load()}>Tải lại</button>
+        {canScan && <ModuleScanButton loading={scanner.state.kind === 'LOADING'} onScan={() => void scanner.scan()} />}
         <label className="muted"><input type="checkbox" checked={showTestModules} onChange={(e) => setShowTestModules(e.target.checked)} /> Hiện module kiểm thử</label>
         {hiddenCount > 0 && <span className="muted">Đang ẩn {hiddenCount} module kiểm thử (FBET_).</span>}
         <span className="muted">Dữ liệu lấy trực tiếp từ Foundation Backend.</span>
       </div>
       <FeedbackLine feedback={feedback} />
+      {canScan && <ModuleScanResults state={scanner.state} lastScanId={scanner.lastScanId} onReopen={() => void scanner.reopen()} />}
       <div ref={versionsRef} className="fx-version-area">
         {selected
           ? <VersionPanel key={selected.moduleId} module={selected} onSessionLost={onSessionLost} onChanged={() => void load()} />

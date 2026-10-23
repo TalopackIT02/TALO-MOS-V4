@@ -1,9 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import express from 'express';
 import { afterAll, describe, expect, it } from 'vitest';
-import { HOST_CAPABILITIES as SCRIPT_CAPABILITIES, syncModules, validateManifest } from '../../../scripts/modules-sync.mjs';
+import { execFileSync } from 'node:child_process';
+import { HOST_CAPABILITIES as SCRIPT_CAPABILITIES, parseDeployments, syncModules, validateManifest } from '../../../scripts/modules-sync.mjs';
+import { hashPackage, walkPackage } from '../../../scripts/module-package.mjs';
 import { createLogger } from '../../../src/core/logging/logger.js';
 import { INSTALLED_MODULES } from '../../../src/installed-modules/registry.js';
 import { HOST_CAPABILITIES, HOST_PROTOCOL } from '../../../src/module-host/contract.js';
@@ -147,19 +149,110 @@ describe('module-host loader (runtime handshake + mount)', () => {
     expect(mountModules(INSTALLED_MODULES, deps, deps.logger)).toHaveLength(INSTALLED_MODULES.length);
   });
 
-  it('every package folder of the repository is valid and installed: an invalid new package (skipped by the sync) fails here', () => {
+  // FMI-01: modules/ may also hold candidate packages (scanned, not deployed). The installed set is the deployment lock.
+  it('every DEPLOYED package (module-deployments.json) is valid and installed: an invalid deployed package fails here', () => {
     const modulesDir = join(import.meta.dirname, '..', '..', '..', '..', 'modules');
-    const folders = readdirSync(modulesDir).filter((f) => existsSync(join(modulesDir, f, 'module.json'))).sort();
-    for (const f of folders) {
+    const lock = parseDeployments(JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', '..', 'module-deployments.json'), 'utf8')));
+    const deployed = [...lock.keys()].sort();
+    for (const f of deployed) {
       expect([f, validateManifest(JSON.parse(readFileSync(join(modulesDir, f, 'module.json'), 'utf8')), f, join(modulesDir, f))]).toEqual([f, []]);
     }
-    expect(INSTALLED_MODULES.map((m) => m.manifest.moduleKey).sort()).toEqual(folders);
+    expect(INSTALLED_MODULES.map((m) => m.manifest.moduleKey).sort()).toEqual(deployed);
+    expect(INSTALLED_MODULES.map((m) => `${m.manifest.moduleKey}@${m.manifest.packageVersion}`).sort()).toEqual(deployed.map((k) => `${k}@${lock.get(k)?.packageVersion}`));
   });
 
   it('SYSTEM_TEST and DATA_INSPECTOR are both recognised and pass the handshake (independent packages)', () => {
     for (const key of ['SYSTEM_TEST', 'DATA_INSPECTOR']) {
       const m = INSTALLED_MODULES.find((x) => x.manifest.moduleKey === key);
       expect([key, m === undefined ? 'missing' : handshake(m)]).toEqual([key, []]);
+    }
+  });
+});
+
+// FMI-01 T20 — runtime guard: a candidate copied into modules/ never replaces the deployed code through modules:sync
+// (predev / prebuild / pretest / pretypecheck). Synthetic packages in a temporary folder; the real repository is only read.
+describe('FMI-01 deployment lock (modules:sync runtime guard)', () => {
+  const lockOf = (modules: string, keys: readonly string[]) => ({
+    format: 'TALO-MODULE-DEPLOYMENT-1',
+    modules: keys.map((k) => {
+      const dir = join(modules, k);
+      const manifest = JSON.parse(readFileSync(join(dir, 'module.json'), 'utf8'));
+      return { moduleKey: k, packageVersion: manifest.packageVersion, packageHash: hashPackage(dir, walkPackage(dir)).hash };
+    }),
+  });
+  const fresh = (name: string) => {
+    const base = join(root, `fmi01-${name}`);
+    const modules = join(base, 'modules');
+    const out = join(base, 'backend', 'installed-modules');
+    pkg(modules, 'LIVE_PKG');
+    return { modules, out };
+  };
+
+  it('baseline risk reproduced: WITHOUT a lock (legacy) a candidate folder is installed by the sync', () => {
+    const { modules, out } = fresh('legacy');
+    pkg(modules, 'CANDIDATE_PKG');
+    expect(syncModules({ target: 'backend', modulesDir: modules, outDir: out, log: () => undefined })).toEqual(['CANDIDATE_PKG', 'LIVE_PKG']);
+  });
+
+  it('WITH the lock: a new candidate folder is skipped (candidate only); the deployed package is installed unchanged', () => {
+    const { modules, out } = fresh('candidate');
+    const deployments = lockOf(modules, ['LIVE_PKG']);
+    pkg(modules, 'CANDIDATE_PKG');
+    pkg(modules, 'BROKEN_CANDIDATE', { hostProtocol: 'X' });
+    const log: string[] = [];
+    expect(syncModules({ target: 'backend', modulesDir: modules, outDir: out, deployments, log: (l) => log.push(l) })).toEqual(['LIVE_PKG']);
+    expect(log.some((l) => l.includes('skip CANDIDATE_PKG: not in the deployment lock'))).toBe(true);
+    expect(readFileSync(join(out, 'registry.ts'), 'utf8')).not.toContain('CANDIDATE');
+  });
+
+  it('a candidate copied OVER the deployed folder (new version or same version, other content) stops the sync before installed-modules is touched', () => {
+    const { modules, out } = fresh('overwrite');
+    const deployments = lockOf(modules, ['LIVE_PKG']);
+    syncModules({ target: 'backend', modulesDir: modules, outDir: out, deployments, log: () => undefined });
+    const installed = readFileSync(join(out, 'LIVE_PKG', 'backend', 'index.ts'), 'utf8');
+    pkg(modules, 'LIVE_PKG', { packageVersion: '0.2.0' }, { 'backend/index.ts': 'export const CANDIDATE = true;\n' });
+    expect(() => syncModules({ target: 'backend', modulesDir: modules, outDir: out, deployments, log: () => undefined })).toThrow(/packageVersion 0\.2\.0 ≠ deployed 0\.1\.0.*left unchanged|left unchanged.*0\.2\.0/);
+    expect(readFileSync(join(out, 'LIVE_PKG', 'backend', 'index.ts'), 'utf8')).toBe(installed);
+    pkg(modules, 'LIVE_PKG', {}, { 'backend/index.ts': 'export const CANDIDATE = true;\n' }); // same 0.1.0, other code
+    expect(() => syncModules({ target: 'backend', modulesDir: modules, outDir: out, deployments, log: () => undefined })).toThrow(/content differs/);
+    expect(readFileSync(join(out, 'LIVE_PKG', 'backend', 'index.ts'), 'utf8')).toBe(installed);
+    expect(readFileSync(join(out, 'registry.ts'), 'utf8')).toContain('LIVE_PKG');
+  });
+
+  it('a deployed package folder that disappeared, or an invalid lock, stops the sync (fail closed, nothing removed)', () => {
+    const { modules, out } = fresh('missing');
+    const deployments = lockOf(modules, ['LIVE_PKG']);
+    syncModules({ target: 'backend', modulesDir: modules, outDir: out, deployments, log: () => undefined });
+    rmSync(join(modules, 'LIVE_PKG'), { recursive: true, force: true });
+    expect(() => syncModules({ target: 'backend', modulesDir: modules, outDir: out, deployments, log: () => undefined })).toThrow(/LIVE_PKG: deployed package folder missing/);
+    expect(existsSync(join(out, 'LIVE_PKG', 'backend', 'index.ts'))).toBe(true);
+    for (const bad of [{}, { format: 'X', modules: [] }, { format: 'TALO-MODULE-DEPLOYMENT-1', modules: [{ moduleKey: 'x', packageVersion: '1', packageHash: 'y' }] }]) {
+      expect(() => syncModules({ target: 'backend', modulesDir: modules, outDir: out, deployments: bad, log: () => undefined })).toThrow(/deployment lock/);
+    }
+    expect(existsSync(join(out, 'registry.ts'))).toBe(true);
+  });
+
+  it('the CLI refuses to sync without a lock file (exit 1) and leaves installed-modules unchanged', () => {
+    const { modules, out } = fresh('cli');
+    syncModules({ target: 'backend', modulesDir: modules, outDir: out, log: () => undefined });
+    const script = join(import.meta.dirname, '..', '..', '..', 'scripts', 'modules-sync.mjs');
+    expect(() => execFileSync(process.execPath, [script, 'backend', '--modules', modules, '--out', out, '--deployments', join(modules, 'none.json')], { stdio: 'pipe' })).toThrow();
+    expect(readFileSync(join(out, 'registry.ts'), 'utf8')).toContain('LIVE_PKG');
+  });
+
+  it('the real repository: the lock pins exactly the installed SYSTEM_TEST 1.1.1 + DATA_INSPECTOR 0.1.0 and reproduces today\'s registry', () => {
+    const repo = join(import.meta.dirname, '..', '..', '..', '..');
+    const deployments = JSON.parse(readFileSync(join(repo, 'backend', 'module-deployments.json'), 'utf8'));
+    const lock = parseDeployments(deployments);
+    expect([...lock.entries()].map(([k, v]) => `${k}@${v.packageVersion}`).sort()).toEqual(['DATA_INSPECTOR@0.1.0', 'SYSTEM_TEST@1.1.1']);
+    for (const [k, v] of lock) {
+      const dir = join(repo, 'modules', k);
+      expect([k, hashPackage(dir, walkPackage(dir)).hash]).toEqual([k, v.packageHash]);
+    }
+    for (const target of ['backend', 'frontend'] as const) {
+      const out = join(root, `fmi01-real-${target}`, 'installed-modules');
+      expect(syncModules({ target, modulesDir: join(repo, 'modules'), outDir: out, deployments, log: () => undefined })).toEqual(['DATA_INSPECTOR', 'SYSTEM_TEST']);
+      expect(readFileSync(join(out, 'registry.ts'), 'utf8')).toBe(readFileSync(join(repo, target, 'src', 'installed-modules', 'registry.ts'), 'utf8'));
     }
   });
 });
