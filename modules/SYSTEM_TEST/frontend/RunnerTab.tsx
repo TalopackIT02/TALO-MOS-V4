@@ -11,7 +11,8 @@ export function RunnerTab({onSessionLost}:{onSessionLost:()=>void}) {
   const [feedback,setFeedback]=useState<Feedback|null>(null);
   const [busy,setBusy]=useState(false);
   const [drawer,setDrawer]=useState<DrawerData|null>(null);
-  const load=useCallback(async()=>{setResults(settleSt(await systemTestApi.results(),onSessionLost,setFeedback));},[onSessionLost]);
+  const [failed,setFailed]=useState(false);
+  const load=useCallback(async()=>{const r=settleSt(await systemTestApi.results(),onSessionLost,setFeedback);setResults(r);setFailed(r===null);},[onSessionLost]);
   useEffect(()=>{void load();},[load]);
   async function runQuick(){
     if(busy)return;setBusy(true);setFeedback(null);
@@ -33,7 +34,7 @@ export function RunnerTab({onSessionLost}:{onSessionLost:()=>void}) {
           ◉ {busy?'Đang thực hiện…':'Chạy quick tests'}</button>
           <button type="button" className="st-button st-button-ghost" onClick={()=>void load()}>↻ Làm mới kết quả</button></div></div>
       <div className="st-hero-footer"><span>QUICK <b>{quick?formatTime(quick.finishedAt):'NOT RUN'}</b></span>
-        <span>FULL REGRESSION <b>{reg?.state==='AVAILABLE'?reg.run.status:reg?.state??'LOADING'}</b></span>
+        <span>FULL REGRESSION <b>{reg?.state==='AVAILABLE'?reg.run.status:reg?.state??(failed?'KHÔNG ĐỌC ĐƯỢC':'LOADING')}</b></span>
         <span>EXECUTION <b>SERVER / CLI ONLY</b></span></div></header>
     <FeedbackLine feedback={feedback}/>
     <section className="st-section"><div className="st-section-head"><div><span className="st-eyebrow">01 / DIRECT HEALTH TESTS</span><h2>Quick test results</h2></div>
@@ -47,7 +48,7 @@ export function RunnerTab({onSessionLost}:{onSessionLost:()=>void}) {
       <h2>Full regression history</h2></div><small className="st-note-inline">Nguồn: Host regressionResults()</small></div>
       <div className="st-command-bar"><span><b>SAFE EXECUTION</b> Full Regression không khởi chạy qua giao diện hoặc HTTP API.</span>
         <code>{CLI}</code><button type="button" className="st-button" onClick={()=>void load()}>Tải kết quả</button></div>
-      {!reg?<div className="st-empty st-empty-compact">Đang đọc kết quả.</div>
+      {!reg?<div className="st-empty st-empty-compact">{failed?'Không đọc được kết quả từ API. Không hiển thị trạng thái nào.':'Đang đọc kết quả.'}</div>
         :reg.state==='NOT_RUN'?<div className="st-empty st-empty-compact">Chưa tìm thấy artifact từ CLI. Không đánh dấu kết quả PASS.</div>
         :reg.state==='INVALID'?<div className="st-feedback st-feedback-error">Artifact không hợp lệ. Không hiển thị dữ liệu không đáng tin cậy.</div>
         :<><div className="st-regression-overview"><div><StatusBadge status={reg.run.status==='ABORTED'?'NOT_RUN':reg.run.status}/>

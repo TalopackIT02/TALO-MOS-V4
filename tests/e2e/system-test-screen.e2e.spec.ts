@@ -85,3 +85,37 @@ test('Runner tab: quick test of this account, regression NOT_RUN is not PASS, CL
   await expect(page.locator('.st-command-bar code')).toHaveText('cd backend; npx tsx test/system-test/regression.cli.ts');
   expect(calls.filter((c) => c.startsWith('POST') && !c.endsWith('/checks/run'))).toEqual([]);
 });
+
+test('Contract mismatch (the answer of a SYSTEM_TEST 1.0.x backend): endpoint + field shown, no result, nothing green, screen stays usable', async ({ page }) => {
+  await open(page);
+  // The 1.0.x quick check answer: no durationMs / fleet / fleetComplete, summary without WARN.
+  const legacy = { run: { runId: RUN.runId, startedAt: RUN.startedAt, finishedAt: RUN.finishedAt, moduleKey: 'SYSTEM_TEST', results: RUN.results.slice(0, 12).map((r) => ({ ...r, status: 'PASS' })),
+    summary: { PASS: 12, FAIL: 0, NOT_TESTED: 0, UNAVAILABLE: 0 } } };
+  await page.route('**/api/system-test/checks/run', (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'x-request-id': 'req-legacy-1' }, body: JSON.stringify(legacy) }));
+  const warnings: string[] = [];
+  page.on('console', (m) => { if (m.type() === 'warning') warnings.push(m.text()); });
+  await page.goto('/system-test');
+  await page.getByRole('button', { name: /Chạy kiểm tra hệ thống/ }).click();
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('API trả dữ liệu không đúng hợp đồng.');
+  await expect(alert).toContainText('POST /api/system-test/checks/run');
+  await expect(alert).toContainText('run.summary.WARN');
+  await expect(alert).toContainText('khởi động lại backend');
+  await expect(page.locator('.st-matrix-row')).toHaveCount(0); // nothing of the invalid answer is shown
+  await expect(page.getByText('Hệ thống đạt các phép kiểm tra')).toHaveCount(0);
+  await expect(page.locator('.st-overview h2')).toHaveText('Chưa có dữ liệu kiểm tra');
+  await expect(page.locator('.st-meter-footnote')).toHaveText('Chưa có kết quả đo. Không hiển thị trạng thái xanh mặc định.');
+  await expect(page.locator('#tabs button')).toHaveCount(2); // the shell and the screen are still there
+  await expect.poll(() => warnings.some((w) => w.includes('[SYSTEM_TEST] API contract mismatch'))).toBe(true);
+  expect(warnings.join(' ')).not.toMatch(/talo_sid|password|cookie/i);
+});
+
+test('Runner tab: an invalid /results answer is reported, never shown as a regression result', async ({ page }) => {
+  await open(page);
+  await page.route('**/api/system-test/results', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: { quickCheck: null, regression: { state: 'DONE' }, runner: { apiExecution: false, mode: 'CLI' } } }) }));
+  await page.goto('/system-test/runner');
+  await expect(page.getByRole('alert')).toContainText('results.regression.state');
+  await expect(page.getByText('Không đọc được kết quả từ API. Không hiển thị trạng thái nào.')).toBeVisible();
+  await expect(page.locator('.st-hero-footer')).toContainText('KHÔNG ĐỌC ĐƯỢC');
+  await expect(page.locator('.st-suite-row')).toHaveCount(0);
+});
