@@ -1,0 +1,99 @@
+{
+  "bundle": "FOUNDATION-REV-01-INTEGRATION",
+  "date": "2026-10-23",
+  "purpose": "Claude Code one-pass implementation dossier; no source or database changes",
+  "baseline_repository": "TalopackIT02/TALO-MOS-V4",
+  "baseline_commit": "b7b5f071f10b7d98690a2efb1dc843990b834a79",
+  "files": [
+    {
+      "file": "00_START_HERE.md",
+      "size": 5564,
+      "sha256": "16654e555476314de4335f09c6913f63dbe714ab21104104a6f14ab706c9fcb7"
+    },
+    {
+      "file": "01_SOURCE_BASELINE.md",
+      "size": 5974,
+      "sha256": "b6fc429b037beef4fc5a1a67a67d293b7e151e88822b8ddbc313cb939b24cf36"
+    },
+    {
+      "file": "02_NON_NEGOTIABLE_GUARDS.md",
+      "size": 4207,
+      "sha256": "72a1f148771cec400276cc9c9e19389f212b4d0f05e58cffb13c83526a71e194"
+    },
+    {
+      "file": "03_WORKFLOWS_AND_STATES.md",
+      "size": 5084,
+      "sha256": "7f61a236e607a758194f9db1bde69a8672579446779153d512219e1bc2274389"
+    },
+    {
+      "file": "04_UI_UX_TWO_SCREENS.md",
+      "size": 5954,
+      "sha256": "c2c2c117742e55f1078eb36978efddcf84d1a4ccaeda69aaa6bc474d21e0278e"
+    },
+    {
+      "file": "05_MIC_VERSION_CONTRACT.md",
+      "size": 4978,
+      "sha256": "68b92e7f9fc8bce99b809d5b491074777549fc2d733d9d5848523f93b4ffedb7"
+    },
+    {
+      "file": "06_INSTALLER_UPGRADE_RECOVERY.md",
+      "size": 5788,
+      "sha256": "a6c90baa12c5496f52eb9632ad93d8977c023875c4fc97246040486c30423630"
+    },
+    {
+      "file": "07_NAVIGATION_IAM.md",
+      "size": 5317,
+      "sha256": "929b45889afd2bede6ffbae2ce3298e0a82be7a981b1a1984953eaf7e41682df"
+    },
+    {
+      "file": "08_PREFLIGHT_CONTRACT.md",
+      "size": 4555,
+      "sha256": "b36295df6a79ddc6ff93d601e83ce3f0a9f7c2bcc868b5fb27b3f58ea38eb832"
+    },
+    {
+      "file": "09_API_AND_ERROR_CONTRACT.md",
+      "size": 5149,
+      "sha256": "2ffd3ae02760063c370df5c6953940d470051f0feeef6a9a92face4a0dd33678"
+    },
+    {
+      "file": "10_DATA_AND_SECURITY.md",
+      "size": 4558,
+      "sha256": "63ca4417e2c93deee3a7b5348785bb3c064147e7843ef6fa02da3e8592607435"
+    },
+    {
+      "file": "11_ACCEPTANCE_MATRIX.md",
+      "size": 5586,
+      "sha256": "c2481fc6c0b416466833f36cd8492107c68cc215803dbf568c93bad2748ab6ac"
+    },
+    {
+      "file": "12_FILE_MAP_AND_IMPLEMENTATION.md",
+      "size": 5379,
+      "sha256": "07ff09fe1633ee42cb6a240169b27b83d9b5a2a7cc634d02649aa0d82467bf8c"
+    },
+    {
+      "file": "13_ONE_PASS_RUNBOOK.md",
+      "size": 4581,
+      "sha256": "afc3e82e4decd815a78e670213150b0d40d7a4789fbe6402e6e80b2185c2e771"
+    },
+    {
+      "file": "14_CLAUDE_CODE_ONE_PASS_PROMPT.md",
+      "size": 5456,
+      "sha256": "52af998458a7b55365f0cfc81b7fcf5f5f9e93da29a69249a9bd660ee3d2bec5"
+    },
+    {
+      "file": "15_HANDOFF_AND_RELEASE.md",
+      "size": 3214,
+      "sha256": "2b8a406bd9a6952eaa4587888cc1a59665ba0222a99cb5b0136cdb5847165e9a"
+    },
+    {
+      "file": "16_DECISION_REGISTER.md",
+      "size": 3451,
+      "sha256": "511e1790ac5401a7d14ef69a9fcea016bb36fba89d80eb360a58300213db5cf1"
+    },
+    {
+      "file": "17_TRACEABILITY.md",
+      "size": 3023,
+      "sha256": "fda93b36204aa22a22de94b42555b38ea00ce02ced8ccf245c06b22871e45011"
+    }
+  ]
+}
