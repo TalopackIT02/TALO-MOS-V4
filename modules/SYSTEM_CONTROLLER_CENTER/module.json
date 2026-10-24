@@ -1,0 +1,58 @@
+{
+  "packageFormat": "TALO-MODULE-PACKAGE-1",
+  "moduleKey": "SYSTEM_CONTROLLER_CENTER",
+  "name": "System Controller Center",
+  "packageVersion": "0.1.0",
+  "contractVersion": "MIC-1.0",
+  "hostProtocol": "TALO-MODULE-HOST-1",
+  "backendEntry": "backend/index.ts",
+  "frontendEntry": "frontend/SystemTestScreen.tsx",
+  "micEntry": "mic/system-controller-center.mic.ts",
+  "frontend": {
+    "screens": [
+      {
+        "screenKey": "system.controller.center",
+        "name": "System Controller Center",
+        "description": "Quản trị kỹ thuật: sức khỏe, dữ liệu chỉ đọc, version/chức năng và quyền IAM theo tài khoản.",
+        "tabs": [
+          {
+            "label": "Sức khỏe hệ thống",
+            "path": "/system-controller-center"
+          },
+          {
+            "label": "Kết quả kiểm thử",
+            "path": "/system-controller-center/tests"
+          },
+          {
+            "label": "Dữ liệu hệ thống",
+            "path": "/system-controller-center/data"
+          },
+          {
+            "label": "Foundation & Module",
+            "path": "/system-controller-center/architecture"
+          },
+          {
+            "label": "Ma trận phân quyền",
+            "path": "/system-controller-center/access"
+          },
+          {
+            "label": "Nhật ký hệ thống",
+            "path": "/system-controller-center/logs"
+          }
+        ]
+      }
+    ]
+  },
+  "requiredCapabilities": [
+    "session",
+    "authorize",
+    "evaluate",
+    "lifecycle",
+    "readOnly",
+    "menuRoutes",
+    "inspectManifest",
+    "sqlstate",
+    "regressionResults",
+    "logger"
+  ]
+}
