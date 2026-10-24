@@ -502,6 +502,20 @@ export class FakeDb implements FoundationDb {
         }));
       case LIFECYCLE_SQL.retireVersion:
         return this.transition(state, (v) => v.version_id === params[0] && v.module_id === params[1] && v.status === 'ACTIVE', (v) => ({ ...v, status: 'RETIRED' }));
+      case LIFECYCLE_SQL.reactivateVersion:
+        return this.transition(state, (v) => v.version_id === params[0] && v.module_id === params[1] && v.status === 'RETIRED' && v.activated_at !== null, (v) => ({ ...v, status: 'ACTIVE' }));
+      case LIFECYCLE_SQL.lockRouteClaims:
+        return [{ pg_advisory_xact_lock: '' }];
+      case LIFECYCLE_SQL.routeHolders: {
+        const wanted = params[1] as string[];
+        const rows = state.modules.filter((m) => m.is_enabled && m.module_id !== params[0]).flatMap((m) => {
+          const v = state.versions.find((x) => x.module_id === m.module_id && x.status === 'ACTIVE');
+          const nav = (v?.manifest_json as { mic04Navigation?: unknown } | null)?.mic04Navigation;
+          const routes = Array.isArray(nav) ? nav.map((n: { routePath?: unknown }) => n.routePath).filter((r): r is string => typeof r === 'string') : [];
+          return [...new Set(routes)].filter((r) => wanted.includes(r)).map((r) => ({ route_path: r, module_key: m.module_key }));
+        });
+        return rows.sort((a, b) => a.route_path.localeCompare(b.route_path) || a.module_key.localeCompare(b.module_key));
+      }
       case LIFECYCLE_SQL.activeVersions:
         return state.versions.filter((v) => v.module_id === params[0] && v.status === 'ACTIVE').map((v) => ({ ...v }));
       case LIFECYCLE_SQL.latestChecks: {
@@ -629,6 +643,8 @@ export interface Harness {
   db: FakeDb;
   auth: FakeAuth;
   logs: string[];
+  // REV01-D1: internal-only lifecycle calls (recoverUpgrade has no HTTP route).
+  lifecycleService: ModuleLifecycleService;
 }
 
 export function buildHarness(options: { iam?: IamFixture; extraRouters?: express.Router[] } = {}): Harness {
@@ -649,7 +665,7 @@ export function buildHarness(options: { iam?: IamFixture; extraRouters?: express
   const navigationService = new NavigationService({ access: new SqlFoundationRepository(db), navigation: new SqlNavigationRepository(db), logger });
   const navigation = navigationRouter({ authService: auth, service: navigationService, secureCookie: false });
   const app = createApp({ config, logger, apiRouters: [healthRouter(), router, versions, manifests, lifecycle, navigation, ...(options.extraRouters ?? [])] });
-  return { app, db, auth, logs };
+  return { app, db, auth, logs, lifecycleService };
 }
 
 export function seedModule(db: FakeDb, moduleKey: string): ModuleRow {

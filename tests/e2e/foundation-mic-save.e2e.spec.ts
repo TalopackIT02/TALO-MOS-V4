@@ -48,7 +48,7 @@ const savedMic = {
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
-test('Lưu MIC -> Tải lại -> F5 keeps the stored 1.0.2 manifest instead of the MAIN template', async ({ page }) => {
+test('Lưu MIC -> Tải lại -> F5 keeps the stored 1.0.2 manifest; no MAIN template by default (REV-01 A01)', async ({ page }) => {
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
@@ -92,6 +92,8 @@ test('Lưu MIC -> Tải lại -> F5 keeps the stored 1.0.2 manifest instead of t
       storedManifest = savedMic;
       return json({ version: { ...initialVersion, manifestJson: storedManifest } });
     }
+    // REV-01: the module list also reads the recent candidates (passive read).
+    if (path === '/api/foundation/module-candidates' && request.method() === 'GET') return json({ candidates: [] });
     return json({ error: { code: 'UNEXPECTED_TEST_REQUEST', requestId: 'test' } }, 500);
   });
 
@@ -107,7 +109,9 @@ test('Lưu MIC -> Tải lại -> F5 keeps the stored 1.0.2 manifest instead of t
   await openVersion();
 
   const textarea = page.locator('#fx-mic');
-  await expect(textarea).toContainText('"functionKey": "MAIN"');
+  // FOUNDATION-REV-01 A01: a DRAFT without stored MIC is no longer pre-filled with the MAIN.READ template.
+  await expect(page.getByText('CHƯA ĐỒNG BỘ MIC TỪ CANDIDATE.')).toBeVisible();
+  await expect(textarea).toHaveValue('');
   await textarea.fill(JSON.stringify(savedMic, null, 2));
   await page.getByRole('button', { name: 'Lưu MIC', exact: true }).click();
   await expect(page.getByText('Đã lưu hồ sơ MIC (bản nháp) và đọc lại xác nhận khớp.')).toBeVisible();
@@ -116,7 +120,7 @@ test('Lưu MIC -> Tải lại -> F5 keeps the stored 1.0.2 manifest instead of t
   expect(putCount).toBe(1);
   expect(detailCount).toBe(1);
 
-  await page.locator('.fx-version-area').getByRole('button', { name: 'Tải lại', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Tải lại', exact: true }).click(); // REV-01: versions in the module drawer
   await expect(textarea).toContainText('"functionKey": "ORDER"');
   await expect(textarea).not.toContainText('"functionKey": "MAIN"');
 

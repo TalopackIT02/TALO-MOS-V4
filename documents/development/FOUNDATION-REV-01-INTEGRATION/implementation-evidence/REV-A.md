@@ -1,0 +1,11 @@
+# REV-A — Backend (installer / preflight)
+
+Tệp: `foundation.installer.service.ts`, `foundation.installer.iam.ts`, `foundation.installer.routes.ts`, `foundation.preflight.ts`. Không đổi schema, lifecycle service, IAM evaluator, MIC-1.0, Host Protocol, validator.
+
+1. **MIC nguồn duy nhất (A01/A02/A03):** MIC ghi vào B02 = `snapshot/mic/module.mic.json` + MIC-10 do server tạo (`fmi02:<runId>:<reportHash>`). DRAFT cùng version được dùng lại; plan lưu `draftManifestHash` (canonicalDigest Foundation) và `micDiff` theo mục MIC01–MIC10; commit so sánh lại (compare-and-swap) → `DRAFT_CHANGED_EXTERNALLY` nếu khác; sau PUT đọc lại B02, hash ≠ → `MIC_READBACK_MISMATCH` (FAILED_SAFE).
+2. **Upgrade (A10/A11):** bỏ `UPGRADE_NOT_SUPPORTED` và `ALREADY_DEPLOYED`; module đã đăng ký **không** có ACTIVE cài như module mới (B01 dùng lại). Có ACTIVE khác → `UPGRADE_RECOVERY_UNAVAILABLE` ở prepare **và** ở continue (409) — Candidate/Preflight/Plan vẫn dùng được. Không có đường RETIRED → ACTIVE nào được thêm.
+3. **B09 (A14):** installer dùng `NavigationService.layout()` → draft giữ nguyên mọi dòng → thêm/hiện lại link AREA (MIC-01 moduleName) → MENU (nhãn nhóm MIC-04) → FUNCTION; Developer Function → Develop → **một** `apply()` (validateDraft/planDraft, revision, một transaction, B08 `NAVIGATION.LAYOUT.APPLY`). Link ẩn không tính là đã có; chạy lại không ghi gì. Plan hiển thị `navigationPlan`.
+4. **IAM (A13):** hậu kiểm tách `IAM_CATALOG` (CATALOG_READY) / `IAM_POLICY` (đếm phân quyền vai trò/trực tiếp ALLOW — không tự gán) / `ACCESS_VERIFIED` (cookie của chính người bấm Tiếp tục, chuyển in-process tới router thật, GET không tham số: 200 JSON object = PASS; 403 = NOT_TESTED; khác = FAIL).
+5. **INSTALLED_ACTIVE (A15):** chỉ khi 7/7 PASS. Có NOT_TESTED → `POSTCHECK_INCOMPLETE` (module vẫn ACTIVE + ENABLED, `nextActions`, Tiếp tục chạy lại hậu kiểm). FAIL → `RECOVERY_REQUIRED` (DISABLE có audit).
+6. **Preflight (A07):** P5b không có test DB → `NOT_APPLICABLE` (không tính PASS); thêm P8 `AUTHENTICATED_IAM_SMOKE` tùy chọn = NOT_TESTED kèm giới hạn; READY = mọi check bắt buộc PASS/N/A. TXT ghi “tùy chọn” và đếm N/A.
+7. **Journal (A16):** candidate lưu `latestInstallId`; Workspace đọc lại plan/journal từ store sau reload/restart.

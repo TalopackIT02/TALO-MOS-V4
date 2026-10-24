@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { accountIdOfPath, adminTabs, canOpenAdmin, groupOf, MODULE_SCREENS, pathOfTab, screenById, screenOfPath, SCREENS, tabOfPath, visibleGroups } from '../routes/shellScreens';
+import { accountIdOfPath, adminTabs, candidateIdOfPath, canOpenAdmin, groupOf, MODULE_SCREENS, pathOfTab, screenById, screenOfPath, SCREENS, tabOfPath, visibleGroups } from '../routes/shellScreens';
 import { backOrOpen, currentNavState, mayLeave, usePopState } from '../routes/navigation';
 import type { NavState, OpenPath } from '../routes/navigation';
 import { ShellPageContext } from '../contexts/ShellPage';
@@ -86,12 +86,13 @@ export function AppShell({ account, path, onNavigate, onLoggedOut }: AppShellPro
       : capabilities === null ? 'checking' : canOpenAdmin(screen.id, can) ? 'allowed' : 'denied';
   // IAM-B-UI-01: the account workspace (/iam/accounts/:id) is a page of the accounts screen without the screen tabs;
   // the sidebar keeps "Quản lý tài khoản" active.
-  const workspace = accountIdOfPath(path) !== null;
+  const candidate = candidateIdOfPath(path) !== null;
+  const workspace = accountIdOfPath(path) !== null || candidate;
   const menuPath = workspace ? screen.path : path;
   const tabs = workspace ? [] : moduleScreen ? moduleScreen.tabPaths.flatMap((p, i) => (routes.has(p) ? [i] : [])) : adminTabs(screen.id, can);
   const wanted = tab.screen === screen.id ? tab.index : 0;
   const activeTab = tabs.includes(wanted) ? wanted : tabs[0] ?? 0;
-  const pageTitle = workspace ? 'Quản trị tài khoản' : undefined;
+  const pageTitle = candidate ? 'Candidate Workspace' : workspace ? 'Quản trị tài khoản' : undefined;
   // The active link (chosen one, else the first one of the path) drives the open menus, the active item and the crumb.
   const activeId = screen.id === 'home' ? null : activeLinkId(tree ?? [], menuPath, navId);
   const trail = activeId === null ? [] : linkAncestors(tree ?? [], activeId).map((n) => n.title);

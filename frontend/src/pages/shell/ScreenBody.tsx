@@ -43,7 +43,7 @@ export function ScreenBody({ screen, path, tab, onSessionLost, onOpenPath }: { s
     case 'home':
       return <Home onOpenPath={onOpenPath} />;
     case 'module':
-      return <ModuleScreen tab={tab} onSessionLost={onSessionLost} />;
+      return <ModuleScreen tab={tab} path={path} onSessionLost={onSessionLost} onOpenPath={onOpenPath} />;
     case 'navigation':
       return <NavigationScreen tab={tab} onSessionLost={onSessionLost} />;
     case 'accounts':

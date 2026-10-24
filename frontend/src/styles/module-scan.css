@@ -67,3 +67,31 @@
 .app-shell .ms-installer .ms-checks li{flex-wrap:wrap;align-items:center}
 .app-shell .ms-installer .ms-checks li > .fx-btn{margin-left:auto}
 .app-shell .ms-installer .ms-checks li > .ms-issue{flex-basis:100%}
+/* FOUNDATION-REV-01: confirmation popup + candidate workspace */
+.app-shell .fx-modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.app-shell .fx-modal{background:#fff;border-radius:10px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.app-shell .fx-modal h3{margin:0 0 10px}
+.app-shell .fx-modal-actions{justify-content:flex-end;margin-top:12px}
+.app-shell .cw-stepper{display:flex;gap:8px;flex-wrap:wrap;list-style:none;padding:0;margin:8px 0 12px}
+.app-shell .cw-stepper li{padding:6px 12px;border:1px solid #d4d9e6;border-radius:999px;font-size:13px;color:#46506a;background:#fff}
+.app-shell .cw-stepper li.cw-done{background:#e6f6ec;border-color:#bfe3cd;color:#0b6b3c}
+.app-shell .cw-stepper li.cw-current{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+.app-shell .cw-stepper li.cw-blocked{background:#fdecea;border-color:#f1cfca;color:#9b2c22}
+.app-shell .cw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:12px;margin:0 0 12px}
+.app-shell .cw-card{border:1px solid #e3e6ee;border-radius:8px;padding:12px;background:#fff;min-width:0;margin:0 0 12px}
+.app-shell .cw-card h4{margin:0 0 8px}
+.app-shell .cw-table{width:100%;border-collapse:collapse;font-size:13px}
+/* UI-01: a wide table scrolls inside its own wrapper, never the page / .workspace. Grid / flex children of the workspace
+   may shrink (min-width:0) and long identifiers wrap instead of widening their parent. */
+.app-shell .cw-scroll{position:relative;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain} /* relative: absolute children (sr-only labels) stay inside the scroller */
+.app-shell .ms-installer{min-width:0;max-width:100%}
+.app-shell .ms-installer h3,.app-shell .ms-installer p,.app-shell .ms-installer li,.app-shell .ms-installer dd,.app-shell .ms-installer td{overflow-wrap:anywhere}
+.app-shell .ms-installer code{overflow-wrap:anywhere;word-break:break-word}
+.app-shell .ms-installer .fx-toolbar{flex-wrap:wrap;min-width:0}
+.app-shell .cw-grid .cw-card{margin:0}
+.app-shell .cw-summary p{margin:4px 0}
+.app-shell .cw-table td,.app-shell .cw-table th{min-width:0}
+.app-shell .cw-table th,.app-shell .cw-table td{border-bottom:1px solid #eef0f6;padding:6px 8px;text-align:left;vertical-align:top}
+.app-shell .cw-table tr.cw-row{cursor:pointer}
+.app-shell .cw-table tr.cw-row:hover{background:#f6f8fc}
+@media (max-width:640px){.app-shell .fx-modal{padding:14px}}

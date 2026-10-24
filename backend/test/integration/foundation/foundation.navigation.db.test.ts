@@ -243,7 +243,7 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
     return { accountId: acc.accountId, cookie };
   }
   // A module whose version 1.0.0 (MIC without DIRECT_DB) is ACTIVE through the API; enabled on request.
-  async function liveModule(enable = true): Promise<{ moduleId: string; moduleKey: string; versionId: string; orderId: string; reportId: string }> {
+  async function liveModule(enable = true): Promise<{ moduleId: string; moduleKey: string; versionId: string; orderId: string; reportId: string; route: string }> {
     const moduleKey = `${keyPrefix}${++keySeq}`;
     const m = await send('post', '/api/foundation/modules', { moduleKey, moduleName: `FBE-06 ${keySeq}`, moduleType: 'INTERNAL' });
     expect(m.status).toBe(201);
@@ -251,13 +251,17 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
     const v = await send('post', `/api/foundation/modules/${moduleId}/versions`, { moduleVersion: '1.0.0', contractVersion: 'MIC-1.0' });
     const versionId = String(v.body.version.versionId);
     const mic = validMic(moduleKey, '1.0.0');
-    const manifest = { ...mic, mic06DataResources: mic.mic06DataResources.filter((r) => r.interfaceKind !== 'DIRECT_DB') };
+    // REV01-D3: a module-own MIC-04 route — ENABLE refuses a route held by another ENABLED module (the shared /sales/orders
+    // of older FBET fixtures is held by many ENABLED modules on TEST).
+    const route = `/${moduleKey.toLowerCase().replace(/_/g, '-')}/orders`;
+    const manifest = { ...mic, mic04Navigation: mic.mic04Navigation.map((n) => ('routePath' in n && n.routePath ? { ...n, routePath: route } : n)),
+      mic06DataResources: mic.mic06DataResources.filter((r) => r.interfaceKind !== 'DIRECT_DB') };
     expect((await send('put', `/api/foundation/modules/${moduleId}/versions/${versionId}/manifest`, { manifest })).status).toBe(200);
     for (const action of ['submit', 'approve', 'activate']) expect((await send('post', `/api/foundation/modules/${moduleId}/versions/${versionId}/${action}`)).status, action).toBe(200);
     if (enable) expect((await send('post', `/api/foundation/modules/${moduleId}/enable`)).status).toBe(200);
     const fns = await h.ok(`SELECT function_key, function_id::text FROM foundation.fnd_functions WHERE module_id = ${lit(moduleId)}`);
     const id = (k: string) => fns.find((r) => r[0] === k)?.[1] ?? NIL;
-    return { moduleId, moduleKey, versionId, orderId: id('ORDER'), reportId: id('REPORT') };
+    return { moduleId, moduleKey, versionId, orderId: id('ORDER'), reportId: id('REPORT'), route };
   }
   async function create(body: Record<string, unknown>, status = 201): Promise<Response> {
     const res = await send('post', '/api/foundation/navigation/items', body);
@@ -544,7 +548,7 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.navigation)).toBe(true);
     const json = JSON.stringify(res.body);
-    for (const leak of [root, m.orderId, disabled.orderId, '/sales/orders', 'Đơn hàng']) expect(json).not.toContain(leak);
+    for (const leak of [root, m.orderId, disabled.orderId, m.route, disabled.route, 'Đơn hàng']) expect(json).not.toContain(leak);
     expect(Number((await h.ok('SELECT count(*) FROM foundation.fnd_audit_logs'))[0]?.[0])).toBe(auditBefore);
     const [defs] = await h.ok(`SELECT count(*) FROM iam.iam_permissions WHERE module_code = ${lit(m.moduleKey)}`);
     expect(defs?.[0]).toBe('0'); // no K05 definition → the evaluator refuses (PERMISSION_NOT_DEFINED)
@@ -585,7 +589,7 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
     const viewer = await login([], [orderRead, reportRead]);
     const n1 = await shown(viewer.cookie);
     const order = n1.find((n) => n.navigationId === orderItem);
-    expect(order).toMatchObject({ functionId: m.orderId, routePath: '/sales/orders', screenKey: 'sales.orders', children: [] });
+    expect(order).toMatchObject({ functionId: m.orderId, routePath: m.route, screenKey: 'sales.orders', children: [] });
     expect(n1.find((n) => n.navigationId === group)?.children.map((c) => c.navigationId)).toEqual([orderItem]);
     expect(n1.some((n) => n.navigationId === reportItem)).toBe(false);
 
@@ -597,7 +601,7 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
     // NAV-RESTORE: the DENY fixture removed by UUID (ownership proven), role ALLOW still valid → visible again.
     await az.revokeDirect(deny);
     const n3 = await shown(viewer.cookie);
-    expect(n3.find((n) => n.navigationId === orderItem)?.routePath).toBe('/sales/orders');
+    expect(n3.find((n) => n.navigationId === orderItem)?.routePath).toBe(m.route);
 
     // Lifecycle is read live: DISABLE hides it for the allowed viewer, ENABLE shows it again.
     await login();
@@ -685,7 +689,7 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
     expect(res.status, JSON.stringify(res.body).slice(0, 400)).toBe(200);
     const nodes = flatten(res.body.navigation);
     const orders = nodes.filter((n) => n.functionId === m.orderId);
-    expect(orders.map((n) => n.routePath)).toEqual(['/sales/orders', '/sales/orders']);
+    expect(orders.map((n) => n.routePath)).toEqual([m.route, m.route]);
     expect(new Set(orders.map((n) => n.navigationId)).size).toBe(2); // two links, two identities
     expect(nodes.some((n) => n.functionId === m.reportId)).toBe(false); // no MIC-04 route
     expect(await b09Digest()).toBe(before);
@@ -801,7 +805,7 @@ describe.skipIf(!enabled)('FBE-06 Navigation — PostgreSQL (talo_mos_v4_test)',
     // Multi-link on the real evaluator: the same Function from two menus, one route, two identities.
     const menu = await getMenu(admin.cookie);
     const orders = flatten(menu.body.navigation).filter((n) => n.functionId === m.orderId);
-    expect(orders.map((n) => n.routePath)).toEqual(['/sales/orders', '/sales/orders']);
+    expect(orders.map((n) => n.routePath)).toEqual([m.route, m.route]);
     expect(orders.map((n) => n.navigationId)).toContain(linkA);
 
     // Fixture cleanup: the fixture area is hidden through the Builder (UPDATE only; B09 has no DELETE, B08 stays).

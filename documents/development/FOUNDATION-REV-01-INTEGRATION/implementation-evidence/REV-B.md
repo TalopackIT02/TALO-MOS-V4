@@ -1,0 +1,8 @@
+# REV-B — UI (AppShell 4 block giữ nguyên, không thêm thư viện)
+
+- `Overlay.tsx` (mới): `Drawer` (phải, ≤680px, mobile full width, role=dialog, Escape, trả focus) và `ConfirmModal` (đối tượng, trạng thái hiện tại → kỳ vọng, ảnh hưởng, điều không hoàn tác; máy chủ kiểm lại).
+- `/foundation/modules` (`ModuleScreen.tsx`): Quét Module (thủ công) + Tải lại + bật FBET; kết quả quét; “Ứng viên gần đây”; bảng module; **Phiên bản → drawer** (thông tin module + VersionPanel); Bật/Tắt → modal. Tab 2 đổi thành “Đăng ký thủ công (nâng cao)” kèm cảnh báo (API không đổi).
+- `/foundation/modules/candidates/:candidateId` (`CandidateWorkspace.tsx`, mới; route trong `shellScreens.ts` cùng quyền màn hình Module, chỉ nhận UUID, sai → danh sách; AppShell breadcrumb “… › Candidate Workspace”): stepper 4 bước, card Preflight + Runtime, bảng check → drawer chi tiết, MIC diff, vị trí B09, blocker, journal 14 bước, hậu kiểm 7 mục, nextActions, Cài đặt → modal, Tiếp tục, tải TXT/JSON. Thay thế `ModuleInstaller.tsx` (đã xóa).
+- `VersionPanel.tsx`: DRAFT chưa có MIC **không còn pre-fill `MAIN.READ`**; hiện “CHƯA ĐỒNG BỘ MIC TỪ CANDIDATE” + nút mở Workspace; template chỉ chèn bằng nút “Quản trị thủ công (nâng cao)” có cảnh báo; REJECT/ACTIVATE/RETIRE xác nhận bằng modal.
+- `NavigationBuilder.tsx`: cây chiếm toàn vùng nội dung; chọn mục → drawer Chỉnh sửa; “+ Thêm chức năng” → drawer Kho chức năng (đích = menu đã chọn); Xem trước → drawer; Gỡ menu đóng drawer trước khi mở dialog (không lồng overlay). Draft/plan/revision/DnD trong cây/unsaved guard không đổi.
+- Giới hạn: kéo chức năng từ kho vào cây không còn khả dụng (kho nằm trong overlay) — thay bằng chọn nhiều + “Thêm vào menu”. Discard-dirty của VersionPanel và “Hủy thay đổi” của Builder vẫn dùng `window.confirm`.

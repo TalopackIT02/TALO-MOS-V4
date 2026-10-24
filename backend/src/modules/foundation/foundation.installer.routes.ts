@@ -70,7 +70,7 @@ export function moduleInstallerRouter({ authService, service, secureCookie }: Mo
   router.post(`${C}/:candidateId/install/prepare`, handle(async (req, res, actor) => answer(res, 200, async () => ({ installation: await service.prepare(actor, req.params['candidateId'], req.body) }))));
   router.post(`${C}/:candidateId/install/commit`, handle(async (req, res, actor) => answer(res, 200, async () => ({ installation: await service.commit(actor, req.params['candidateId'], req.body) }))));
   router.get('/foundation/module-installations/:installId', handle(async (req, res, actor) => answer(res, 200, async () => ({ installation: await service.getInstall(actor, req.params['installId']) }))));
-  router.post('/foundation/module-installations/:installId/continue', handle(async (req, res, actor) => answer(res, 200, async () => ({ installation: await service.continueInstall(actor, req.params['installId'], req.body) }))));
+  router.post('/foundation/module-installations/:installId/continue', handle(async (req, res, actor) => answer(res, 200, async () => ({ installation: await service.continueInstall(actor, req.params['installId'], req.body, { cookie: req.get('Cookie'), userAgent: req.get('User-Agent') }) }))));
   router.get('/foundation/module-installations/:installId/report.txt', handle(async (req, res, actor) => download(res, 'text/plain; charset=utf-8', async () => service.installReport(actor, req.params['installId']))));
   router.get('/foundation/runtime-release', handle(async (_req, res, actor) => answer(res, 200, async () => ({ runtime: await service.runtimeRelease(actor) }))));
   return router;

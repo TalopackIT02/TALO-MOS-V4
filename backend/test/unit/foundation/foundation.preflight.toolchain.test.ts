@@ -87,7 +87,7 @@ const status = (run: PreflightRun) => Object.fromEntries(run.checks.map((c) => [
 describe('FMI-02 preflight with the real toolchain', { timeout: 300_000 }, () => {
   it('PF-01 / PF-03 / PF-05 / PF-09: a valid package → every check PASS with real tsc / Vitest / Host harness → READY', async () => {
     const run = await preflight('FBET_PF_OK');
-    expect(run.checks.filter((c) => c.status !== 'PASS').map((c) => `${c.key}: ${c.detail} ${(logs.get(`FBET_PF_OK/${c.id}`) ?? '').slice(0, 600)}`)).toEqual([]);
+    expect(run.checks.filter((c) => c.status !== 'PASS').map((c) => `${c.key}:${c.status} ${c.status === 'FAIL' ? (logs.get(`FBET_PF_OK/${c.id}`) ?? '').slice(0, 600) : ''}`.trim())).toEqual(['DATABASE_TESTS:NOT_APPLICABLE', 'AUTHENTICATED_IAM_SMOKE:NOT_TESTED']);
     expect(run.result).toBe('READY');
     expect(run.checks.find((c) => c.key === 'BACKEND_TYPECHECK')?.exitCode).toBe(0);
     expect(run.checks.find((c) => c.key === 'PACKAGE_TESTS')?.detail).toContain('1 passed');

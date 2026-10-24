@@ -19,6 +19,7 @@ const BY_CODE: Record<string, string> = {
   MIC_INVALID: 'Hồ sơ MIC chưa hợp lệ để nộp xét duyệt.',
   ACTIVATION_BLOCKED: 'Phiên bản chưa đủ điều kiện để kích hoạt.',
   MODULE_ENABLE_BLOCKED: 'Module chưa đủ điều kiện để bật (cần đúng một phiên bản ACTIVE hợp lệ).',
+  MODULE_ROUTE_CONFLICT: 'Không bật được: route của module đang được một module khác (ACTIVE, đang bật) sử dụng — route@module',
   NAVIGATION_REFERENCE_INVALID: 'Module, Function hoặc menu cha không hợp lệ cho mục menu này.',
   NAVIGATION_CONFLICT: 'Cấu hình điều hướng đã được thay đổi từ khi bạn mở. Tải lại để xem cấu hình mới nhất; bản nháp chưa được lưu.',
   NAVIGATION_LAYOUT_INVALID: 'Cấu hình điều hướng không hợp lệ; không có thay đổi nào được lưu.',

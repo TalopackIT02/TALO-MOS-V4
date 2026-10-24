@@ -89,10 +89,32 @@ const sidebar = (page: Page) => page.locator('aside.sidebar');
 const crumb = (page: Page) => page.locator('#crumb');
 const row = (page: Page, title: string) => page.locator('.nb-row', { has: page.locator('.nb-title', { hasText: new RegExp(`^${title.replace(/[()]/g, '\\$&')}$`) }) });
 const fnRow = (page: Page, name: string) => page.locator('.nb-fn', { has: page.locator('.nb-fn-name', { hasText: new RegExp(`^${name}$`) }) });
+// FOUNDATION-REV-01 REV-B: the editor of a row and the Function inventory open in ONE right drawer (Escape closes it);
+// a Function is added from the inventory drawer to the selected menu (the tree keeps drag & drop of its own rows).
+const drawer = (page: Page) => page.getByRole('dialog');
+async function pick(page: Page, title: string) {
+  await row(page, title).click();
+  await expect(drawer(page)).toBeVisible();
+}
+async function closeDrawer(page: Page) {
+  await page.keyboard.press('Escape');
+  await expect(drawer(page)).toHaveCount(0);
+}
+async function inventory(page: Page) {
+  await page.getByRole('button', { name: '+ Thêm chức năng', exact: true }).click();
+  await expect(drawer(page)).toBeVisible();
+}
+async function addToMenu(page: Page, menu: string, fn: string) {
+  await pick(page, menu);
+  await page.getByRole('button', { name: '+ Thêm chức năng vào menu này' }).click();
+  await fnRow(page, fn).getByRole('checkbox').check();
+  await page.getByRole('button', { name: `Thêm 1 chức năng vào “${menu}”` }).click();
+  await closeDrawer(page);
+}
 async function builder(page: Page) {
   await page.goto('/foundation/navigation');
   await page.locator('#tabs button').nth(1).click();
-  await expect(page.getByRole('heading', { name: 'Kho chức năng' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Cấu hình điều hướng (bản nháp)' })).toBeVisible(); // REV-01: the inventory is a drawer now
   await page.getByRole('button', { name: 'Mở tất cả' }).click();
 }
 
@@ -147,12 +169,15 @@ test('NAV-05 / NAV-12 multi-link: each link keeps its own active item and crumb;
 test('NAV-03 / NAV-04 / NAV-07 inventory: real Functions with module + key and where linked; "Đã có trong menu"; not assignable / Developer blocked outside Develop', async ({ page }) => {
   await open(page);
   await builder(page);
+  await inventory(page);
   // FMI-CLEAN-01: by default only configurable Functions (REPORT has no route → "Lịch sử / không khả dụng").
   await expect(page.locator('.nb-fn')).toHaveCount(3);
   await expect(fnRow(page, 'Báo cáo')).toHaveCount(0);
   await expect(fnRow(page, 'Đơn hàng')).toContainText('SALES · ORDER');
   await expect(fnRow(page, 'Đơn hàng')).toContainText('Đang gắn: Kinh doanh › Bán hàng');
-  await row(page, 'Bán hàng').click();
+  await closeDrawer(page);
+  await pick(page, 'Bán hàng');
+  await page.getByRole('button', { name: '+ Thêm chức năng vào menu này' }).click();
   await expect(fnRow(page, 'Đơn hàng')).toContainText('Đã có trong menu');
   await expect(fnRow(page, 'Đơn hàng').getByRole('checkbox')).toBeDisabled();
   await page.getByLabel('Phạm vi chức năng').selectOption('history');
@@ -161,8 +186,10 @@ test('NAV-03 / NAV-04 / NAV-07 inventory: real Functions with module + key and w
   await expect(fnRow(page, 'Chạy test').getByRole('checkbox')).toBeDisabled();
   await expect(fnRow(page, 'Chạy test')).toContainText('Developer Function chỉ được đặt trong Develop');
   // Inside Develop the Developer Function is allowed.
-  await row(page, 'Phát triển').click();
+  await closeDrawer(page);
+  await pick(page, 'Phát triển');
   await page.getByRole('button', { name: '+ Thêm menu' }).click();
+  await page.getByRole('button', { name: '+ Thêm chức năng vào menu này' }).click();
   await expect(fnRow(page, 'Chạy test').getByRole('checkbox')).toBeEnabled();
 });
 
@@ -170,9 +197,7 @@ test('NAV-05 / NAV-06 / NAV-09 / NAV-10 draft: add a second link of one Function
   const mock = await open(page);
   await builder(page);
   await expect(page.getByText('Không có thay đổi')).toBeVisible();
-  await row(page, 'Báo cáo nhanh').click();
-  await fnRow(page, 'Đơn hàng').getByRole('checkbox').check();
-  await page.getByRole('button', { name: 'Thêm 1 chức năng vào “Báo cáo nhanh”' }).click();
+  await addToMenu(page, 'Báo cáo nhanh', 'Đơn hàng');
   await expect(page.locator('.nb-unsaved')).toHaveText('● Có thay đổi chưa lưu');
   await expect(row(page, 'Báo cáo nhanh').locator('xpath=..').locator('.nb-link .nb-title')).toHaveText(['Đơn hàng']);
   await expect(page.locator('.nb-dot').first()).toBeVisible();
@@ -181,10 +206,7 @@ test('NAV-05 / NAV-06 / NAV-09 / NAV-10 draft: add a second link of one Function
   await page.getByRole('button', { name: 'Hủy thay đổi' }).click();
   await expect(page.getByText('Không có thay đổi')).toBeVisible();
   // Again, then save.
-  await row(page, 'Báo cáo nhanh').click();
-  await fnRow(page, 'Đơn hàng').getByRole('checkbox').check();
-  await page.getByRole('button', { name: 'Thêm 1 chức năng vào “Báo cáo nhanh”' }).click();
-  await page.locator('.nb-panel input').first().waitFor();
+  await addToMenu(page, 'Báo cáo nhanh', 'Đơn hàng');
   const reads = mock.menuReads;
   await page.getByRole('button', { name: 'Lưu cấu hình' }).click();
   await expect(page.getByText('Đã lưu cấu hình điều hướng.')).toBeVisible();
@@ -201,15 +223,19 @@ test('NAV-05 / NAV-06 / NAV-09 / NAV-10 draft: add a second link of one Function
 test('NAV-08 drag & drop: Function from the inventory into a menu, a link to another menu (re-link), a menu to another area; refused drops explain why', async ({ page }) => {
   const mock = await open(page);
   await builder(page);
-  await fnRow(page, 'Đơn hàng').dragTo(row(page, 'Báo cáo nhanh'));
+  await addToMenu(page, 'Báo cáo nhanh', 'Đơn hàng');
   await expect(page.locator('.nb-unsaved')).toBeVisible();
-  // Duplicate refused: a second visible ORDER into "Bán hàng".
-  await fnRow(page, 'Đơn hàng').dragTo(row(page, 'Bán hàng'));
+  // Duplicate refused: a second visible ORDER into "Bán hàng" (the inventory refuses it for that target).
+  await pick(page, 'Bán hàng');
+  await page.getByRole('button', { name: '+ Thêm chức năng vào menu này' }).click();
+  await expect(fnRow(page, 'Đơn hàng').getByRole('checkbox')).toBeDisabled();
+  await closeDrawer(page);
   await expect(row(page, 'Bán hàng').locator('xpath=..').locator('.nb-link')).toHaveCount(1);
   // Move the stored link of "Bán hàng" to the new menu of Develop? Refused (Báo cáo nhanh already has ORDER) → move to Develop menu instead.
-  await row(page, 'Phát triển').click();
+  await pick(page, 'Phát triển');
   await page.getByRole('button', { name: '+ Thêm menu' }).click();
   await page.locator('.nb-panel input').first().fill('Công cụ');
+  await closeDrawer(page);
   await row(page, 'Bán hàng').locator('xpath=..').locator('.nb-link .nb-handle').first().dragTo(row(page, 'Công cụ'));
   await expect(row(page, 'Công cụ').locator('xpath=..').locator('.nb-link .nb-title')).toHaveText(['Đơn hàng']);
   // Menu "Báo cáo nhanh" dragged onto the Develop area.
@@ -226,7 +252,7 @@ test('NAV-08 drag & drop: Function from the inventory into a menu, a link to ano
 test('NAV-11 remove a menu with Functions: move them to another menu then hide it (no DELETE), applied on save', async ({ page }) => {
   const mock = await open(page);
   await builder(page);
-  await row(page, 'Bán hàng').click();
+  await pick(page, 'Bán hàng');
   await page.getByRole('button', { name: 'Gỡ menu' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('Ẩn cả nhánh');
@@ -254,9 +280,9 @@ test('NAV-13 Developer Function outside Develop: one click moves it into Develop
 test('NAV-14 preview: design tree and "as this account" (POST preview, nothing saved)', async ({ page }) => {
   const mock = await open(page);
   await builder(page);
-  await fnRow(page, 'Đơn hàng').dragTo(row(page, 'Báo cáo nhanh'));
+  await addToMenu(page, 'Báo cáo nhanh', 'Đơn hàng');
   await page.getByRole('button', { name: 'Xem trước' }).click();
-  const preview = page.getByRole('region', { name: 'Xem trước' });
+  const preview = page.getByRole('dialog', { name: 'Xem trước bản nháp' });
   await expect(preview).toContainText('Màn hình hệ thống (Foundation, IAM)');
   await preview.getByRole('button', { name: 'Theo tài khoản hiện tại' }).click();
   await expect.poll(() => mock.previews.length).toBe(1);
@@ -267,7 +293,7 @@ test('NAV-14 preview: design tree and "as this account" (POST preview, nothing s
 test('NAV-15 conflict and leaving: 409 keeps the draft and offers a reload; leaving with unsaved changes asks first', async ({ page }) => {
   const mock = await open(page, 409);
   await builder(page);
-  await fnRow(page, 'Đơn hàng').dragTo(row(page, 'Báo cáo nhanh'));
+  await addToMenu(page, 'Báo cáo nhanh', 'Đơn hàng');
   await page.getByRole('button', { name: 'Lưu cấu hình' }).click();
   await expect(page.getByRole('button', { name: 'Tải lại cấu hình mới nhất' })).toBeVisible();
   await expect(page.locator('.nb-unsaved')).toBeVisible(); // the draft is still there
@@ -296,6 +322,7 @@ test('FMI-CLEAN-01 removed areas and their branch are hidden by default, shown o
   await expect(page.locator('.nb-row', { hasText: 'Khóa MVC1BI5A_6E9C95' })).toHaveCount(1);
   await expect(page.locator('.nb-legacy')).toContainText('Mục dưới nhánh đã gỡ');
   await expect(page.locator('.nb-unsaved')).toHaveCount(0); // a view toggle never changes the draft
+  await inventory(page);
   await page.getByLabel('Phạm vi chức năng').selectOption('assigned');
   await expect(page.locator('.nb-fn .nb-fn-name')).toHaveText(['Đơn hàng']);
   await page.getByLabel('Phạm vi chức năng').selectOption('unassigned');

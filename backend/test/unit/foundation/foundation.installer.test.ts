@@ -16,6 +16,9 @@ import { InstallerStore } from '../../../src/modules/foundation/foundation.insta
 import { moduleScanRouter } from '../../../src/modules/foundation/foundation.module-scan.routes.js';
 import { ModuleScanService } from '../../../src/modules/foundation/foundation.module-scan.service.js';
 import type { RegisteredVersion } from '../../../src/modules/foundation/foundation.module-scan.types.js';
+import { readLayout, revisionOf } from '../../../src/modules/foundation/foundation.navigation.builder.js';
+import type { Draft } from '../../../src/modules/foundation/foundation.navigation.builder.js';
+import type { NavigationItem } from '../../../src/modules/foundation/foundation.navigation.js';
 import { sanitizeLog } from '../../../src/modules/foundation/foundation.preflight.js';
 import type { Exec } from '../../../src/modules/foundation/foundation.preflight.js';
 import { SqlFoundationRepository } from '../../../src/modules/foundation/foundation.repository.js';
@@ -23,7 +26,7 @@ import type { FoundationDb } from '../../../src/modules/foundation/foundation.re
 import { parseDeployments, releaseDir, syncModules, writeDeployments } from '../../../scripts/modules-sync.mjs';
 import { hashPackage, walkPackage } from '../../../scripts/module-package.mjs';
 import {
-  ACCOUNT_A, FakeAuth, FakeDb, PERM_ACTIVATE_ID, PERM_APPROVE_ID, PERM_CREATE_ID, PERM_ENABLE_ID, PERM_NAV_ID, PERM_READ_ID, PERM_VCREATE_ID,
+  ACCOUNT_A, FakeAuth, FakeDb, PERM_ACTIVATE_ID, PERM_APPROVE_ID, PERM_CREATE_ID, PERM_ENABLE_ID, PERM_NAV_ID, PERM_READ_ID, PERM_RETIRE_ID, PERM_VCREATE_ID,
   PERM_VSUBMIT_ID, PERM_VUPDATE_ID, TEST_ORIGIN, VALID_ROLE, defaultIam, token,
 } from './fakes.js';
 import { validMic } from './mic.fixture.js';
@@ -73,12 +76,15 @@ function writePackage(modules: string, key: string, version = '1.0.0', mic: unkn
 // The installer's own read queries (B01 / B02 / B03 / B09) over an in-memory model kept by the fake services.
 interface Model {
   modules: { moduleId: string; moduleKey: string; enabled: boolean }[];
-  versions: { versionId: string; moduleId: string; moduleVersion: string; status: string; mic: unknown }[];
+  versions: { versionId: string; moduleId: string; moduleVersion: string; status: string; mic: unknown; activatedAt?: string | null }[];
   functions: { functionId: string; moduleId: string; functionKey: string }[];
-  nav: { navigationId: string; parentId: string | null; moduleId: string; functionId: string | null; title: string; visible: boolean }[];
+  nav: NavigationItem[];
   iam: IamPermissionRow[];
+  assignments: number;
   calls: string[];
 }
+const navItem = (navigationId: string, parentId: string | null, moduleId: string | null, functionId: string | null, menuTitle: string, isVisible = true, sortOrder = 0): NavigationItem =>
+  ({ navigationId, parentId, moduleId, functionId, menuTitle, sortOrder, isVisible, createdAt: '2026-10-23T00:00:00.000Z' });
 class ModelDb implements Pick<FoundationDb, 'query'> {
   constructor(private readonly m: Model) {}
   async query(sql: string, params: readonly unknown[]): Promise<unknown[]> {
@@ -90,22 +96,18 @@ class ModelDb implements Pick<FoundationDb, 'query'> {
       return vs.length === 0 ? [{ module_id: mod.moduleId, is_enabled: mod.enabled, version_id: null, module_version: null, status: null }]
         : vs.map((v) => ({ module_id: mod.moduleId, is_enabled: mod.enabled, version_id: v.versionId, module_version: v.moduleVersion, status: v.status }));
     }
-    if (sql.includes('LEFT JOIN foundation.fnd_functions AS f ON f.function_id = n.function_id')) {
-      return m.nav.filter((n) => n.moduleId === params[0]).map((n) => ({ navigation_id: n.navigationId, parent_id: n.parentId, function_id: n.functionId, is_visible: n.visible,
-        function_key: m.functions.find((f) => f.functionId === n.functionId)?.functionKey ?? null }));
+    if (sql.includes('SELECT v.manifest_json, v.status FROM foundation.fnd_module_versions')) {
+      const v = m.versions.find((x) => x.versionId === params[0]);
+      return v ? [{ manifest_json: v.mic, status: v.status }] : [];
     }
     if (sql.includes('SELECT function_id::text AS function_id, function_key FROM foundation.fnd_functions')) {
       return m.functions.filter((f) => f.moduleId === params[0]).map((f) => ({ function_id: f.functionId, function_key: f.functionKey }));
-    }
-    if (sql.includes('JOIN foundation.fnd_functions AS f ON f.function_id = n.function_id')) {
-      return m.nav.filter((n) => n.moduleId === params[0] && n.visible && n.functionId !== null && (n.parentId === null || m.nav.find((p) => p.navigationId === n.parentId)?.visible))
-        .map((n) => ({ function_key: m.functions.find((f) => f.functionId === n.functionId)?.functionKey }));
     }
     throw new Error(`ModelDb: unexpected SQL ${sql.slice(0, 60)}`);
   }
 }
 
-function build(o: { grants?: readonly string[]; registered?: RegisteredVersion[]; database?: string; now?: () => number; activateFails?: boolean; execDelayMs?: number; iamWritable?: boolean } = {}) {
+function build(o: { grants?: readonly string[]; registered?: RegisteredVersion[]; database?: string; now?: () => number; activateFails?: boolean; execDelayMs?: number; iamWritable?: boolean; draftMic?: unknown; moduleAllowed?: boolean; activeMic?: (key: string, version: string) => unknown } = {}) {
   const base = mkdtempSync(join(tmpdir(), 'fmi0203-'));
   roots.push(base);
   const modules = join(base, 'modules');
@@ -125,12 +127,13 @@ function build(o: { grants?: readonly string[]; registered?: RegisteredVersion[]
   auth.authenticated(TOKEN, ACCOUNT_A);
   const logs: string[] = [];
   const logger = createLogger({ level: 'debug', sink: (line) => logs.push(line) });
-  const model: Model = { modules: [], versions: [], functions: [], nav: [], iam: [], calls: [] };
+  const model: Model = { modules: [], versions: [], functions: [], nav: [], iam: [], assignments: 0, calls: [] };
   const registered = o.registered ?? [];
   for (const r of registered) {
     let mod = model.modules.find((x) => x.moduleKey === r.moduleKey);
     if (!mod) { mod = { moduleId: randomUUID(), moduleKey: r.moduleKey, enabled: r.moduleEnabled !== false }; model.modules.push(mod); }
-    model.versions.push({ versionId: randomUUID(), moduleId: mod.moduleId, moduleVersion: r.moduleVersion, status: r.status, mic: null });
+    model.versions.push({ versionId: randomUUID(), moduleId: mod.moduleId, moduleVersion: r.moduleVersion, status: r.status, mic: r.status === 'DRAFT' ? o.draftMic ?? null : r.status === 'ACTIVE' && o.activeMic ? o.activeMic(r.moduleKey, r.moduleVersion) : null,
+      activatedAt: r.status === 'ACTIVE' ? '2026-10-20T00:00:00.000000Z' : null });
   }
   const registry = { read: async () => ({ moduleKeys: new Set(model.modules.map((x) => x.moduleKey)), versions: model.versions.map((v) => {
     const mod = model.modules.find((x) => x.moduleId === v.moduleId);
@@ -138,6 +141,7 @@ function build(o: { grants?: readonly string[]; registered?: RegisteredVersion[]
     return { moduleKey: mod?.moduleKey ?? '', moduleVersion: v.moduleVersion, status: v.status as RegisteredVersion['status'], activeRoutes: routes, moduleEnabled: mod?.enabled ?? true };
   }) }) };
   const id = (x: unknown) => String(x);
+  const fakeFail = new Map<string, string>();
   const fakes = {
     modules: { registerModule: async (_a: unknown, body: unknown) => {
       const b = body as { moduleKey: string };
@@ -173,29 +177,69 @@ function build(o: { grants?: readonly string[]; registered?: RegisteredVersion[]
     },
     lifecycle: {
       approve: async (_a: unknown, _m: unknown, versionId: unknown) => { const v = model.versions.find((x) => x.versionId === id(versionId)); if (v) v.status = 'APPROVED'; model.calls.push('APPROVE'); return {} as never; },
+      // As the Lifecycle Service: the current ACTIVE of the module is RETIRED in the same step; activated_at returned.
       activate: async (_a: unknown, _m: unknown, versionId: unknown) => {
-        if (o.activateFails) throw Object.assign(new Error('blocked'), { code: 'ACTIVATION_BLOCKED' });
+        if (o.activateFails || fakeFail.has('activate')) throw Object.assign(new Error('blocked'), { code: 'ACTIVATION_BLOCKED' });
         const v = model.versions.find((x) => x.versionId === id(versionId));
-        if (v) v.status = 'ACTIVE';
+        const old = model.versions.find((x) => x.moduleId === v?.moduleId && x.status === 'ACTIVE' && x !== v);
+        if (old) old.status = 'RETIRED';
+        if (v) { v.status = 'ACTIVE'; v.activatedAt ??= `2026-10-24T00:00:00.${String(model.calls.length).padStart(6, '0')}Z`; }
         model.calls.push('ACTIVATE');
-        return {} as never;
+        return { version: { versionId: v?.versionId, activatedAt: v?.activatedAt ?? null }, retired: old ? { versionId: old.versionId } : null } as never;
+      },
+      // As the Lifecycle repository: proof re-checked (failed ACTIVE with the journalled activated_at, restore RETIRED).
+      recoverUpgrade: async (_a: unknown, input: { failedVersionId: string; restoreVersionId: string; failedActivatedAt: string; installId: string }) => {
+        if (fakeFail.has('recoverUpgrade')) throw Object.assign(new Error('connection lost'), { code: fakeFail.get('recoverUpgrade') });
+        const failed = model.versions.find((x) => x.versionId === input.failedVersionId);
+        const restore = model.versions.find((x) => x.versionId === input.restoreVersionId);
+        if (failed?.status !== 'ACTIVE' || failed.activatedAt !== input.failedActivatedAt || restore?.status !== 'RETIRED') throw Object.assign(new Error('proof'), { code: 'RECOVERY_PROOF_MISMATCH' });
+        failed.status = 'RETIRED';
+        restore.status = 'ACTIVE';
+        model.calls.push(`ROLLBACK ${failed.moduleVersion}→${restore.moduleVersion} ${input.installId.slice(0, 8)}`);
+        return { version: { versionId: restore.versionId }, retired: { versionId: failed.versionId } } as never;
       },
       enable: async (_a: unknown, moduleId: unknown) => { const m = model.modules.find((x) => x.moduleId === id(moduleId)); if (m) m.enabled = true; model.calls.push('ENABLE'); return {} as never; },
       disable: async (_a: unknown, moduleId: unknown) => { const m = model.modules.find((x) => x.moduleId === id(moduleId)); if (m) m.enabled = false; model.calls.push('DISABLE'); return {} as never; },
     },
-    navigation: { createItem: async (_a: unknown, body: unknown) => {
-      const b = body as { parentId?: string | null; moduleId: string; functionId?: string | null; menuTitle: string };
-      const n = { navigationId: randomUUID(), parentId: b.parentId ?? null, moduleId: b.moduleId, functionId: b.functionId ?? null, title: b.menuTitle, visible: true };
-      model.nav.push(n);
-      model.calls.push(`NAV ${b.functionId ? 'LINK' : 'GROUP'}`);
-      return { navigationId: n.navigationId } as never;
-    } },
+    // The Navigation Builder service contract: the stored layout (real readLayout) and one apply of a whole draft with
+    // the revision check — every inserted row is placed under its draft parent (AREA → MENU → FUNCTION, nothing else).
+    navigation: {
+      layout: async () => readLayout(model.nav),
+      apply: async (_a: unknown, body: unknown) => {
+        const d = body as Draft;
+        if (fakeFail.has('nav')) throw Object.assign(new Error('nav'), { code: fakeFail.get('nav') });
+        if (d.revision !== revisionOf(model.nav)) throw Object.assign(new Error('conflict'), { code: 'NAVIGATION_CONFLICT' });
+        const put = (idv: string | null, parent: string | null, functionId: string | null, title: string, visible: boolean, moduleId: string | null) => {
+          if (idv !== null) {
+            const i = model.nav.findIndex((x) => x.navigationId === idv);
+            const cur = model.nav[i];
+            if (cur) model.nav[i] = { ...cur, menuTitle: title, isVisible: visible };
+            return idv;
+          }
+          const n = navItem(randomUUID(), parent, moduleId, functionId, title, visible, model.nav.length);
+          model.nav.push(n);
+          model.calls.push(`NAV ${functionId ? 'LINK' : parent ? 'MENU' : 'AREA'}`);
+          return n.navigationId;
+        };
+        for (const a of d.areas) {
+          const aid = put(a.id, null, null, a.title, a.visible, null);
+          for (const m of a.menus) {
+            const mid = put(m.id, aid, null, m.title, m.visible, null);
+            for (const l of m.items) put(l.id, mid, l.functionId, l.title, l.visible, model.functions.find((f) => f.functionId === l.functionId)?.moduleId ?? null);
+          }
+        }
+        model.calls.push('NAV APPLY');
+        return readLayout(model.nav) as never;
+      },
+    },
   };
   const iamCatalog: IamCatalog = {
     permission: { permissionCode: 'iam.permissions.manage', moduleCode: 'IAM', resourceCode: 'PERMISSIONS', operation: 'MANAGE' },
     existing: async (moduleCode) => model.iam.filter((p) => p.moduleCode === moduleCode),
     writable: async () => o.iamWritable !== false,
+    assignments: async () => model.assignments,
     create: async (_a, row) => {
+      if (fakeFail.has('iam')) throw Object.assign(new Error('iam'), { code: fakeFail.get('iam') });
       if (model.iam.some((p) => p.moduleCode === row.moduleCode && p.resourceCode === row.resourceCode && p.operation === row.operation)) throw Object.assign(new Error('dup'), { code: 'PERMISSION_TRIPLE_EXISTS' });
       model.iam.push({ permissionCode: row.permissionCode, moduleCode: row.moduleCode, resourceCode: row.resourceCode, operation: row.operation, minimumAssuranceLevel: row.minimumAssuranceLevel });
       model.calls.push(`IAM ${row.permissionCode}`);
@@ -234,17 +278,22 @@ function build(o: { grants?: readonly string[]; registered?: RegisteredVersion[]
     const lock = JSON.parse(readFileSync(lockFile, 'utf8'));
     syncModules({ target: 'frontend', releasesDir: releases, deployments: lock, outDir: join(frontendDir, 'src', 'installed-modules'), log: () => undefined });
     runtime.modules = [...parseDeployments(lock).entries()].map(([moduleKey, v]) => ({ moduleKey, packageVersion: v.packageVersion, packageHash: v.packageHash }));
-    for (const r of runtime.modules) runtime.routers.set(r.moduleKey, sessionRouter(r.moduleKey));
+    for (const r of runtime.modules) runtime.routers.set(r.moduleKey, sessionRouter(r.moduleKey, () => o.moduleAllowed === true));
   };
-  return { base, modules, releases, lockFile, frontendDir, model, fakeDb, logs, service, store, app, post, get, runtime, restart, execCalls };
+  return { base, modules, releases, lockFile, frontendDir, model, fakeDb, logs, service, store, app, post, get, runtime, restart, execCalls, fakeFail, auth, paths, registry, scans, access, fakes, iamCatalog, logger };
 }
 
-// A module router as the Host mounts it: every route behind the session (no session → 401 envelope).
-function sessionRouter(key: string): Router {
+// A module router as the Host mounts it: every route behind the session — no session → 401 envelope; the operator's
+// session (the installer's own cookie) → 403 FORBIDDEN unless the module permission is assigned (allowed()) → 200 data.
+function sessionRouter(key: string, allowed: () => boolean = () => false): Router {
   const router = express.Router();
-  const refuse = (_req: express.Request, res: express.Response) => { res.status(401).json({ error: { code: 'SESSION_INVALID', message: 'x', requestId: 'r' } }); };
-  router.get(`${slug(key)}/orders`, refuse);
-  router.post(`${slug(key)}/orders`, refuse);
+  const handle = (status: number, body: unknown) => (req: express.Request, res: express.Response) => {
+    if (!String(req.headers.cookie ?? '').includes(TOKEN)) { res.status(401).json({ error: { code: 'SESSION_INVALID', message: 'x', requestId: 'r' } }); return; }
+    if (!allowed()) { res.status(403).json({ error: { code: 'FORBIDDEN', message: 'x', requestId: 'r' } }); return; }
+    res.status(status).json(body);
+  };
+  router.get(`${slug(key)}/orders`, handle(200, { orders: [] }));
+  router.post(`${slug(key)}/orders`, handle(201, { order: {} }));
   return router;
 }
 
@@ -271,9 +320,9 @@ describe('FMI-02 Candidate Workspace + Preflight orchestration', () => {
     writePackage(h.modules, 'FBET_INST_A');
     const { c, run, runId } = await ready(h, 'FBET_INST_A');
     expect(h.model.calls).toEqual([]); // nothing registered before READY
-    expect(run.checks.filter((x: { status: string }) => x.status !== 'PASS').map((x: { key: string; detail: string }) => `${x.key}: ${x.detail}`)).toEqual([]);
+    expect(run.checks.filter((x: { status: string }) => x.status !== 'PASS').map((x: { key: string; status: string }) => `${x.key}:${x.status}`)).toEqual(['DATABASE_TESTS:NOT_APPLICABLE', 'AUTHENTICATED_IAM_SMOKE:NOT_TESTED']);
     expect(run).toMatchObject({ status: 'COMPLETED', result: 'READY', suiteVersion: 'FMI-02-PREFLIGHT-1', environment: { database: 'talo_mos_v4_test' } });
-    expect(run.checks.map((x: { status: string }) => x.status)).toEqual(Array(10).fill('PASS'));
+    expect(run.checks.filter((x: { required: boolean }) => !x.required).map((x: { key: string }) => x.key)).toEqual(['AUTHENTICATED_IAM_SMOKE']); // optional: never makes READY
     expect(run.reportHash).toMatch(/^[0-9a-f]{64}$/);
     const cand = (await h.get(`/foundation/module-candidates/${c.candidateId}`)).body.candidate;
     expect(cand).toMatchObject({ status: 'READY', readyRunId: runId, readyReportHash: run.reportHash });
@@ -292,12 +341,12 @@ describe('FMI-02 Candidate Workspace + Preflight orchestration', () => {
     expect(txt.status).toBe(200);
     expect(txt.headers['content-type']).toBe('text/plain; charset=utf-8');
     expect(txt.headers['content-disposition']).toMatch(/^attachment; filename="preflight-FBET_INST_R-1\.0\.0-[0-9a-f]{8}\.txt"$/);
-    for (const s of ['FBET_INST_R 1.0.0', c.sourceHash, runId, 'talo_mos_v4_test', 'Kết luận        : READY', 'Giới hạn chung', ...['P0', 'P1', 'P2a', 'P2b', 'P3', 'P4', 'P5a', 'P5b', 'P6', 'P7'].map((p) => `] ${p} `)]) expect(txt.text).toContain(s);
+    for (const s of ['FBET_INST_R 1.0.0', c.sourceHash, runId, 'talo_mos_v4_test', 'Kết luận        : READY', 'Giới hạn chung', ...['P0', 'P1', 'P2a', 'P2b', 'P3', 'P4', 'P5a', 'P5b', 'P6', 'P7', 'P8'].map((p) => `] ${p} `)]) expect(txt.text).toContain(s);
     expect(txt.text).not.toContain(h.base);
     const json = await h.get(`/foundation/module-candidates/${c.candidateId}/preflight/${runId}/report.json`);
     expect(json.headers['content-type']).toBe('application/json; charset=utf-8');
     const report = JSON.parse(json.text);
-    expect(report.evidence).toHaveLength(10);
+    expect(report.evidence).toHaveLength(11);
     expect(report.evidence[0]).toMatchObject({ testId: 'FMI-02-PREFLIGHT-1/P0', result: 'PASS', packageHash: c.sourceHash, runId, candidateId: c.candidateId });
   });
 
@@ -406,9 +455,9 @@ describe('FMI-02/03 security (SEC-01 … SEC-06)', () => {
   });
 });
 
-describe('FMI-03 installer (IN-01 … IN-12, SEC-07)', () => {
+describe('FMI-03 installer (IN-01 … IN-12, SEC-07)', { timeout: 20_000 }, () => {
   it('IN-04 / IN-08 / IN-12: NEW_MODULE — prepare (dry run) → commit → AWAITING_RESTART (not ACTIVE) → restart → continue → INSTALLED_ACTIVE', async () => {
-    const h = build();
+    const h = build({ moduleAllowed: true });
     writePackage(h.modules, 'FBET_INST_N');
     const { c, runId, run } = await ready(h, 'FBET_INST_N');
     const prep = await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`);
@@ -434,41 +483,46 @@ describe('FMI-03 installer (IN-01 … IN-12, SEC-07)', () => {
     expect([early.status, early.body.error.code]).toEqual([409, 'RESTART_PENDING']);
     expect((await h.get(`/foundation/module-installations/${done.installId}`)).body.installation.state).toBe('AWAITING_RESTART');
     h.restart();
+    h.model.assignments = 2; // policy applied in IAM (role assignment) — the installer never assigns
     const rt = (await h.get('/foundation/runtime-release')).body.runtime;
     expect(rt).toMatchObject({ matches: true, supervisor: 'NONE' });
     const fin = await h.post(`/foundation/module-installations/${done.installId}/continue`);
     expect(fin.status).toBe(200);
     expect(fin.body.installation.state).toBe('INSTALLED_ACTIVE');
-    expect(fin.body.installation.postcheck.map((p: { key: string; status: string }) => `${p.key}:${p.status}`)).toEqual(['B02_ACTIVE:PASS', 'RUNTIME_RELEASE:PASS', 'IAM_CATALOG:PASS', 'NAVIGATION:PASS', 'API_SMOKE:PASS']);
-    expect(h.model.calls.slice(5)).toEqual(['ACTIVATE', 'ENABLE', 'IAM fbet_inst_n.order.read', 'IAM fbet_inst_n.order.create', 'IAM fbet_inst_n.report.read', 'NAV GROUP', 'NAV LINK']);
+    expect(fin.body.installation.postcheck.map((p: { key: string; status: string }) => `${p.key}:${p.status}`)).toEqual(['B02_ACTIVE:PASS', 'RUNTIME_RELEASE:PASS', 'IAM_CATALOG:PASS', 'IAM_POLICY:PASS', 'NAVIGATION:PASS', 'API_SMOKE:PASS', 'ACCESS_VERIFIED:PASS']);
+    expect(h.model.calls.slice(5)).toEqual(['ACTIVATE', 'ENABLE', 'IAM fbet_inst_n.order.read', 'IAM fbet_inst_n.order.create', 'IAM fbet_inst_n.report.read', 'NAV AREA', 'NAV MENU', 'NAV LINK', 'NAV APPLY']);
     const report = await h.get(`/foundation/module-installations/${done.installId}/report.txt`);
     expect(report.text).toContain('Trạng thái   : INSTALLED_ACTIVE');
     expect(report.text).not.toContain(h.base);
     // IN-11: a finished installation cannot be replayed
     expect((await h.post(`/foundation/module-installations/${done.installId}/continue`)).status).toBe(409);
-    // a second plan for the same (now deployed) module is blocked
+    // a second plan for the same (now deployed) version is blocked: the version is locked (REV01-D1: the installed
+    // release + lock now form a recovery point, so the upgrade gate itself no longer applies)
     const again = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
-    expect(again.blockers.map((b: { code: string }) => b.code)).toEqual(expect.arrayContaining(['UPGRADE_RECOVERY_UNAVAILABLE', 'ALREADY_DEPLOYED']));
+    expect(again.state).toBe('BLOCKED');
+    expect(again.blockers.map((b: { code: string }) => b.code)).toContain('VERSION_LOCKED');
+    expect(again.blockers.map((b: { code: string }) => b.code)).not.toContain('UPGRADE_RECOVERY_UNAVAILABLE');
   });
 
   it('IN-09 / IN-11 / IN-07: postcheck FAIL after ACTIVATE → RECOVERY_REQUIRED + module DISABLED; retry after the fix → INSTALLED_ACTIVE, no duplicate permission / menu / version', async () => {
-    const h = build();
+    const h = build({ moduleAllowed: true });
     writePackage(h.modules, 'FBET_INST_P');
     const { c } = await ready(h, 'FBET_INST_P');
     const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
     const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
     h.restart();
+    h.model.assignments = 1;
     h.runtime.routers.delete('FBET_INST_P'); // the new process did not mount the module router
     const failed = (await h.post(`/foundation/module-installations/${done.installId}/continue`)).body.installation;
     expect(failed.state).toBe('RECOVERY_REQUIRED');
     expect(failed.postcheck.find((p: { key: string }) => p.key === 'API_SMOKE').status).toBe('FAIL');
     expect(failed.recovery.join(' ')).toContain('DISABLE');
     expect(h.model.modules.find((m) => m.moduleKey === 'FBET_INST_P')?.enabled).toBe(false);
-    h.runtime.routers.set('FBET_INST_P', sessionRouter('FBET_INST_P'));
+    h.runtime.routers.set('FBET_INST_P', sessionRouter('FBET_INST_P', () => true));
     const fixed = (await h.post(`/foundation/module-installations/${done.installId}/continue`)).body.installation;
     expect(fixed.state).toBe('INSTALLED_ACTIVE');
     expect(h.model.iam).toHaveLength(3);
-    expect(h.model.nav).toHaveLength(2);
+    expect(h.model.nav).toHaveLength(3); // AREA → MENU → FUNCTION, once
     expect(h.model.versions).toHaveLength(1);
     expect(h.model.calls.filter((x) => x === 'ACTIVATE')).toHaveLength(1);
   });
@@ -509,7 +563,7 @@ describe('FMI-03 installer (IN-01 … IN-12, SEC-07)', () => {
     const plan = (await h.post(`/foundation/module-candidates/${dr.c.candidateId}/install/prepare`)).body.installation;
     const draftId = h.model.versions.find((v) => v.status === 'DRAFT')?.versionId;
     expect(plan.steps.find((s: { key: string }) => s.key === 'VERSION').detail).toBe(`Dùng lại DRAFT ${draftId} (không tạo bản trùng).`);
-    expect(plan.blockers.map((b: { code: string }) => b.code)).toEqual(['UPGRADE_NOT_SUPPORTED']); // registered module: installer supports new modules only
+    expect(plan.blockers).toEqual([]); // REV-01 A10: a registered module without ACTIVE version is installable
     writePackage(h.modules, 'FBET_INST_LK');
     const scan = await h.post('/foundation/module-packages/scan');
     const lk = await h.post('/foundation/module-candidates', { scanId: scan.body.scanId, moduleKey: 'FBET_INST_LK' });
@@ -564,5 +618,347 @@ describe('FMI-03 IAM catalog privilege (fail closed before any write)', () => {
     expect(plan.blockers.map((b: { code: string }) => b.code)).toEqual(['IAM_DB_GRANT_MISSING']);
     expect((await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).status).toBe(409);
     expect(h.model.calls).toEqual([]);
+  });
+});
+
+// FOUNDATION-REV-01 REV-A — red tests written before the fix (implementation-evidence/RED-TESTS.md).
+describe('FOUNDATION-REV-01 REV-A installer', () => {
+  const template = (key: string, version: string) => ({ ...validMic(key, version), mic02Functions: [{ functionKey: 'MAIN', name: 'Chức năng chính' }],
+    mic03Actions: [{ functionKey: 'MAIN', actionKey: 'READ', name: 'Xem', nature: 'READ' }], mic04Navigation: [{ menuLabel: key }, { menuLabel: 'Chính', routePath: `/${key.toLowerCase()}`, screenKey: 'x.main', functionKey: 'MAIN' }],
+    mic05Api: [], mic06DataResources: [], mic07IamMapping: [{ functionKey: 'MAIN', actionKey: 'READ', moduleCode: key, resourceCode: 'MAIN', operation: 'READ', minimumAssuranceLevel: 1 }],
+    mic10Manifest: { manifestVersion: 'MIC-1.0', hashAlgorithm: 'SHA-256', testEvidence: [{ name: 'x', result: 'NOT_TESTED', reference: 'x' }] } });
+
+  it('A01 / A02 / A10: registered module without ACTIVE + DRAFT holding a MAIN.READ template → plan shows the MIC diff; commit reuses the DRAFT and stores the Candidate MIC (fresh read back)', async () => {
+    const h = build({ registered: [{ moduleKey: 'FBET_REV_DR', moduleVersion: '1.0.0', status: 'DRAFT', activeRoutes: null }], draftMic: template('FBET_REV_DR', '1.0.0') });
+    writePackage(h.modules, 'FBET_REV_DR');
+    const { c } = await ready(h, 'FBET_REV_DR');
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    expect(plan).toMatchObject({ state: 'PREPARED', classification: 'UPGRADE', blockers: [] });
+    expect(plan.micDiff.filter((d: { changed: boolean }) => d.changed).map((d: { section: string }) => d.section)).toEqual(expect.arrayContaining(['mic02Functions', 'mic05Api', 'mic07IamMapping']));
+    expect(plan.micDiff.find((d: { section: string }) => d.section === 'mic05Api')).toMatchObject({ draft: 0, candidate: 2 });
+    const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
+    expect(done.state).toBe('AWAITING_RESTART');
+    expect(h.model.calls).toEqual(['PUT_MIC', 'SUBMIT', 'APPROVE']); // no REGISTER, no CREATE_VERSION
+    const stored = h.model.versions[0]?.mic as { mic02Functions: { functionKey: string }[]; mic05Api: unknown[] };
+    expect([stored.mic02Functions.map((f) => f.functionKey), stored.mic05Api.length]).toEqual([['ORDER', 'REPORT'], 2]);
+    expect(done.steps.find((s: { key: string }) => s.key === 'MIC').detail).toContain('đọc lại khớp');
+  });
+
+  it('A03: the DRAFT MIC changed after the plan → commit refused DRAFT_CHANGED_EXTERNALLY, nothing written', async () => {
+    const h = build({ registered: [{ moduleKey: 'FBET_REV_CX', moduleVersion: '1.0.0', status: 'DRAFT', activeRoutes: null }], draftMic: template('FBET_REV_CX', '1.0.0') });
+    writePackage(h.modules, 'FBET_REV_CX');
+    const { c } = await ready(h, 'FBET_REV_CX');
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    const v = h.model.versions[0];
+    if (v) v.mic = { ...template('FBET_REV_CX', '1.0.0'), mic08EventsAudit: { eventCodes: ['EDITED_BY_SOMEONE'], auditActionCodes: [] } };
+    const res = await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true });
+    expect([res.status, res.body.error.code, res.body.error.details.blockers]).toEqual([409, 'PLAN_BLOCKED', ['DRAFT_CHANGED_EXTERNALLY']]);
+    expect(h.model.calls).toEqual([]);
+  });
+
+  it('A13 / A15: catalog created but no IAM assignment → POSTCHECK_INCOMPLETE (IAM_POLICY / ACCESS_VERIFIED NOT_TESTED), module kept ACTIVE + ENABLED, never INSTALLED_ACTIVE', async () => {
+    const h = build();
+    writePackage(h.modules, 'FBET_REV_PC');
+    const { c } = await ready(h, 'FBET_REV_PC');
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
+    h.restart();
+    const r = (await h.post(`/foundation/module-installations/${done.installId}/continue`)).body.installation;
+    expect(r.state).toBe('POSTCHECK_INCOMPLETE');
+    expect(r.postcheck.filter((p: { status: string }) => p.status !== 'PASS').map((p: { key: string; status: string }) => `${p.key}:${p.status}`)).toEqual(['IAM_POLICY:NOT_TESTED', 'ACCESS_VERIFIED:NOT_TESTED']);
+    expect(h.model.modules.find((m) => m.moduleKey === 'FBET_REV_PC')?.enabled).toBe(true);
+    expect(h.model.calls).not.toContain('DISABLE');
+  });
+
+  it('A14: B09 is written through the Builder contract (AREA → MENU → FUNCTION, no legacy); a HIDDEN link does not count as done; rerun adds no duplicate', async () => {
+    const h = build({ moduleAllowed: true });
+    writePackage(h.modules, 'FBET_REV_NV');
+    const { c } = await ready(h, 'FBET_REV_NV');
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    expect(plan.navigationPlan).toMatchObject({ area: expect.any(String), menu: expect.any(String), links: [{ functionKey: 'ORDER', title: 'Đơn hàng' }] });
+    const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
+    h.restart();
+    const first = (await h.post(`/foundation/module-installations/${done.installId}/continue`)).body.installation;
+    expect(first.state).toBe('POSTCHECK_INCOMPLETE'); // no assignment yet
+    const layout = readLayout(h.model.nav);
+    expect(layout.legacy).toEqual([]);
+    expect(layout.areas.flatMap((a) => a.menus.flatMap((m) => m.items))).toHaveLength(1);
+    // someone hides the link: it must not be counted as linked
+    const link = h.model.nav.find((n) => n.functionId !== null);
+    if (link) h.model.nav[h.model.nav.indexOf(link)] = { ...link, isVisible: false };
+    h.model.assignments = 1;
+    const second = (await h.post(`/foundation/module-installations/${done.installId}/continue`)).body.installation;
+    expect(second.state).toBe('INSTALLED_ACTIVE');
+    const after = readLayout(h.model.nav);
+    expect(after.legacy).toEqual([]);
+    expect(after.areas.flatMap((a) => a.menus.flatMap((m) => m.items)).filter((l) => l.visible)).toHaveLength(1); // re-shown, not duplicated
+    expect(h.model.nav).toHaveLength(3);
+  });
+  it('A08 / E2E-05: an allowed session getting 200 with an error envelope (wrong response contract) → ACCESS_VERIFIED FAIL with the endpoint → RECOVERY_REQUIRED, never success', async () => {
+    const h = build({ moduleAllowed: true });
+    writePackage(h.modules, 'FBET_REV_CT');
+    const { c } = await ready(h, 'FBET_REV_CT');
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
+    h.restart();
+    h.model.assignments = 1;
+    const broken = express.Router();
+    broken.get('/fbet-rev-ct/orders', (req, res) => { if (!String(req.headers.cookie ?? '').includes(TOKEN)) { res.status(401).json({ error: { code: 'SESSION_INVALID' } }); return; } res.status(200).json({ error: { code: 'OOPS' } }); });
+    broken.post('/fbet-rev-ct/orders', (_req, res) => { res.status(401).json({ error: { code: 'SESSION_INVALID' } }); });
+    h.runtime.routers.set('FBET_REV_CT', broken);
+    const r = (await h.post(`/foundation/module-installations/${done.installId}/continue`)).body.installation;
+    expect(r.state).toBe('RECOVERY_REQUIRED');
+    expect(r.postcheck.find((x: { key: string }) => x.key === 'ACCESS_VERIFIED')).toMatchObject({ status: 'FAIL', detail: 'GET /api/fbet-rev-ct/orders → 200' });
+  });
+});
+
+// REV01-D1 — upgrade of a module with an ACTIVE version: recovery point, journalled activation, controlled rollback and
+// verified recovery. Red before the fix: every upgrade plan was BLOCKED (UPGRADE_RECOVERY_UNAVAILABLE).
+describe('REV01-D1 upgrade recovery', { timeout: 30_000 }, () => {
+  const UPG = [...ALL, PERM_RETIRE_ID];
+  const mic11 = (key: string) => {
+    const m = micOf(key, '1.1.0');
+    return { ...m, mic04Navigation: [...m.mic04Navigation, { menuLabel: 'Báo cáo', routePath: `${slug(key)}/report`, screenKey: 'pkg.report', functionKey: 'REPORT' }],
+      mic09Compatibility: { kind: 'CHANGE', fromVersion: '1.0.0', changes: ['Thêm báo cáo'] } };
+  };
+  const lockOf = (h: H, key: string) => parseDeployments(JSON.parse(readFileSync(h.lockFile, 'utf8'))).get(key);
+  const status = (h: H, key: string) => Object.fromEntries(h.model.versions.filter((v) => h.model.modules.find((m) => m.moduleId === v.moduleId)?.moduleKey === key).map((v) => [v.moduleVersion, v.status]));
+  const cont = (h: H, id: string) => h.post(`/foundation/module-installations/${id}/continue`);
+  async function installed(h: H, key: string) {
+    writePackage(h.modules, key);
+    const { c } = await ready(h, key);
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
+    h.restart();
+    h.model.assignments = 1;
+    expect((await cont(h, done.installId)).body.installation.state).toBe('INSTALLED_ACTIVE');
+    return lockOf(h, key);
+  }
+  async function upgrade(h: H, key: string) {
+    writePackage(h.modules, key, '1.1.0', mic11(key));
+    const { c } = await ready(h, key);
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    expect(plan).toMatchObject({ state: 'PREPARED', classification: 'UPGRADE', blockers: [] });
+    const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
+    expect(done.state).toBe('AWAITING_RESTART');
+    return { c, plan, done, id: String(done.installId) };
+  }
+
+  it('D1-01 success: recovery point taken at commit (B01/B02/MIC hash/lock/IAM/B09), activation journalled, 1.0.0 RETIRED, INSTALLED_ACTIVE, no rollback', async () => {
+    const h = build({ moduleAllowed: true, grants: UPG });
+    const v1 = await installed(h, 'FBET_UPG_OK');
+    const { done, id } = await upgrade(h, 'FBET_UPG_OK');
+    expect(done.recoveryPoint).toMatchObject({ activeVersion: '1.0.0', enabled: true, lock: v1, activeManifestHash: expect.stringMatching(/^[0-9a-f]{64}$/), navigationRevision: expect.any(String) });
+    expect(done.recoveryPoint.iamPermissions).toHaveLength(3);
+    expect(lockOf(h, 'FBET_UPG_OK')?.packageVersion).toBe('1.1.0');
+    expect(status(h, 'FBET_UPG_OK')).toEqual({ '1.0.0': 'ACTIVE', '1.1.0': 'APPROVED' }); // nothing activated before the restart
+    h.restart();
+    const fin = (await cont(h, id)).body.installation;
+    expect(fin.state).toBe('INSTALLED_ACTIVE');
+    expect(status(h, 'FBET_UPG_OK')).toEqual({ '1.0.0': 'RETIRED', '1.1.0': 'ACTIVE' });
+    expect(fin.activation).toMatchObject({ versionId: done.after.versionId, retiredVersionId: done.recoveryPoint.activeVersionId, activatedAt: expect.any(String) });
+    expect(fin.navigationAdded).toHaveLength(1);
+    expect(h.model.calls.some((x) => x.startsWith('ROLLBACK'))).toBe(false);
+    expect((await h.get(`/foundation/module-installations/${id}/report.txt`)).text).toContain('Điểm phục hồi: 1.0.0');
+  });
+
+  it('D1-02 failure before cutover (Activation Gate refuses 1.1.0): B02 untouched, lock restored → RECOVERY_AWAITING_RESTART; RESTART_PENDING until the old release runs; then RECOVERED', async () => {
+    const h = build({ moduleAllowed: true, grants: UPG });
+    const v1 = await installed(h, 'FBET_UPG_GT');
+    const { id } = await upgrade(h, 'FBET_UPG_GT');
+    h.restart();
+    h.fakeFail.set('activate', 'ACTIVATION_BLOCKED');
+    const r = (await cont(h, id)).body.installation;
+    expect(r.state).toBe('RECOVERY_AWAITING_RESTART');
+    expect(r.rollback).toMatchObject({ b02: 'NOT_NEEDED', b01: 'NOT_NEEDED', navigation: 'NOT_NEEDED', lock: 'DONE' });
+    expect(status(h, 'FBET_UPG_GT')).toEqual({ '1.0.0': 'ACTIVE', '1.1.0': 'APPROVED' });
+    expect(lockOf(h, 'FBET_UPG_GT')).toEqual(v1);
+    const early = await cont(h, id);
+    expect([early.status, early.body.error.code]).toEqual([409, 'RESTART_PENDING']); // the process still runs 1.1.0
+    expect((await h.get(`/foundation/module-installations/${id}`)).body.installation.state).toBe('RECOVERY_AWAITING_RESTART');
+    h.restart();
+    const fin = (await cont(h, id)).body.installation;
+    expect(fin.state).toBe('RECOVERED');
+    expect(fin.postcheck.map((p: { key: string; status: string }) => `${p.key}:${p.status}`)).toEqual(['RECOVERY_RUNTIME:PASS', 'RECOVERY_B02:PASS', 'RECOVERY_B01:PASS', 'RECOVERY_NAVIGATION:PASS', 'API_SMOKE:PASS']);
+    expect((await cont(h, id)).status).toBe(409); // terminal
+  });
+
+  it('D1-03 failure after activation (B09 apply fails): Lifecycle ROLLBACK with the journal, 1.1.0 RETIRED / 1.0.0 ACTIVE, old lock; after restart RECOVERED', async () => {
+    const h = build({ moduleAllowed: true, grants: UPG });
+    const v1 = await installed(h, 'FBET_UPG_NV');
+    const { id } = await upgrade(h, 'FBET_UPG_NV');
+    h.restart();
+    h.fakeFail.set('nav', 'NAVIGATION_CONFLICT');
+    const r = (await cont(h, id)).body.installation;
+    expect(r.steps.find((s: { key: string }) => s.key === 'NAVIGATION')).toMatchObject({ status: 'FAILED', detail: 'NAVIGATION_CONFLICT' });
+    expect(r.state).toBe('RECOVERY_AWAITING_RESTART');
+    expect(r.rollback).toMatchObject({ b02: 'DONE', lock: 'DONE' });
+    expect(h.model.calls.filter((x) => x.startsWith('ROLLBACK'))).toEqual([`ROLLBACK 1.1.0→1.0.0 ${id.slice(0, 8)}`]);
+    expect(status(h, 'FBET_UPG_NV')).toEqual({ '1.0.0': 'ACTIVE', '1.1.0': 'RETIRED' });
+    expect(lockOf(h, 'FBET_UPG_NV')).toEqual(v1);
+    expect(r.recovery.join(' ')).toContain('DEPLOY_RESTART_REQUIRED');
+    h.fakeFail.delete('nav');
+    h.restart();
+    expect((await cont(h, id)).body.installation.state).toBe('RECOVERED');
+  });
+
+  it('D1-04 postcheck FAIL (router not mounted): rollback hides the B09 link this install added (no delete), restores B02 + lock; RECOVERED only after the old router answers', async () => {
+    const h = build({ moduleAllowed: true, grants: UPG });
+    await installed(h, 'FBET_UPG_PC');
+    const navBefore = h.model.nav.length;
+    const { id } = await upgrade(h, 'FBET_UPG_PC');
+    h.restart();
+    h.runtime.routers.delete('FBET_UPG_PC');
+    const r = (await cont(h, id)).body.installation;
+    expect(r.postcheck.find((p: { key: string }) => p.key === 'API_SMOKE').status).toBe('FAIL');
+    expect(r.state).toBe('RECOVERY_AWAITING_RESTART');
+    expect(r.rollback).toMatchObject({ b02: 'DONE', navigation: 'DONE', lock: 'DONE' });
+    const report = h.model.functions.find((f) => f.functionKey === 'REPORT' && h.model.modules.find((m) => m.moduleId === f.moduleId)?.moduleKey === 'FBET_UPG_PC');
+    expect(h.model.nav.filter((n) => n.functionId === report?.functionId).map((n) => n.isVisible)).toEqual([false]);
+    expect(h.model.nav).toHaveLength(navBefore + 1); // added once, then hidden — never deleted
+    h.restart(); // the old process mounts its router again
+    const fin = (await cont(h, id)).body.installation;
+    expect(fin.state).toBe('RECOVERED');
+    expect(status(h, 'FBET_UPG_PC')).toEqual({ '1.0.0': 'ACTIVE', '1.1.0': 'RETIRED' });
+  });
+
+  it('D1-05 interrupted restart: only the backend restarted → RESTART_PENDING, nothing activated; same after a rollback (state kept)', async () => {
+    const h = build({ moduleAllowed: true, grants: UPG });
+    await installed(h, 'FBET_UPG_RS');
+    const { id } = await upgrade(h, 'FBET_UPG_RS');
+    const backendOnly = () => { h.runtime.modules = [...parseDeployments(JSON.parse(readFileSync(h.lockFile, 'utf8'))).entries()].map(([moduleKey, v]) => ({ moduleKey, ...v })); };
+    backendOnly();
+    const early = await cont(h, id);
+    expect([early.status, early.body.error.code]).toEqual([409, 'RESTART_PENDING']);
+    expect(h.model.calls.filter((x) => x === 'ACTIVATE')).toHaveLength(1); // only the 1.0.0 install
+    expect((await h.get(`/foundation/module-installations/${id}`)).body.installation.state).toBe('AWAITING_RESTART');
+    h.restart();
+    h.fakeFail.set('activate', 'ACTIVATION_BLOCKED');
+    expect((await cont(h, id)).body.installation.state).toBe('RECOVERY_AWAITING_RESTART');
+    backendOnly();
+    const mid = await cont(h, id);
+    expect([mid.status, mid.body.error.code]).toEqual([409, 'RESTART_PENDING']);
+    expect((await h.get(`/foundation/module-installations/${id}`)).body.installation.state).toBe('RECOVERY_AWAITING_RESTART');
+  });
+
+  it('D1-06 recovery failing midway (Lifecycle ROLLBACK busy): RECOVERY_REQUIRED, 1.1.0 still ACTIVE, lock NOT restored; retry finishes the remaining steps once', async () => {
+    const h = build({ moduleAllowed: true, grants: UPG });
+    const v1 = await installed(h, 'FBET_UPG_MF');
+    const { id } = await upgrade(h, 'FBET_UPG_MF');
+    h.restart();
+    h.fakeFail.set('nav', 'NAVIGATION_CONFLICT');
+    h.fakeFail.set('recoverUpgrade', 'SERVICE_BUSY');
+    const r = (await cont(h, id)).body.installation;
+    expect(r.state).toBe('RECOVERY_REQUIRED');
+    expect(r.rollback).toMatchObject({ b02: 'PENDING', lock: 'PENDING' });
+    expect(r.recovery.join(' ')).toContain('B02 (SERVICE_BUSY)');
+    expect(status(h, 'FBET_UPG_MF')).toEqual({ '1.0.0': 'RETIRED', '1.1.0': 'ACTIVE' });
+    expect(lockOf(h, 'FBET_UPG_MF')?.packageVersion).toBe('1.1.0'); // runtime and B02 stay consistent
+    h.fakeFail.clear();
+    const again = (await cont(h, id)).body.installation;
+    expect(again.state).toBe('RECOVERY_AWAITING_RESTART');
+    expect(lockOf(h, 'FBET_UPG_MF')).toEqual(v1);
+    expect(h.model.calls.filter((x) => x.startsWith('ROLLBACK'))).toHaveLength(1);
+    h.restart();
+    expect((await cont(h, id)).body.installation.state).toBe('RECOVERED');
+  });
+
+  it('D1-07 competing installs: a second plan is INSTALL_IN_PROGRESS while the upgrade (or its recovery) is open; two continues at once → one runs, one 409, ACTIVATE once', async () => {
+    const h = build({ moduleAllowed: true, grants: UPG });
+    await installed(h, 'FBET_UPG_CC');
+    const { c, id } = await upgrade(h, 'FBET_UPG_CC');
+    const second = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    expect(second.blockers.map((b: { code: string }) => b.code)).toContain('INSTALL_IN_PROGRESS');
+    h.restart();
+    const [a, b] = await Promise.all([cont(h, id), cont(h, id)]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    expect([a, b].find((x) => x.status === 409)?.body.error.code).toMatch(/^(INSTALL_IN_PROGRESS|INSTALL_STATE_CONFLICT)$/);
+    expect(h.model.calls.filter((x) => x === 'ACTIVATE')).toHaveLength(2); // 1.0.0 install + this upgrade, once
+    expect((await h.get(`/foundation/module-installations/${id}`)).body.installation.state).toBe('INSTALLED_ACTIVE');
+    // during an open recovery the module is busy too
+    const h2 = build({ moduleAllowed: true, grants: UPG });
+    await installed(h2, 'FBET_UPG_CR');
+    const u = await upgrade(h2, 'FBET_UPG_CR');
+    h2.restart();
+    h2.fakeFail.set('activate', 'ACTIVATION_BLOCKED');
+    expect((await cont(h2, u.id)).body.installation.state).toBe('RECOVERY_AWAITING_RESTART');
+    const blocked = (await h2.post(`/foundation/module-candidates/${u.c.candidateId}/install/prepare`)).body.installation;
+    expect(blocked.blockers.map((x: { code: string }) => x.code)).toContain('INSTALL_IN_PROGRESS');
+  });
+
+  it('D1-08 reopen after a process restart: a NEW installer instance over the same journal continues the recovery and verifies it', async () => {
+    const h = build({ moduleAllowed: true, grants: UPG });
+    await installed(h, 'FBET_UPG_RO');
+    const { c, id } = await upgrade(h, 'FBET_UPG_RO');
+    h.restart();
+    h.fakeFail.set('nav', 'NAVIGATION_CONFLICT');
+    expect((await cont(h, id)).body.installation.state).toBe('RECOVERY_AWAITING_RESTART');
+    h.fakeFail.clear();
+    h.restart();
+    const service2 = new ModuleInstallerService({
+      access: h.access, db: new ModelDb(h.model), registry: h.registry, scans: h.scans, modules: h.fakes.modules, versions: h.fakes.versions, manifests: h.fakes.manifests,
+      lifecycle: h.fakes.lifecycle, navigation: h.fakes.navigation, iam: h.iamCatalog, runtime: h.runtime as InstallerRuntime, paths: h.paths, store: new InstallerStore(join(h.base, 'var', 'installer')),
+      environment: { label: 'TEST', database: 'talo_mos_v4_test', nodeEnv: 'test' }, allowedDatabase: 'talo_mos_v4_test', logger: h.logger,
+    });
+    const app2 = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger: h.logger, apiRouters: [moduleInstallerRouter({ authService: h.auth, service: service2, secureCookie: false })] });
+    const cand = await request(app2).get(`/api/foundation/module-candidates/${c.candidateId}`).set('Cookie', `talo_sid=${TOKEN}`);
+    expect(cand.body.candidate.latestInstallId).toBe(id);
+    const res = await request(app2).post(`/api/foundation/module-installations/${id}/continue`).set('Origin', TEST_ORIGIN).set('Content-Type', 'application/json').set('Cookie', `talo_sid=${TOKEN}`).send('{}');
+    expect(res.body.installation.state).toBe('RECOVERED');
+  });
+
+  it('D1-09 state / hash mismatch: ACTIVE target without a journalled activation → UNPROVEN (no rollback, lock kept); a foreign ACTIVE → 409 UPGRADE_STATE_MISMATCH; a changed old release → lock UNPROVEN', async () => {
+    const h = build({ moduleAllowed: true, grants: UPG });
+    await installed(h, 'FBET_UPG_UP');
+    const { id } = await upgrade(h, 'FBET_UPG_UP');
+    const mod = h.model.modules.find((m) => m.moduleKey === 'FBET_UPG_UP');
+    for (const v of h.model.versions.filter((x) => x.moduleId === mod?.moduleId)) { v.status = v.moduleVersion === '1.1.0' ? 'ACTIVE' : 'RETIRED'; v.activatedAt ??= '2026-10-24T01:00:00.000000Z'; } // activated outside the installer
+    h.restart();
+    const r = (await cont(h, id)).body.installation;
+    expect(r.state).toBe('RECOVERY_REQUIRED');
+    expect(r.rollback.b02).toBe('UNPROVEN');
+    expect(r.recovery.join(' ')).toContain('không phục hồi tự động');
+    expect(h.model.calls.some((x) => x.startsWith('ROLLBACK'))).toBe(false);
+    expect(lockOf(h, 'FBET_UPG_UP')?.packageVersion).toBe('1.1.0');
+    expect((await cont(h, id)).body.installation.rollback.b02).toBe('UNPROVEN'); // retry: still no guess
+
+    const h2 = build({ moduleAllowed: true, grants: UPG });
+    await installed(h2, 'FBET_UPG_FA');
+    const u = await upgrade(h2, 'FBET_UPG_FA');
+    const m2 = h2.model.modules.find((m) => m.moduleKey === 'FBET_UPG_FA');
+    for (const v of h2.model.versions.filter((x) => x.moduleId === m2?.moduleId && x.status === 'ACTIVE')) v.status = 'RETIRED';
+    h2.model.versions.push({ versionId: randomUUID(), moduleId: m2?.moduleId ?? '', moduleVersion: '1.0.9', status: 'ACTIVE', mic: null, activatedAt: '2026-10-24T02:00:00.000000Z' });
+    h2.restart();
+    const res = await cont(h2, u.id);
+    expect([res.status, res.body.error.code]).toEqual([409, 'UPGRADE_STATE_MISMATCH']);
+    expect(h2.model.calls.filter((x) => x === 'ACTIVATE')).toHaveLength(1);
+
+    const h3 = build({ moduleAllowed: true, grants: UPG });
+    await installed(h3, 'FBET_UPG_RH');
+    const w = await upgrade(h3, 'FBET_UPG_RH');
+    h3.restart();
+    writeFileSync(join(releaseDir(h3.releases, 'FBET_UPG_RH', '1.0.0'), 'backend', 'index.ts'), 'export const TAMPERED = 1;\n');
+    h3.fakeFail.set('nav', 'NAVIGATION_CONFLICT');
+    const t = (await cont(h3, w.id)).body.installation;
+    expect(t.state).toBe('RECOVERY_REQUIRED');
+    expect(t.rollback).toMatchObject({ b02: 'DONE', lock: 'UNPROVEN' });
+    expect(lockOf(h3, 'FBET_UPG_RH')?.packageVersion).toBe('1.1.0');
+  });
+
+  it('D1-10 no recovery point → the gate stays: actor without RETIRE, or the old release missing from the store → BLOCKED', async () => {
+    const h = build({ moduleAllowed: true, grants: ALL }); // no RETIRE
+    await installed(h, 'FBET_UPG_NR');
+    writePackage(h.modules, 'FBET_UPG_NR', '1.1.0', mic11('FBET_UPG_NR'));
+    const { c } = await ready(h, 'FBET_UPG_NR');
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    expect(plan.state).toBe('BLOCKED');
+    expect(plan.blockers.find((b: { code: string }) => b.code === 'ACTOR_PERMISSION_MISSING').message).toContain('foundation.module_version.retire');
+    const h2 = build({ moduleAllowed: true, grants: UPG });
+    await installed(h2, 'FBET_UPG_NL');
+    rmSync(releaseDir(h2.releases, 'FBET_UPG_NL', '1.0.0'), { recursive: true, force: true });
+    writePackage(h2.modules, 'FBET_UPG_NL', '1.1.0', mic11('FBET_UPG_NL'));
+    const r2 = await ready(h2, 'FBET_UPG_NL');
+    const p2 = (await h2.post(`/foundation/module-candidates/${r2.c.candidateId}/install/prepare`)).body.installation;
+    expect(p2.blockers.find((b: { code: string }) => b.code === 'UPGRADE_RECOVERY_UNAVAILABLE').message).toContain('kho release không có');
   });
 });

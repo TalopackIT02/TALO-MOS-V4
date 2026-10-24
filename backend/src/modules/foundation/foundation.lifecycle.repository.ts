@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { FOUNDATION_SQL } from './foundation.repository.js';
 import type { AuditRecord, FoundationDb, ModuleRecord, SqlExecutor } from './foundation.repository.js';
-import { ModuleNotFoundError, VERSION_COLUMNS, VERSION_SQL, toVersion, versionAuditParams } from './foundation.versions.repository.js';
+import { ModuleNotFoundError, VERSION_COLUMNS, VERSION_LOCK_NAMESPACE, VERSION_SQL, toVersion, versionAuditParams } from './foundation.versions.repository.js';
 import type { VersionAuditRecord, VersionRecord } from './foundation.versions.repository.js';
 
 // FBE-05 — Module & Version lifecycle (owner decisions L1–L8). Bind parameters only; B02 / B01 are changed by
@@ -14,6 +14,11 @@ import type { VersionAuditRecord, VersionRecord } from './foundation.versions.re
 //   The module lock serialises every lifecycle operation, version creation and ENABLE / DISABLE of one module, in the
 //   same order (lock → B02 / B01 rows), so concurrent operations neither deadlock nor create two ACTIVE versions.
 // No DELETE, no change of manifest_json / manifest_hash, no write to B03–B06 / B10–B14.
+// REV01-D3: ENABLE also takes the route-claim lock (one key for every module, after the module lock: no deadlock) and
+//   refuses when an ACTIVE MIC-04 route of the module is claimed by ANOTHER module that is ACTIVE + ENABLED.
+// REV01-D1: recoverUpgrade — the controlled inverse of ONE activation (installer recovery, no public route): the
+//   failed version must still be ACTIVE with exactly the activated_at recorded by the installer journal, the restored
+//   one RETIRED with an intact manifest; failed → RETIRED, restored → ACTIVE, B07 RETIRE + ROLLBACK, B08 — one transaction.
 
 const MODULE_COLUMNS = `
            m.module_id::text AS module_id, m.module_key, m.module_name, m.description, m.module_type, m.is_enabled,
@@ -53,6 +58,25 @@ export const LIFECYCLE_SQL = {
        SET status = 'RETIRED'
      WHERE v.version_id = $1::uuid AND v.module_id = $2::uuid AND v.status = 'ACTIVE'
     RETURNING ${VERSION_COLUMNS}`,
+  // REV01-D1: RETIRED → ACTIVE for the controlled recovery only (activated_at of the first activation kept).
+  reactivateVersion: `
+    UPDATE foundation.fnd_module_versions AS v
+       SET status = 'ACTIVE'
+     WHERE v.version_id = $1::uuid AND v.module_id = $2::uuid AND v.status = 'RETIRED' AND v.activated_at IS NOT NULL
+    RETURNING ${VERSION_COLUMNS}`,
+  // REV01-D3: serialises the route check of every ENABLE (single key in the Foundation lock namespace).
+  lockRouteClaims: `
+    SELECT pg_advisory_xact_lock(${VERSION_LOCK_NAMESPACE}, hashtext('foundation.route-claims'))`,
+  // REV01-D3: MIC-04 routes of OTHER modules that are ACTIVE + ENABLED, among the given routes.
+  routeHolders: `
+    SELECT DISTINCT n.route_path, m.module_key
+      FROM foundation.fnd_modules AS m
+      JOIN foundation.fnd_module_versions AS v ON v.module_id = m.module_id AND v.status = 'ACTIVE'
+      CROSS JOIN LATERAL (
+        SELECT e->>'routePath' AS route_path
+          FROM jsonb_array_elements(CASE WHEN jsonb_typeof(v.manifest_json->'mic04Navigation') = 'array' THEN v.manifest_json->'mic04Navigation' ELSE '[]'::jsonb END) AS e) AS n
+     WHERE m.is_enabled AND m.module_id <> $1::uuid AND n.route_path = ANY($2::text[])
+     ORDER BY n.route_path, m.module_key`,
   activeVersions: `
     SELECT ${VERSION_COLUMNS} FROM foundation.fnd_module_versions AS v WHERE v.module_id = $1::uuid AND v.status = 'ACTIVE'`,
   // L3: the most recent B13 check(s) of exactly this version of this module (more than one row = ambiguous → refused).
@@ -82,7 +106,7 @@ export const LIFECYCLE_SQL = {
     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5::jsonb, $6::jsonb, $7)`,
 } as const;
 
-export type LifecycleEventType = 'APPROVE' | 'REJECT' | 'ACTIVATE' | 'RETIRE' | 'ENABLE' | 'DISABLE';
+export type LifecycleEventType = 'APPROVE' | 'REJECT' | 'ACTIVATE' | 'RETIRE' | 'ENABLE' | 'DISABLE' | 'ROLLBACK';
 
 export interface CompatibilityCheckFact {
   readonly checkId: string;
@@ -127,6 +151,30 @@ export interface ModuleToggleCommand extends Actorish {
   readonly audit: (module: ModuleRecord) => AuditRecord;
 }
 
+export interface RecoverCommand extends Actorish {
+  readonly failedVersionId: string;
+  readonly restoreVersionId: string;
+  // activated_at of the failed version as returned by its activation (installer journal): proves no later activation.
+  readonly failedActivatedAt: string;
+  // Throws to refuse (e.g. restored manifest not intact).
+  readonly gate: (restore: VersionRecord) => void;
+  readonly audit: (restored: VersionRecord, retired: VersionRecord) => VersionAuditRecord;
+}
+
+export class RecoveryProofError extends Error {
+  constructor() {
+    super('recovery proof does not match the stored state');
+    this.name = 'RecoveryProofError';
+  }
+}
+
+export class RouteConflictError extends Error {
+  constructor(readonly conflicts: readonly { readonly routePath: string; readonly moduleKey: string }[]) {
+    super('route already used by an enabled module');
+    this.name = 'RouteConflictError';
+  }
+}
+
 export interface ActivationResult {
   readonly version: VersionRecord;
   readonly retired: VersionRecord | null;
@@ -158,6 +206,7 @@ export interface LifecycleRepository {
   activateVersion(command: ActivateCommand): Promise<ActivationResult>;
   retireVersion(command: RetireCommand): Promise<VersionRecord>;
   setModuleEnabled(command: ModuleToggleCommand): Promise<ModuleRecord>;
+  recoverUpgrade(command: RecoverCommand): Promise<ActivationResult>;
 }
 
 const moduleRow = z.object({
@@ -166,6 +215,14 @@ const moduleRow = z.object({
 });
 const checkRow = z.object({ check_id: z.string(), check_result: z.string() });
 const countRow = z.object({ n: z.number().int() });
+const holderRow = z.object({ route_path: z.string(), module_key: z.string() });
+
+// MIC-04 route paths of a stored manifest (non-blank strings only).
+export function mic04Routes(manifest: unknown): string[] {
+  const nav = typeof manifest === 'object' && manifest !== null && 'mic04Navigation' in manifest ? (manifest as { mic04Navigation: unknown }).mic04Navigation : null;
+  if (!Array.isArray(nav)) return [];
+  return [...new Set(nav.flatMap((n: unknown) => (typeof n === 'object' && n !== null && 'routePath' in n && typeof n.routePath === 'string' && n.routePath.trim() !== '' ? [n.routePath] : [])))];
+}
 
 function toModule(row: unknown): ModuleRecord {
   const m = moduleRow.parse(row);
@@ -276,6 +333,12 @@ export class SqlLifecycleRepository implements LifecycleRepository {
         const active = (await tx.query(LIFECYCLE_SQL.activeVersions, [moduleId])).map(toVersion);
         const [only] = active;
         command.gate(active.length, active.length === 1 && only ? await activationFacts(tx, only) : null);
+        const routes = only ? mic04Routes(only.manifestJson) : [];
+        await tx.execute(LIFECYCLE_SQL.lockRouteClaims, []);
+        if (routes.length > 0) {
+          const holders = (await tx.query(LIFECYCLE_SQL.routeHolders, [moduleId, routes])).map((r) => holderRow.parse(r));
+          if (holders.length > 0) throw new RouteConflictError(holders.map((h) => ({ routePath: h.route_path, moduleKey: h.module_key })));
+        }
       }
       const rows = await tx.query(enable ? LIFECYCLE_SQL.enableModule : LIFECYCLE_SQL.disableModule, [moduleId]);
       const [row] = rows;
@@ -284,6 +347,26 @@ export class SqlLifecycleRepository implements LifecycleRepository {
       await this.event(tx, command, null, enable ? 'ENABLE' : 'DISABLE', { is_enabled: !enable }, { is_enabled: enable });
       await tx.execute(FOUNDATION_SQL.insertAudit, moduleAuditParams(command.audit(module)));
       return module;
+    });
+  }
+
+  async recoverUpgrade(command: RecoverCommand): Promise<ActivationResult> {
+    const { moduleId, failedVersionId, restoreVersionId } = command;
+    return this.db.transaction(async (tx) => {
+      const failed = await lockedVersion(tx, moduleId, failedVersionId, 'ACTIVE');
+      if (failed.activatedAt !== command.failedActivatedAt || failedVersionId === restoreVersionId) throw new RecoveryProofError();
+      const [raw] = await tx.query(VERSION_SQL.getVersion, [restoreVersionId, moduleId]);
+      if (raw === undefined) throw new LifecycleVersionNotFoundError();
+      const restore = toVersion(raw);
+      if (restore.status !== 'RETIRED' || restore.activatedAt === null) throw new VersionStateConflictError();
+      command.gate(restore);
+      // Retire-before-reactivate (one-ACTIVE index): both changes, their B07 rows and the B08 row commit together.
+      const retired = updatedVersion(await tx.query(LIFECYCLE_SQL.retireVersion, [failedVersionId, moduleId]));
+      await this.event(tx, command, failedVersionId, 'RETIRE', 'ACTIVE', 'RETIRED');
+      const restored = updatedVersion(await tx.query(LIFECYCLE_SQL.reactivateVersion, [restoreVersionId, moduleId]));
+      await this.event(tx, command, restoreVersionId, 'ROLLBACK', 'RETIRED', 'ACTIVE');
+      await tx.execute(VERSION_SQL.insertVersionAudit, versionAuditParams(command.audit(restored, retired)));
+      return { version: restored, retired };
     });
   }
 

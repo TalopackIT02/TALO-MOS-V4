@@ -14,6 +14,8 @@ import { PasswordHasher } from '../../../src/modules/auth/passwordHasher.js';
 import { SlidingWindowRateLimiter } from '../../../src/modules/auth/rateLimiter.js';
 import { sqlstateOf } from '../../../src/modules/auth/sqlstate.js';
 import { createFoundationModule } from '../../../src/modules/foundation/index.js';
+import type { Actor } from '../../../src/modules/foundation/foundation.access.js';
+import type { ModuleLifecycleService } from '../../../src/modules/foundation/foundation.lifecycle.service.js';
 import { LIFECYCLE_SQL, SqlLifecycleRepository } from '../../../src/modules/foundation/foundation.lifecycle.repository.js';
 import { SqlManifestRepository } from '../../../src/modules/foundation/foundation.manifest.repository.js';
 import { FOUNDATION_SQL, SqlFoundationRepository, prismaFoundationDb } from '../../../src/modules/foundation/foundation.repository.js';
@@ -164,6 +166,7 @@ describe.skipIf(!enabled)('FBE-05 Module & Version lifecycle — PostgreSQL (tal
   let fx: AuthFixtures;
   let az: AuthzFixtures;
   let app: Express;
+  let lifecycle: ModuleLifecycleService;
   let fault: Fault = 'NONE';
   let faultActiveId = NIL;
   let cookie = '';
@@ -246,6 +249,14 @@ describe.skipIf(!enabled)('FBE-05 Module & Version lifecycle — PostgreSQL (tal
     };
   }
 
+  // REV01-D3: a run-unique MIC-04 route (the shared /sales/orders of older fixtures is held by many ENABLED FBET modules).
+  function routedMic(moduleKey: string, moduleVersion: string, route: string, from?: string) {
+    const mic = cleanMic(moduleKey, moduleVersion, from);
+    return { ...mic, mic04Navigation: mic.mic04Navigation.map((n) => ('routePath' in n && n.routePath ? { ...n, routePath: route } : n)) };
+  }
+  const ownRoute = (moduleKey: string) => `/${moduleKey.toLowerCase().replace(/_/g, '-')}/orders`;
+  const actor = (): Actor => ({ userAccountId: actorId, assuranceLevel: 1, requestId: randomUUID() });
+
   // Harness reads (SELECT on B01–B14).
   async function version(versionId: string) {
     const [r] = await h.ok(`SELECT status, coalesce(reviewed_by_account_id::text, '<null>'), coalesce(reviewed_at::text, '<null>'), coalesce(activated_at::text, '<null>'),
@@ -300,6 +311,7 @@ describe.skipIf(!enabled)('FBE-05 Module & Version lifecycle — PostgreSQL (tal
       repository: new SqlFoundationRepository(db), versionRepository: new SqlModuleVersionRepository(db), manifestRepository: new SqlManifestRepository(db, 'TEST'),
       lifecycleRepository: new SqlLifecycleRepository(db),
     });
+    lifecycle = foundation.lifecycleService;
     app = createApp({ config: loadConfig({ NODE_ENV: 'test', APP_ORIGIN: TEST_ORIGIN }), logger, apiRouters: [auth.router, foundation.router] });
     h = await AuthFixtures.connect();
     fx = new AuthFixtures(h, hasher);
@@ -360,6 +372,9 @@ describe.skipIf(!enabled)('FBE-05 Module & Version lifecycle — PostgreSQL (tal
       ['blockingChanges', LIFECYCLE_SQL.blockingChanges, [NIL]], ['directDbContracts', LIFECYCLE_SQL.directDbContracts, [NIL]],
       ['enableModule', LIFECYCLE_SQL.enableModule, [NIL]], ['disableModule', LIFECYCLE_SQL.disableModule, [NIL]],
       ['insertLifecycleEvent', LIFECYCLE_SQL.insertLifecycleEvent, [NIL, null, 'ENABLE', NIL, '{}', '{}', 'plan']],
+      // REV01-D1 / D3
+      ['reactivateVersion', LIFECYCLE_SQL.reactivateVersion, [NIL, NIL]], ['lockRouteClaims', LIFECYCLE_SQL.lockRouteClaims, []],
+      ['routeHolders', LIFECYCLE_SQL.routeHolders, [NIL, ['/x']]],
     ];
     expect(statements.map((s) => s[0]).sort()).toEqual(Object.keys(LIFECYCLE_SQL).sort());
     const allowed: Record<string, string> = {};
@@ -528,7 +543,8 @@ describe.skipIf(!enabled)('FBE-05 Module & Version lifecycle — PostgreSQL (tal
     const e0 = await send('post', murl(moduleId, 'enable'));
     expect(e0.status).toBe(422);
     expect(e0.body.error).toMatchObject({ code: 'MODULE_ENABLE_BLOCKED', details: { errors: ['NO_ACTIVE_VERSION'] } });
-    const v1 = await submitted(moduleId, '1.0.0', cleanMic(moduleKey, '1.0.0'));
+    // REV01-D3: a module-own route (ENABLE refuses a route held by another ENABLED module, e.g. /sales/orders of older fixtures)
+    const v1 = await submitted(moduleId, '1.0.0', routedMic(moduleKey, '1.0.0', ownRoute(moduleKey)));
     await step(moduleId, v1, 'approve');
     await step(moduleId, v1, 'activate');
     expect((await module(moduleId)).enabled).toBe('f'); // activation never enables
@@ -590,10 +606,11 @@ describe.skipIf(!enabled)('FBE-05 Module & Version lifecycle — PostgreSQL (tal
     const seen: Record<string, number> = {};
     const prepare = async (): Promise<{ moduleId: string; v1: string; v2: string }> => {
       const { moduleId, moduleKey } = await newModule();
-      const v1 = await submitted(moduleId, '1.0.0', cleanMic(moduleKey, '1.0.0'));
+      // REV01-D3: module-own route (the B01_ENABLE case enables this module)
+      const v1 = await submitted(moduleId, '1.0.0', routedMic(moduleKey, '1.0.0', ownRoute(moduleKey)));
       await step(moduleId, v1, 'approve');
       await step(moduleId, v1, 'activate');
-      const v2 = await submitted(moduleId, '2.0.0', cleanMic(moduleKey, '2.0.0', '1.0.0'));
+      const v2 = await submitted(moduleId, '2.0.0', routedMic(moduleKey, '2.0.0', ownRoute(moduleKey), '1.0.0'));
       return { moduleId, v1, v2 };
     };
     const cases: [Fault, string, (c: { moduleId: string; v1: string; v2: string }) => Promise<void>, (c: { moduleId: string; v1: string; v2: string }) => string][] = [
@@ -656,5 +673,108 @@ describe.skipIf(!enabled)('FBE-05 Module & Version lifecycle — PostgreSQL (tal
       AND (v.reviewed_at IS NULL OR v.reviewed_by_account_id IS NULL OR v.manifest_hash IS NULL
            OR NOT EXISTS (SELECT 1 FROM foundation.fnd_compatibility_checks k WHERE k.to_version_id = v.version_id))`);
     expect(Number(orphans?.[0])).toBe(0);
+  });
+  // ------------------------------------------------------------------ FOUNDATION REV-01 closure
+
+  it('REV01-D1-DB: recoverUpgrade on PostgreSQL — v2 RETIRED / v1 ACTIVE (activated_at kept), one ACTIVE, B07 RETIRE + ROLLBACK, B08 ROLLBACK with installId; proof mismatch, B07 fault and a concurrent second recovery change nothing', async () => {
+    await login();
+    const { moduleId, moduleKey } = await newModule();
+    const route = `/fbet-${run.toLowerCase().replace(/_/g, '-')}-d1`;
+    const v1 = await submitted(moduleId, '1.0.0', routedMic(moduleKey, '1.0.0', route));
+    await step(moduleId, v1, 'approve');
+    await step(moduleId, v1, 'activate');
+    const v2 = await submitted(moduleId, '1.1.0', routedMic(moduleKey, '1.1.0', route, '1.0.0'));
+    await step(moduleId, v2, 'approve');
+    const act = await step(moduleId, v2, 'activate');
+    const activatedAt = String(act.body.version.activatedAt);
+    const v1Before = await version(v1);
+    expect([v1Before.status, (await version(v2)).status]).toEqual(['RETIRED', 'ACTIVE']);
+    const installId = randomUUID();
+    // proof mismatch (another activated_at) → 409, nothing written
+    const s0 = await moduleState(moduleId);
+    await expect(lifecycle.recoverUpgrade(actor(), { moduleId, failedVersionId: v2, restoreVersionId: v1, failedActivatedAt: '2020-01-01T00:00:00.000000Z', installId })).rejects.toMatchObject({ status: 409, code: 'RECOVERY_PROOF_MISMATCH' });
+    expect(await moduleState(moduleId)).toBe(s0);
+    // a real PostgreSQL error in B07 (N-08 CHECK) inside the recovery → 503, whole transaction rolled back
+    fault = 'B07';
+    await expect(lifecycle.recoverUpgrade(actor(), { moduleId, failedVersionId: v2, restoreVersionId: v1, failedActivatedAt: activatedAt, installId })).rejects.toMatchObject({ status: 503 });
+    fault = 'NONE';
+    expect(await moduleState(moduleId)).toBe(s0);
+    // two recoveries at once: one wins, the other is refused (module lock), no deadlock, no lock left
+    const a1 = actor();
+    const a2 = actor();
+    const results = await Promise.allSettled([
+      lifecycle.recoverUpgrade(a1, { moduleId, failedVersionId: v2, restoreVersionId: v1, failedActivatedAt: activatedAt, installId }),
+      lifecycle.recoverUpgrade(a2, { moduleId, failedVersionId: v2, restoreVersionId: v1, failedActivatedAt: activatedAt, installId }),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    const rejected = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(rejected?.reason).toMatchObject({ status: 409, code: 'VERSION_STATE_CONFLICT' });
+    const winner = results[0]?.status === 'fulfilled' ? a1 : a2;
+    const v1After = await version(v1);
+    expect([v1After.status, (await version(v2)).status, await activeCount(moduleId)]).toEqual(['ACTIVE', 'RETIRED', 1]);
+    expect(v1After.activatedAt).toBe(v1Before.activatedAt); // D-06: first activation time kept
+    expect((await eventsOf(winner.requestId)).map((e) => [e.type, e.versionId, e.before, e.after, e.actor])).toEqual([
+      ['RETIRE', v2, { status: 'ACTIVE' }, { status: 'RETIRED' }, actorId],
+      ['ROLLBACK', v1, { status: 'RETIRED' }, { status: 'ACTIVE' }, actorId],
+    ]);
+    const audits = await auditsOf(winner.requestId);
+    expect(audits.map((x) => [x.action, x.outcome, x.versionId, x.moduleId])).toEqual([['MODULE_VERSION.ROLLBACK', 'SUCCESS', v1, moduleId]]);
+    expect(audits[0]?.metadata).toMatchObject({ failedVersionId: v2, installId });
+    expect(await ungrantedLocks()).toBe(0);
+    // no generic RETIRED → ACTIVE: the retired v2 cannot be activated again
+    await step(moduleId, v2, 'activate', 409);
+    evidence['d1'] = { moduleKey, v1: v1After.status, v2: 'RETIRED', events: (await eventsOf(winner.requestId)).map((e) => e.type), audit: audits[0]?.action, concurrent: results.map((r) => r.status) };
+  });
+
+  it('REV01-D3-DB: ENABLE route guard on PostgreSQL — FBET_ST fixture vs SYSTEM_TEST (/system-test, /system-test/runner) refused unchanged; two modules with one route enabled at once → 200 + 409', async () => {
+    await login();
+    // (a) the existing fixture FBET_ST_* (ACTIVE, DISABLED) whose ACTIVE MIC-04 holds the SYSTEM_TEST routes — never modified
+    const holders = await h.ok(`SELECT m.module_key, m.is_enabled::text, string_agg(n.route_path, ',' ORDER BY n.route_path) FROM foundation.fnd_modules m
+      JOIN ${B02} v ON v.module_id = m.module_id AND v.status = 'ACTIVE'
+      CROSS JOIN LATERAL (SELECT e->>'routePath' AS route_path FROM jsonb_array_elements(v.manifest_json->'mic04Navigation') e) n
+      WHERE n.route_path IN ('/system-test', '/system-test/runner') GROUP BY m.module_key, m.is_enabled ORDER BY m.module_key`);
+    const st = holders.find((r) => r[0] === 'SYSTEM_TEST');
+    const fixture = holders.find((r) => (r[0] ?? '').startsWith('FBET_ST_') && r[1] === 'false' && r[2] === '/system-test,/system-test/runner');
+    expect(st?.slice(1)).toEqual(['true', '/system-test,/system-test/runner']);
+    expect(fixture).toBeDefined();
+    const [fid] = await h.ok(`SELECT module_id FROM foundation.fnd_modules WHERE module_key = ${lit(fixture?.[0] ?? '')}`);
+    const fixtureId = fid?.[0] ?? NIL;
+    const before = await moduleState(fixtureId);
+    const res = await send('post', murl(fixtureId, 'enable'));
+    if (res.status === 200) await send('post', murl(fixtureId, 'disable')); // never leave the fixture enabled (then fail below)
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(res.body.error).toMatchObject({ code: 'MODULE_ROUTE_CONFLICT', details: { errors: ['/system-test@SYSTEM_TEST', '/system-test/runner@SYSTEM_TEST'] } });
+    expect(await moduleState(fixtureId)).toBe(before); // is_enabled, updated_at, B07, B08 unchanged
+    expect(await auditsOf(rid(res))).toEqual([]); // gate refusal policy: no B08 row
+    // (b) race: two run modules, same run-unique route, both ACTIVE; ENABLE at once → one 200, one 409 naming the winner
+    const route = `/fbet-${run.toLowerCase().replace(/_/g, '-')}-d3`;
+    const mods: { moduleId: string; moduleKey: string }[] = [];
+    for (let i = 0; i < 2; i += 1) {
+      const m = await newModule();
+      const v = await submitted(m.moduleId, '1.0.0', routedMic(m.moduleKey, '1.0.0', route));
+      await step(m.moduleId, v, 'approve');
+      await step(m.moduleId, v, 'activate');
+      mods.push(m);
+    }
+    const [r1, r2] = await Promise.all(mods.map((m) => send('post', murl(m.moduleId, 'enable'))));
+    try {
+    expect([r1?.status, r2?.status].sort()).toEqual([200, 409]);
+    const winIdx = r1?.status === 200 ? 0 : 1;
+    const lost = winIdx === 0 ? r2 : r1;
+    expect(lost?.body.error).toMatchObject({ code: 'MODULE_ROUTE_CONFLICT', details: { errors: [`${route}@${mods[winIdx]?.moduleKey ?? ''}`] } });
+    const enabledNow: (string | undefined)[] = [];
+    for (const m of mods) enabledNow.push((await module(m.moduleId)).enabled); // one psql session: sequential reads
+    expect(enabledNow.filter((e) => e === 't')).toHaveLength(1);
+    expect(await ungrantedLocks()).toBe(0);
+    expect(logs.some((l) => l.includes('40P01'))).toBe(false);
+    // after DISABLE of the winner the other one may be enabled; both end DISABLED (no ENABLED run module left behind)
+    expect((await send('post', murl(mods[winIdx]?.moduleId ?? NIL, 'disable'))).status).toBe(200);
+    const other = mods[1 - winIdx]?.moduleId ?? NIL;
+    expect((await send('post', murl(other, 'enable'))).status).toBe(200);
+    expect((await send('post', murl(other, 'disable'))).status).toBe(200);
+    } finally {
+      for (const m of mods) if ((await module(m.moduleId)).enabled === 't') await send('post', murl(m.moduleId, 'disable')); // no ENABLED run module left
+    }
+    evidence['d3'] = { fixture: fixture?.[0], conflict: res.body.error.details.errors, race: [r1?.status, r2?.status], route };
   });
 });

@@ -17,8 +17,20 @@ export function createIamCatalog(db: FoundationDb, rootAccountId: string | null)
       const rows = await db.query(`SELECT permission_code, module_code, resource_code, operation, minimum_assurance_level FROM iam.iam_permissions WHERE module_code = $1`, [moduleCode]);
       return rows.map((r) => row.parse(r)).map((r) => ({ permissionCode: r.permission_code, moduleCode: r.module_code, resourceCode: r.resource_code, operation: r.operation, minimumAssuranceLevel: r.minimum_assurance_level }));
     },
+    async assignments(moduleCode: string): Promise<number> {
+      const [r] = await db.query(`SELECT (SELECT count(*) FROM iam.iam_role_permissions rp JOIN iam.iam_permissions p ON p.permission_id = rp.permission_id WHERE p.module_code = $1)
+        + (SELECT count(*) FROM iam.iam_user_permissions up JOIN iam.iam_permissions p ON p.permission_id = up.permission_id WHERE p.module_code = $1 AND up.effect = 'ALLOW') AS n`, [moduleCode]);
+      return Number((r as { n?: unknown } | undefined)?.n ?? 0);
+    },
+    // REV01-D2: the privileges the real write path needs, at COLUMN level (the TEST grants are column grants; a table-level
+    // has_table_privilege(…,'INSERT') is false for them and was a false IAM_DB_GRANT_MISSING): INSERT of the six columns
+    // createPermission() writes (permission_id has its default), SELECT of the RETURNING / duplicate-check columns, and
+    // INSERT of the IAM audit columns mutation() writes. Checked on THIS connection (current_user).
     async writable(): Promise<boolean> {
-      const [r] = await db.query(`SELECT has_table_privilege('iam.iam_permissions', 'INSERT') AS ok`, []);
+      const [r] = await db.query(`
+        SELECT (SELECT bool_and(has_column_privilege('iam.iam_permissions', c, 'INSERT')) FROM unnest(ARRAY['permission_code','module_code','resource_code','operation','minimum_assurance_level','permission_description']) AS c)
+           AND (SELECT bool_and(has_column_privilege('iam.iam_permissions', c, 'SELECT')) FROM unnest(ARRAY['permission_id','permission_code','module_code','resource_code','operation','minimum_assurance_level']) AS c)
+           AND (SELECT bool_and(has_column_privilege('iam.iam_audit_logs', c, 'INSERT')) FROM unnest(ARRAY['actor_account_id','action_code','target_type','target_id','outcome','metadata']) AS c) AS ok`, []);
       return typeof r === 'object' && r !== null && 'ok' in r && r.ok === true;
     },
     async create(actor, data) {

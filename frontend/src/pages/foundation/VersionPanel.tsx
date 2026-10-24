@@ -2,13 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { foundationApi, isJsonObject } from '../../services/foundation/foundationApi';
 import type { ModuleRecord, VersionRecord } from '../../services/foundation/foundationApi';
+import type { Candidate } from '../../services/foundation/moduleScanApi';
+import { ConfirmModal } from './Overlay';
+import type { ConfirmSpec } from './Overlay';
 import { FeedbackLine, StatusTag, formatTime, settle } from './common';
 import type { Feedback } from './common';
 import { DataTable } from '../../components/DataTable';
 import type { Column } from '../../components/DataTable';
 
 // FE-04 / FE-05 — versions of one module: create a DRAFT, edit the MIC JSON (DRAFT only), SUBMIT, then the lifecycle
-// actions that match the known status. ACTIVATE / RETIRE / REJECT ask for confirmation. The backend validates everything
+// actions that match the known status. ACTIVATE / RETIRE / REJECT are confirmed in a popup (FOUNDATION-REV-01 B08).
+// REV-01 A01: a DRAFT without stored MIC is NOT pre-filled with a template any more — the MIC of a package comes from its
+// Candidate (Candidate Workspace → install plan). The template is only inserted on an explicit advanced action. The backend validates everything
 // (MIC codes, gates, state machine); its answer is shown as is.
 
 type Action = 'submit' | 'approve' | 'reject' | 'activate' | 'retire';
@@ -42,11 +47,9 @@ function micTemplate(moduleKey: string, moduleVersion: string, moduleName: strin
   };
 }
 
-// FIX-FE-MIC-SAVE-01: text shown for a version. The template is ONLY for a DRAFT that has no stored manifest yet; a
-// stored manifest is always shown as stored; a locked version without manifest shows nothing.
-function micText(version: VersionRecord, moduleKey: string, moduleName: string): string {
-  if (version.manifestJson !== null) return JSON.stringify(version.manifestJson, null, 2);
-  return version.status === 'DRAFT' ? JSON.stringify(micTemplate(moduleKey, version.moduleVersion, moduleName), null, 2) : '';
+// Text shown for a version: the stored manifest as stored; nothing when there is none (REV-01: no template by default).
+function micText(version: VersionRecord): string {
+  return version.manifestJson !== null ? JSON.stringify(version.manifestJson, null, 2) : '';
 }
 
 // Key-order independent JSON equality (PostgreSQL jsonb does not keep the key order of the request).
@@ -73,9 +76,12 @@ export interface VersionPanelProps {
   readonly module: ModuleRecord;
   readonly onSessionLost: () => void;
   readonly onChanged: () => void;
+  // REV-01: the Candidate of this module (if any) — the canonical source of the MIC; opened in the Candidate Workspace.
+  readonly candidate?: Candidate | null;
+  readonly onOpenCandidate?: (candidateId: string) => void;
 }
 
-export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelProps) {
+export function VersionPanel({ module, onSessionLost, onChanged, candidate = null, onOpenCandidate }: VersionPanelProps) {
   const [versions, setVersions] = useState<VersionRecord[] | null>(null);
   const [selected, setSelected] = useState<VersionRecord | null>(null);
   const [newVersion, setNewVersion] = useState('1.0.0');
@@ -84,6 +90,7 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
   const [dirty, setDirty] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<{ action: Action; spec: ConfirmSpec } | null>(null);
 
   // `keepEdits`: a reload after another action keeps unsaved edits of the textarea (never replaced by stored / template).
   const load = useCallback(async (keepId?: string, keepEdits = false) => {
@@ -93,7 +100,7 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
       const found = data.find((x) => x.versionId === keepId) ?? null;
       setSelected(found);
       if (found && !keepEdits) {
-        setMic(micText(found, module.moduleKey, module.moduleName));
+        setMic(micText(found));
         setDirty(false);
       }
     }
@@ -111,7 +118,7 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
     if (!discardOk()) return;
     setFeedback(null);
     setSelected(version);
-    setMic(micText(version, module.moduleKey, module.moduleName));
+    setMic(micText(version));
     setDirty(false);
   }
 
@@ -168,18 +175,26 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
         return;
       }
       setSelected(stored);
-      setMic(micText(stored, module.moduleKey, module.moduleName));
+      setMic(micText(stored));
       setDirty(false);
       setFeedback({ tone: 'success', text: 'Đã lưu hồ sơ MIC (bản nháp) và đọc lại xác nhận khớp. Nộp xét duyệt để hệ thống kiểm tra đầy đủ.' });
       await load(stored.versionId, true);
     });
   }
 
-  async function act(action: Action, confirmText?: string) {
+  function ask(action: Action, confirmText?: string) {
     if (!selected) return;
     // SUBMIT uses the STORED manifest: unsaved edits must be saved first (they are never discarded silently).
     if (dirty) return setFeedback({ tone: 'error', text: 'Hồ sơ MIC có thay đổi chưa lưu. Nhấn “Lưu MIC” trước khi nộp xét duyệt.' });
-    if (confirmText && !window.confirm(confirmText)) return;
+    if (!confirmText) return void act(action);
+    const label = ACTIONS[selected.status]?.find((a) => a.action === action)?.label ?? action;
+    setPending({ action, spec: { title: `${label} phiên bản`, object: `${module.moduleKey} ${selected.moduleVersion}`, transition: `${selected.status} → ${action === 'reject' ? 'REJECTED' : action === 'activate' ? 'ACTIVE' : 'RETIRED'}`,
+      impact: [confirmText], irreversible: action === 'reject' || action === 'activate' ? 'Không có thao tác hoàn tác qua giao diện (không có RETIRED → ACTIVE, REJECTED là trạng thái cuối).' : undefined, confirmLabel: label, danger: action !== 'activate' } });
+  }
+
+  async function act(action: Action) {
+    if (!selected) return;
+    setPending(null);
     await run(async () => {
       const data = settle(await foundationApi.lifecycle(module.moduleId, selected.versionId, action), onSessionLost, setFeedback);
       if (data) {
@@ -225,16 +240,27 @@ export function VersionPanel({ module, onSessionLost, onChanged }: VersionPanelP
           <div className="fx-toolbar">
             {isDraft && <button type="button" className="fx-btn" disabled={busy} onClick={() => void save()}>Lưu MIC</button>}
             {(ACTIONS[selected.status] ?? []).map((a) => (
-              <button key={a.action} type="button" className={a.primary ? 'fx-btn primary' : 'fx-btn danger'} disabled={busy} onClick={() => void act(a.action, a.confirm)}>
+              <button key={a.action} type="button" className={a.primary ? 'fx-btn primary' : 'fx-btn danger'} disabled={busy} onClick={() => ask(a.action, a.confirm)}>
                 {a.label}
               </button>
             ))}
           </div>
+          {isDraft && selected.manifestJson === null && !dirty && (
+            <div className="fx-msg info" role="note">
+              <p><b>CHƯA ĐỒNG BỘ MIC TỪ CANDIDATE.</b> Hồ sơ MIC của package được lấy từ Candidate (Quét Module → Kiểm tra & Chạy thử → Kế hoạch cài đặt), không nhập tay.</p>
+              <div className="fx-toolbar">
+                {candidate && onOpenCandidate && <button type="button" className="fx-btn primary" onClick={() => onOpenCandidate(candidate.candidateId)}>Mở Candidate Workspace ({candidate.packageVersion})</button>}
+                <button type="button" className="fx-btn" onClick={() => { setMic(JSON.stringify(micTemplate(module.moduleKey, selected.moduleVersion, module.moduleName), null, 2)); setDirty(true); }}>Quản trị thủ công (nâng cao): chèn MIC mẫu</button>
+              </div>
+            </div>
+          )}
+          {isDraft && dirty && selected.manifestJson === null && <p className="fx-msg error">Chế độ nâng cao: MIC mẫu (MAIN.READ) KHÔNG phải MIC của package và chưa được Preflight bảo đảm; chỉ dùng cho quản trị đặc biệt.</p>}
           <label className="muted" htmlFor="fx-mic">{isDraft ? 'Hồ sơ MIC (JSON) — chỉ sửa được khi phiên bản là bản nháp' : 'Hồ sơ MIC đã khóa (chỉ xem)'}</label>
           <textarea id="fx-mic" className="fx-mic" spellCheck={false} readOnly={!isDraft} value={mic} onChange={(e) => { setMic(e.target.value); setDirty(true); }} />
           {isDraft && dirty && <p className="muted">Có thay đổi chưa lưu.</p>}
         </div>
       )}
+      {pending && <ConfirmModal busy={busy} spec={pending.spec} onConfirm={() => void act(pending.action)} onCancel={() => setPending(null)} />}
     </div>
   );
 }

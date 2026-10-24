@@ -121,10 +121,14 @@ test.describe('desktop', () => {
     await open(page);
     await page.goto('/foundation/navigation');
     await page.locator('#tabs button').nth(1).click();
-    await expect(page.getByRole('heading', { name: 'Kho chức năng' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Cấu hình điều hướng (bản nháp)' })).toBeVisible();
+    // REV-01: the editor is a drawer — open an area editor: still no icon picker.
+    await page.locator('.nb-area').first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByRole('group', { name: /Icon của menu/ })).toHaveCount(0);
     await expect(page.getByLabel('Tìm icon theo tên')).toHaveCount(0);
     await expect(page.locator('#body')).not.toContainText('.svg');
+    await page.keyboard.press('Escape');
     const icons = await page.locator('.nb-tree .nav-icon').evaluateAll((els) => els.map((e) => e.getAttribute('data-icon')));
     expect(icons.length).toBeGreaterThan(0);
     expect(new Set(icons)).toEqual(new Set([DEFAULT_MENU_ICON]));

@@ -162,7 +162,7 @@ test('P6 root admin: every admin screen; B09 managed in Foundation by name (no U
   await page.goto('/foundation/navigation');
   await expect(tabs(page)).toHaveText(['Menu của tôi', 'Quản trị menu (B09)']);
   await tabs(page).nth(1).click();
-  await expect(page.getByRole('heading', { name: 'Kho chức năng' })).toBeVisible(); // Navigation Builder (22/10/2026)
+  await expect(page.getByRole('list', { name: 'Cấu hình điều hướng (bản nháp)' })).toBeVisible(); // Navigation Builder (REV-01: inventory in a drawer)
   await expect(page.getByRole('button', { name: 'Lưu cấu hình' })).toBeVisible();
   await expect(page.locator('#body')).not.toContainText('UUID');
   await page.goto('/iam/roles');

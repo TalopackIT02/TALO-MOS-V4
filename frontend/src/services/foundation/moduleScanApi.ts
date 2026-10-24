@@ -170,14 +170,15 @@ export const moduleScanApi = {
 // Bodies carry ids and fixed values only. Polling of a run is driven by the screen (bounded); nothing here scans
 // modules/ or retries by itself. 200 bodies are validated field by field (UNEXPECTED_RESPONSE + field path).
 export type CandidateStatus = 'SCANNED' | 'VALIDATING' | 'NEEDS_FIX' | 'READY' | 'INVALIDATED' | 'CANCELLED' | 'ERROR';
-export type PreflightStatus = 'PASS' | 'WARN' | 'FAIL' | 'NOT_TESTED' | 'UNAVAILABLE';
+export type PreflightStatus = 'PASS' | 'WARN' | 'FAIL' | 'NOT_TESTED' | 'UNAVAILABLE' | 'NOT_APPLICABLE';
 export interface Candidate {
   candidateId: string; moduleKey: string; moduleName: string; packageVersion: string; folder: string; scanId: string; sourceHash: string;
   classification: string; status: CandidateStatus; createdAt: string; updatedAt: string; latestRunId: string | null; readyRunId: string | null;
+  latestInstallId: string | null;
 }
 export interface CheckIssueView { message: string; path: string | null; field: string | null; expected: string | null; actual: string | null }
 export interface PreflightCheckView {
-  id: string; key: string; label: string; status: PreflightStatus; detail: string; startedAt: string | null; finishedAt: string | null; durationMs: number;
+  id: string; key: string; label: string; required: boolean; status: PreflightStatus; detail: string; startedAt: string | null; finishedAt: string | null; durationMs: number;
   exitCode: number | null; logHash: string | null; issues: CheckIssueView[]; limitations: string[];
 }
 export interface PreflightRunView {
@@ -186,12 +187,15 @@ export interface PreflightRunView {
   checks: PreflightCheckView[]; reportHash: string | null; limitations: string[];
 }
 export type InstallState = 'PREPARED' | 'BLOCKED' | 'PREPARING' | 'STAGED' | 'PUBLISHING' | 'AWAITING_RESTART' | 'CUTTING_OVER' | 'POSTCHECK'
-  | 'INSTALLED_ACTIVE' | 'RECOVERY_REQUIRED' | 'FAILED_SAFE' | 'EXPIRED';
+  | 'INSTALLED_ACTIVE' | 'POSTCHECK_INCOMPLETE' | 'RECOVERY_REQUIRED' | 'RECOVERY_AWAITING_RESTART' | 'RECOVERED' | 'FAILED_SAFE' | 'EXPIRED';
 export interface Installation {
   installId: string; candidateId: string; moduleKey: string; packageVersion: string; packageHash: string; classification: string; state: InstallState;
   expiresAt: string; blockers: { code: string; message: string }[]; warnings: string[];
   steps: { key: string; label: string; status: 'PENDING' | 'DONE' | 'SKIPPED' | 'FAILED'; at: string | null; detail: string }[];
-  postcheck: { key: string; status: 'PASS' | 'FAIL'; detail: string }[]; recovery: string[];
+  postcheck: { key: string; status: 'PASS' | 'FAIL' | 'NOT_TESTED'; detail: string }[]; recovery: string[];
+  micDiff: { section: string; draft: number | null; candidate: number; changed: boolean }[];
+  navigationPlan: { area: string; menu: string; links: { functionKey: string; title: string; developer: boolean }[] } | null;
+  nextActions: string[];
 }
 export interface ReleaseView { moduleKey: string; packageVersion: string; packageHash: string | null }
 export interface RuntimeReleaseView {
@@ -199,9 +203,9 @@ export interface RuntimeReleaseView {
 }
 
 const CANDIDATE_STATUSES: readonly CandidateStatus[] = ['SCANNED', 'VALIDATING', 'NEEDS_FIX', 'READY', 'INVALIDATED', 'CANCELLED', 'ERROR'];
-const PF_STATUSES: readonly PreflightStatus[] = ['PASS', 'WARN', 'FAIL', 'NOT_TESTED', 'UNAVAILABLE'];
+const PF_STATUSES: readonly PreflightStatus[] = ['PASS', 'WARN', 'FAIL', 'NOT_TESTED', 'UNAVAILABLE', 'NOT_APPLICABLE'];
 const INSTALL_STATES: readonly InstallState[] = ['PREPARED', 'BLOCKED', 'PREPARING', 'STAGED', 'PUBLISHING', 'AWAITING_RESTART', 'CUTTING_OVER', 'POSTCHECK',
-  'INSTALLED_ACTIVE', 'RECOVERY_REQUIRED', 'FAILED_SAFE', 'EXPIRED'];
+  'INSTALLED_ACTIVE', 'POSTCHECK_INCOMPLETE', 'RECOVERY_REQUIRED', 'RECOVERY_AWAITING_RESTART', 'RECOVERED', 'FAILED_SAFE', 'EXPIRED'];
 const strs = (x: Json, k: string, at: string): string[] => arr(x, k, at).map((v, i) => {
   if (typeof v !== 'string') throw new ContractError(`${at}.${k}[${i}]`);
   return v;
@@ -220,6 +224,7 @@ export function parseCandidate(v: unknown, at = 'candidate'): Candidate {
     folder: str(x, 'folder', at), scanId: str(x, 'scanId', at), sourceHash: str(x, 'sourceHash', at), classification: str(x, 'classification', at),
     status: oneOf(x, 'status', CANDIDATE_STATUSES, at), createdAt: str(x, 'createdAt', at), updatedAt: str(x, 'updatedAt', at),
     latestRunId: strOrNull(x, 'latestRunId', at), readyRunId: strOrNull(x, 'readyRunId', at),
+    latestInstallId: x['latestInstallId'] === undefined ? null : strOrNull(x, 'latestInstallId', at),
   };
 }
 
@@ -237,7 +242,7 @@ export function parseRun(v: unknown, at = 'run'): PreflightRunView {
       const p = `${at}.checks[${i}]`;
       const o = obj(c, p);
       return {
-        id: str(o, 'id', p), key: str(o, 'key', p), label: str(o, 'label', p), status: oneOf(o, 'status', PF_STATUSES, p), detail: str(o, 'detail', p),
+        id: str(o, 'id', p), key: str(o, 'key', p), label: str(o, 'label', p), required: bool(o, 'required', p), status: oneOf(o, 'status', PF_STATUSES, p), detail: str(o, 'detail', p),
         startedAt: strOrNull(o, 'startedAt', p), finishedAt: strOrNull(o, 'finishedAt', p), durationMs: num(o, 'durationMs', p), exitCode: numOrNull(o, 'exitCode', p),
         logHash: strOrNull(o, 'logHash', p), limitations: strs(o, 'limitations', p),
         issues: arr(o, 'issues', p).map((s, j) => {
@@ -268,9 +273,24 @@ export function parseInstallation(v: unknown, at = 'installation'): Installation
     postcheck: arr(x, 'postcheck', at).map((s, i) => {
       const p = `${at}.postcheck[${i}]`;
       const o = obj(s, p);
-      return { key: str(o, 'key', p), status: oneOf(o, 'status', ['PASS', 'FAIL'] as const, p), detail: str(o, 'detail', p) };
+      return { key: str(o, 'key', p), status: oneOf(o, 'status', ['PASS', 'FAIL', 'NOT_TESTED'] as const, p), detail: str(o, 'detail', p) };
     }),
     recovery: strs(x, 'recovery', at),
+    micDiff: arr(x, 'micDiff', at).map((d, i) => {
+      const p = `${at}.micDiff[${i}]`;
+      const o = obj(d, p);
+      return { section: str(o, 'section', p), draft: o['draft'] === null ? null : num(o, 'draft', p), candidate: num(o, 'candidate', p), changed: bool(o, 'changed', p) };
+    }),
+    navigationPlan: x['navigationPlan'] === null ? null : (() => {
+      const p = `${at}.navigationPlan`;
+      const o = obj(x['navigationPlan'], p);
+      return { area: str(o, 'area', p), menu: str(o, 'menu', p), links: arr(o, 'links', p).map((l, i) => {
+        const q = `${p}.links[${i}]`;
+        const lo = obj(l, q);
+        return { functionKey: str(lo, 'functionKey', q), title: str(lo, 'title', q), developer: bool(lo, 'developer', q) };
+      }) };
+    })(),
+    nextActions: strs(x, 'nextActions', at),
   };
 }
 

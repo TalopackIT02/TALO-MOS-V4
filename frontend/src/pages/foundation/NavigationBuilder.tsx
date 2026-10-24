@@ -10,6 +10,7 @@ import { SCREENS, visibleGroups } from '../../routes/shellScreens';
 import { DEFAULT_MENU_ICON, NavIcon } from '../../components/icons/NavIcon';
 import { isTestModuleKey } from '../iam/iamShared';
 import { FeedbackLine } from './common';
+import { Drawer } from './Overlay';
 import type { Feedback } from './common';
 import {
   addArea, addLinks, addMenu, changedKeys, draftIssues, edit, find, fromLayout, linkRefusal, linkRelinked, MAX_TITLE, menuModule, menuRefusal, moveArea,
@@ -61,6 +62,9 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ mode: 'design' | 'account'; nodes: MenuNode[] | null } | null>(null);
+  // FOUNDATION-REV-01 REV-B: the editor of the selected row and the Function inventory open in ONE right drawer (switching
+  // content inside it); the tree keeps the whole content area. The draft / plan / save logic is unchanged.
+  const [drawer, setDrawer] = useState<'edit' | 'inventory' | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
 
@@ -302,6 +306,11 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
     <span className="nb-handle" draggable onDragStart={(e) => dragStart(e, from)} onDragEnd={() => { drag.current = null; setDropKey(null); }} title={`Kéo để di chuyển ${label}`} aria-hidden="true">⋮⋮</span>
   );
 
+  function pick(key: string) {
+    setSelected(key);
+    setDrawer('edit');
+  }
+
   const tree = (
     <ul className="nb-tree" aria-label="Cấu hình điều hướng (bản nháp)">
       {draft.areas.map((area) => {
@@ -311,7 +320,7 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
         const expanded = open.has(area.key) || q !== '';
         return (
           <li key={area.key}>
-            <div className={rowClass(area.key, area.visible, 'nb-area')} {...dnd({ kind: 'area', key: area.key })} onClick={() => setSelected(area.key)}>
+            <div className={rowClass(area.key, area.visible, 'nb-area')} {...dnd({ kind: 'area', key: area.key })} onClick={() => pick(area.key)}>
               {handle({ kind: 'area', key: area.key }, 'vùng')}
               <button type="button" className="nb-twist" aria-expanded={expanded} aria-label={expanded ? `Thu gọn ${area.title}` : `Mở ${area.title}`} onClick={(e) => { e.stopPropagation(); toggle(area.key); }}>{expanded ? '▾' : '▸'}</button>
               <NavIcon name={DEFAULT_MENU_ICON} size={16} />
@@ -325,7 +334,7 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
               <ul>
                 {area.develop && (
                   <li>
-                    <div className={rowClass(SYSTEM_KEY, true, 'nb-system')} onClick={() => setSelected(SYSTEM_KEY)}>
+                    <div className={rowClass(SYSTEM_KEY, true, 'nb-system')} onClick={() => pick(SYSTEM_KEY)}>
                       <span className="nb-handle locked" aria-hidden="true">🔒</span>
                       <b className="nb-title">Màn hình hệ thống</b>
                       <span className="muted">{system.length > 0 ? system.map((s) => s.title).join(' · ') : 'Foundation · IAM'}</span>
@@ -349,7 +358,7 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
     const mod = menuModule(menu, area);
     return (
       <li key={menu.key}>
-        <div className={rowClass(menu.key, menu.visible, 'nb-menu')} {...dnd({ kind: 'menu', key: menu.key })} onClick={() => setSelected(menu.key)}>
+        <div className={rowClass(menu.key, menu.visible, 'nb-menu')} {...dnd({ kind: 'menu', key: menu.key })} onClick={() => pick(menu.key)}>
           {handle({ kind: 'menu', key: menu.key }, 'menu')}
           <button type="button" className="nb-twist" aria-expanded={expanded} aria-label={expanded ? `Thu gọn ${menu.title}` : `Mở ${menu.title}`} onClick={(e) => { e.stopPropagation(); toggle(menu.key); }}>{expanded ? '▾' : '▸'}</button>
           <NavIcon name={DEFAULT_MENU_ICON} size={15} />
@@ -367,7 +376,7 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
               const fn = facts.get(link.functionId);
               return (
                 <li key={link.key}>
-                  <div className={rowClass(link.key, link.visible, 'nb-link')} {...dnd({ kind: 'link', key: link.key })} onClick={() => setSelected(link.key)} data-index={li}>
+                  <div className={rowClass(link.key, link.visible, 'nb-link')} {...dnd({ kind: 'link', key: link.key })} onClick={() => pick(link.key)} data-index={li}>
                     {handle({ kind: 'link', key: link.key }, 'liên kết')}
                     <span className="nb-title">{link.title || '(chưa có tiêu đề)'}</span>
                     <span className="muted nb-mod">{fn ? `${fn.moduleKey} · ${fn.functionKey}` : 'chức năng không còn'}</span>
@@ -435,8 +444,9 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
         <div className="fx-toolbar">
           <button type="button" className="fx-btn" disabled={mi === 0} onClick={() => shift(menu.key, -1)}>↑ Lên</button>
           <button type="button" className="fx-btn" disabled={mi === area.menus.length - 1} onClick={() => shift(menu.key, 1)}>↓ Xuống</button>
+          <button type="button" className="fx-btn primary" onClick={() => setDrawer('inventory')}>+ Thêm chức năng vào menu này</button>
           {menu.visible
-            ? <button type="button" className="fx-btn danger" onClick={() => hide(menu.key)}>Gỡ menu</button>
+            ? <button type="button" className="fx-btn danger" onClick={() => { setDrawer(null); hide(menu.key); }}>Gỡ menu</button>
             : <button type="button" className="fx-btn" onClick={() => restore(menu.key)}>Khôi phục</button>}
         </div>
       </div>
@@ -476,6 +486,7 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
         <button type="button" className="fx-btn" disabled={busy || !changed} onClick={discard}>Hủy thay đổi</button>
         <button type="button" className="fx-btn" disabled={busy} onClick={() => void showPreview('design')}>Xem trước</button>
         <button type="button" className="fx-btn" onClick={newArea}>+ Thêm vùng</button>
+        <button type="button" className="fx-btn" onClick={() => setDrawer('inventory')}>+ Thêm chức năng</button>
         {changed ? <span className="nb-unsaved" role="status">● Có thay đổi chưa lưu</span> : needsDevelop ? <span className="nb-unsaved" role="status">Vùng Develop chưa được lưu — bấm “Lưu cấu hình” để tạo.</span> : <span className="muted">Không có thay đổi</span>}
       </div>
       <FeedbackLine feedback={feedback} />
@@ -487,7 +498,7 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
       )}
       {issues.length > 0 && (
         <div className="fx-msg error" role="alert"><b>Chưa lưu được — cần sửa {issues.length} điểm:</b>
-          <ul>{issues.slice(0, 12).map((i, n) => <li key={`${i.key}-${n}`}>{i.key && find(draft, i.key) ? <button type="button" className="nb-linkbtn" onClick={() => setSelected(i.key)}>{i.text}</button> : i.text}</li>)}</ul>
+          <ul>{issues.slice(0, 12).map((i, n) => <li key={`${i.key}-${n}`}>{i.key && find(draft, i.key) ? <button type="button" className="nb-linkbtn" onClick={() => pick(i.key)}>{i.text}</button> : i.text}</li>)}</ul>
         </div>
       )}
       {devCount > 0 && (
@@ -510,37 +521,43 @@ export function NavigationBuilder({ onSessionLost }: { onSessionLost: () => void
           {tree}
           <LegacyList legacy={layout.legacy} draft={draft} facts={facts} showHidden={showHidden} onChange={(id, visible) => update(setLegacy(draft, id, visible))} />
         </section>
-        <section className="nb-right" aria-label="Chi tiết và kho chức năng">
-          {panel}
-          <Inventory
-            inventory={inventory}
-            draft={draft}
-            target={selMenu}
-            facts={facts}
-            onDragStart={dragStart}
-            onAdd={(fns) => {
-              if (!selMenu) return;
-              const ok = fns.filter((fn) => linkRefusal(facts, selMenu.area, selMenu.menu, fn.functionId, true) === null);
-              update(addLinks(draft, selMenu.menu.key, ok));
-              reveal([selMenu.area.key, selMenu.menu.key]);
-              setFeedback({ tone: 'info', text: `Đã thêm ${ok.length} liên kết vào “${selMenu.menu.title}” trong bản nháp${ok.length < fns.length ? `; ${fns.length - ok.length} chức năng bị bỏ qua (đã có trong menu / không được đặt ở đây)` : ''}.` });
-            }}
-          />
-        </section>
       </div>
+      {drawer === 'edit' && selected !== null && (
+        <Drawer kicker="ĐIỀU HƯỚNG · CHỈNH SỬA" title={sel?.kind === 'area' ? 'Vùng' : sel?.kind === 'menu' ? 'Menu' : sel?.kind === 'link' ? 'Liên kết chức năng' : 'Chi tiết'} onClose={() => setDrawer(null)}>
+          {panel}
+          <p className="muted">Thay đổi nằm trong bản nháp; bấm “Lưu cấu hình” trên thanh công cụ để lưu một lần.</p>
+        </Drawer>
+      )}
+      {drawer === 'inventory' && (
+        <Drawer kicker="ĐIỀU HƯỚNG · KHO CHỨC NĂNG" title={selMenu ? `Thêm vào “${selMenu.menu.title}”` : 'Kho chức năng'} onClose={() => setDrawer(null)}>
+          {!selMenu && <p className="fx-msg info">Chọn một menu (hoặc liên kết) trong cây trước, rồi mở lại “+ Thêm chức năng” để thêm vào menu đó.</p>}
+            <Inventory
+              inventory={inventory}
+              draft={draft}
+              target={selMenu}
+              facts={facts}
+              onDragStart={dragStart}
+              onAdd={(fns) => {
+                if (!selMenu) return;
+                const ok = fns.filter((fn) => linkRefusal(facts, selMenu.area, selMenu.menu, fn.functionId, true) === null);
+                update(addLinks(draft, selMenu.menu.key, ok));
+                reveal([selMenu.area.key, selMenu.menu.key]);
+                setFeedback({ tone: 'info', text: `Đã thêm ${ok.length} liên kết vào “${selMenu.menu.title}” trong bản nháp${ok.length < fns.length ? `; ${fns.length - ok.length} chức năng bị bỏ qua (đã có trong menu / không được đặt ở đây)` : ''}.` });
+              }}
+            />
+        </Drawer>
+      )}
       {preview && (
-        <section className="fx-section nb-preview" aria-label="Xem trước">
-          <div className="fx-toolbar">
-            <h3>Xem trước bản nháp</h3>
+        <Drawer kicker="ĐIỀU HƯỚNG" title="Xem trước bản nháp" onClose={() => setPreview(null)}>
+          <div className="fx-toolbar nb-preview">
             <button type="button" className={preview.mode === 'design' ? 'fx-btn primary' : 'fx-btn'} onClick={() => void showPreview('design')}>Cây thiết kế</button>
             <button type="button" className={preview.mode === 'account' ? 'fx-btn primary' : 'fx-btn'} onClick={() => void showPreview('account')}>Theo tài khoản hiện tại</button>
-            <button type="button" className="fx-btn" onClick={() => setPreview(null)}>Đóng</button>
           </div>
           {preview.mode === 'design'
             ? <><p className="muted">Toàn bộ mục đang hiển thị của bản nháp (chưa xét quyền).</p><PreviewTree nodes={designTree(draft, system.length > 0)} /></>
             : preview.nodes === null ? <p className="info">Đang tính menu theo quyền IAM và trạng thái module…</p>
               : <><p className="muted">Menu tài khoản đang đăng nhập sẽ thấy sau khi lưu (cùng quy tắc IAM, vòng đời module và Developer như Sidebar).</p><PreviewTree nodes={shellTree(preview.nodes, DEFAULT_MENU_ICON, system)} /></>}
-        </section>
+        </Drawer>
       )}
       {removing && (
         <RemoveMenuDialog

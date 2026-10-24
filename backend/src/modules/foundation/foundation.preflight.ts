@@ -26,7 +26,9 @@ import type { FoundationDb } from './foundation.repository.js';
 // (backend side) and frontend/var/installer (frontend side, for its node_modules) and is removed at the end.
 
 export const SUITE_VERSION = 'FMI-02-PREFLIGHT-1';
-export type PreflightStatus = 'PASS' | 'WARN' | 'FAIL' | 'NOT_TESTED' | 'UNAVAILABLE';
+// REV-01 (08_PREFLIGHT_CONTRACT): NOT_APPLICABLE = the check has nothing to run for this package (e.g. no DB test) — never
+// counted as PASS; a required check must be PASS or NOT_APPLICABLE for READY; an optional check never makes READY.
+export type PreflightStatus = 'PASS' | 'WARN' | 'FAIL' | 'NOT_TESTED' | 'UNAVAILABLE' | 'NOT_APPLICABLE';
 export const CHECK_DEFS = [
   { id: 'P0', key: 'PACKAGE_INTEGRITY', label: 'Toàn vẹn package (hash nguồn + snapshot)' },
   { id: 'P1', key: 'STATIC_SCAN', label: 'Kiểm tra tĩnh manifest / MIC / route (FMI-01)' },
@@ -38,6 +40,7 @@ export const CHECK_DEFS = [
   { id: 'P5b', key: 'DATABASE_TESTS', label: 'Test ghi DB (cần DB staging cô lập)' },
   { id: 'P6', key: 'RUNTIME_SMOKE', label: 'Runtime smoke API (không phiên → 401)' },
   { id: 'P7', key: 'INSTALLED_RUNTIME', label: 'Runtime đang cài không bị thay đổi' },
+  { id: 'P8', key: 'AUTHENTICATED_IAM_SMOKE', label: 'API có phiên + IAM cho phép / từ chối (tùy chọn)', optional: true },
 ] as const;
 export type CheckKey = (typeof CHECK_DEFS)[number]['key'];
 
@@ -46,7 +49,7 @@ export interface PreflightCheck {
   readonly id: string;
   readonly key: CheckKey;
   readonly label: string;
-  readonly required: true;
+  readonly required: boolean;
   status: PreflightStatus;
   detail: string;
   startedAt: string | null;
@@ -173,7 +176,7 @@ function tscIssues(output: string): CheckIssue[] {
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
 const fileHash = (file: string) => (existsSync(file) ? createHash('sha256').update(readFileSync(file)).digest('hex') : 'missing');
 const iso = (ms: number) => new Date(ms).toISOString();
-const emptySummary = (): Record<PreflightStatus, number> => ({ PASS: 0, WARN: 0, FAIL: 0, NOT_TESTED: 0, UNAVAILABLE: 0 });
+const emptySummary = (): Record<PreflightStatus, number> => ({ PASS: 0, WARN: 0, FAIL: 0, NOT_TESTED: 0, UNAVAILABLE: 0, NOT_APPLICABLE: 0 });
 
 // P1 warnings that do not block READY: MIC-10 is replaced by THIS run's evidence at install; a disabled holder is
 // reported (MS-16) and re-checked by the installer; an existing DRAFT has no stored package hash yet.
@@ -398,7 +401,7 @@ export async function runPreflight(run: PreflightRun, target: PreflightTarget, d
     }
     {
       const c = begin('DATABASE_TESTS');
-      if (dbTests.length === 0) finish(c, 'PASS', 'Package không khai báo test ghi DB (tests/*.db.test.ts): không cần DB staging.');
+      if (dbTests.length === 0) finish(c, 'NOT_APPLICABLE', 'N/A — package không khai báo test ghi DB (tests/*.db.test.ts): KHÔNG có test tích hợp DB nào được chạy.');
       else {
         c.limitations.push('Không có database staging cô lập; test ghi DB không được chạy trên talo_mos_v4_test chính.');
         finish(c, 'NOT_TESTED', `${dbTests.length} tệp *.db.test.ts cần DB staging cô lập (chưa có): chặn READY.`, dbTests.join('\n'));
@@ -413,6 +416,14 @@ export async function runPreflight(run: PreflightRun, target: PreflightTarget, d
       finish(c, same ? 'PASS' : 'FAIL', same ? 'Lock triển khai và registry Backend/Frontend không đổi trong lượt chạy (phiên bản ACTIVE cũ giữ nguyên).' : 'Lock / registry runtime thay đổi trong lượt chạy.',
         `before=${fingerprintBefore.join(',')}\nafter=${after.join(',')}\n`);
     }
+
+    // P8 (optional) — authenticated IAM allow / deny cannot run in staging (no principal, no session, no database for the
+    // module): reported NOT_TESTED, never PASS. The real proof is the installer's postcheck ACCESS_VERIFIED after ACTIVE.
+    {
+      const c = begin('AUTHENTICATED_IAM_SMOKE');
+      c.limitations.push('Không có principal / phiên / DB fixture cô lập cho module trong staging; truy cập thật được kiểm ở hậu kiểm ACCESS_VERIFIED (FMI-03).');
+      finish(c, 'NOT_TESTED', 'Không chạy trong preflight: P6 chỉ chứng minh 401 khi không có phiên, chưa chứng minh 200 / 403 theo IAM.');
+    }
     return run;
   } finally {
     rmSync(join(deps.stagingRoot, run.runId), { recursive: true, force: true });
@@ -424,7 +435,7 @@ export async function runPreflight(run: PreflightRun, target: PreflightTarget, d
 export function concludeRun(run: PreflightRun): PreflightRun {
   run.summary = emptySummary();
   for (const c of run.checks) run.summary[c.status] += 1;
-  if (run.result !== 'INVALIDATED') run.result = run.checks.every((c) => c.status === 'PASS') ? 'READY' : 'NEEDS_FIX';
+  if (run.result !== 'INVALIDATED') run.result = run.checks.every((c) => !c.required || c.status === 'PASS' || c.status === 'NOT_APPLICABLE') ? 'READY' : 'NEEDS_FIX';
   run.limitations = [
     'Static-only PASS không phải runtime PASS: runtime smoke chỉ chứng minh API được mount sau session; quyền IAM thực được hậu kiểm sau ACTIVE.',
     'Test ghi DB chỉ chạy được khi có DB staging cô lập (chưa cấu hình).',
@@ -436,7 +447,7 @@ export function concludeRun(run: PreflightRun): PreflightRun {
 export function newRun(input: { runId: string; candidateId: string; moduleKey: string; packageVersion: string; packageHash: string; environment: PreflightEnvironment; startedBy: string; startedAt: string }): PreflightRun {
   return {
     ...input, suiteVersion: SUITE_VERSION, traceId: input.runId, status: 'RUNNING', result: null, finishedAt: null, reportHash: null, limitations: [], summary: emptySummary(),
-    checks: CHECK_DEFS.map((d) => ({ id: d.id, key: d.key, label: d.label, required: true, status: 'NOT_TESTED', detail: 'Chưa chạy.', startedAt: null, finishedAt: null, durationMs: 0, exitCode: null, logHash: null, reference: null, limitations: [], issues: [] })),
+    checks: CHECK_DEFS.map((d) => ({ id: d.id, key: d.key, label: d.label, required: !('optional' in d), status: 'NOT_TESTED', detail: 'Chưa chạy.', startedAt: null, finishedAt: null, durationMs: 0, exitCode: null, logHash: null, reference: null, limitations: [], issues: [] })),
   };
 }
 
@@ -459,9 +470,9 @@ export function reportTxt(run: PreflightRun, ctx: ReportContext): string {
     `Candidate       : ${run.candidateId} (${ctx.candidateStatus})`, `Scan ID         : ${ctx.scanId}`, `Run ID          : ${run.runId}`, `Suite           : ${run.suiteVersion}`,
     `Môi trường      : ${run.environment.label} · DB ${run.environment.database} · NODE_ENV ${run.environment.nodeEnv}`,
     `Bắt đầu         : ${run.startedAt}`, `Kết thúc        : ${run.finishedAt ?? '(đang chạy)'}`,
-    `Kết luận        : ${run.result ?? run.status}`, `Tổng hợp        : PASS ${run.summary.PASS} · WARN ${run.summary.WARN} · FAIL ${run.summary.FAIL} · NOT_TESTED ${run.summary.NOT_TESTED} · UNAVAILABLE ${run.summary.UNAVAILABLE}`, '');
+    `Kết luận        : ${run.result ?? run.status}`, `Tổng hợp        : PASS ${run.summary.PASS} · WARN ${run.summary.WARN} · FAIL ${run.summary.FAIL} · NOT_TESTED ${run.summary.NOT_TESTED} · UNAVAILABLE ${run.summary.UNAVAILABLE} · N/A ${run.summary.NOT_APPLICABLE}`, '');
   for (const c of run.checks) {
-    l.push(`[${c.status}] ${c.id} ${c.key} — ${c.label}`, `    ${c.detail}`);
+    l.push(`[${c.status}] ${c.id} ${c.key} — ${c.label}${c.required ? '' : ' (tùy chọn, không chặn READY)'}`, `    ${c.detail}`);
     if (c.startedAt) l.push(`    thời gian: ${c.startedAt} → ${c.finishedAt ?? ''} (${c.durationMs} ms), exit ${c.exitCode ?? '—'}`);
     if (c.logHash) l.push(`    log: ${c.reference ?? ''} sha256 ${c.logHash}`);
     for (const i of c.issues.slice(0, 50)) l.push(`    - ${i.message}${i.path ? ` | tệp ${i.path}` : ''}${i.field ? ` | trường ${i.field}` : ''}${i.expected ? ` | mong đợi ${i.expected}` : ''}${i.actual ? ` | thực tế ${i.actual}` : ''}`);

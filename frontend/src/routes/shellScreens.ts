@@ -29,7 +29,7 @@ export interface NavGroup {
 
 export const SCREENS = {
   home: { id: 'home', path: '/', name: 'Trang chủ', desc: 'Chức năng nghiệp vụ được cấp cho tài khoản và các màn hình quản trị nền tảng.', tabs: ['Chức năng của tôi'] },
-  module: { id: 'module', path: '/foundation/modules', name: 'Quản lý Module', desc: 'Đăng ký module, quản lý phiên bản, hồ sơ MIC và vòng đời phê duyệt – kích hoạt.', tabs: ['Module & Phiên bản', 'Đăng ký Module'] },
+  module: { id: 'module', path: '/foundation/modules', name: 'Quản lý Module', desc: 'Quét, kiểm thử, cài đặt và quản lý phiên bản module.', tabs: ['Module & Phiên bản', 'Đăng ký thủ công (nâng cao)'] },
   navigation: { id: 'navigation', path: '/foundation/navigation', name: 'Điều hướng', desc: 'Nơi duy nhất cấu hình menu (B09): vùng → menu → chức năng, kéo-thả, một chức năng ở nhiều menu, vùng Develop; chỉnh trên bản nháp và lưu một lần.', tabs: ['Menu của tôi', 'Quản trị menu (B09)'] },
   accounts: { id: 'accounts', path: '/iam/accounts', name: 'Quản lý tài khoản', desc: 'Tạo tài khoản, khóa / vô hiệu hóa, cấp lại mật khẩu tạm, phiên đăng nhập; vai trò, quyền trực tiếp, quyền hiệu lực và nhật ký IAM.', tabs: ['Danh sách tài khoản', 'Nhật ký IAM'] },
   roles: { id: 'roles', path: '/iam/roles', name: 'Vai trò và quyền', desc: 'Vai trò và quyền theo cây Module → Chức năng → Thao tác; danh mục permission theo MIC-07. Menu (B09) quản lý tại Foundation › Điều hướng.', tabs: ['Vai trò', 'Danh mục Permission'] },
@@ -68,8 +68,21 @@ export function accountIdOfPath(path: string): string | null {
   return ACCOUNT_WORKSPACE.exec(path)?.[1]?.toLowerCase() ?? null;
 }
 
+// FOUNDATION-REV-01: Candidate Workspace /foundation/modules/candidates/:candidateId — a page of the "module" screen (same
+// access rule: foundation.module_registry.read), opened from the module list. Only a UUID is accepted.
+const CANDIDATE_WORKSPACE = /^\/foundation\/modules\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+export function candidateWorkspacePath(candidateId: string): ShellPath {
+  return `${SCREENS.module.path}/candidates/${candidateId.toLowerCase()}`;
+}
+
+export function candidateIdOfPath(path: string): string | null {
+  return CANDIDATE_WORKSPACE.exec(path)?.[1]?.toLowerCase() ?? null;
+}
+
 export function screenOfPath(path: string): ShellScreen | undefined {
   if (accountIdOfPath(path) !== null) return SCREENS.accounts;
+  if (candidateIdOfPath(path) !== null) return SCREENS.module;
   const sub = SUB_ROUTES.find((r) => r.path === path);
   return sub ? screenById(sub.screen) : SCREEN_LIST.find((screen) => screen.path === path);
 }
@@ -93,6 +106,10 @@ export function shellPathOf(path: string): ShellPath | undefined {
 export function toShellPath(path: string): ShellPath {
   const accountId = accountIdOfPath(path);
   if (accountId !== null) return accountWorkspacePath(accountId);
+  const candidateId = candidateIdOfPath(path);
+  if (candidateId !== null) return candidateWorkspacePath(candidateId);
+  // /foundation/modules/<anything else> opens the module list (its own guard applies), not a stray page.
+  if (path.startsWith(`${SCREENS.module.path}/`)) return SCREENS.module.path;
   // FIX-02: /iam/accounts/<not a UUID> opens the account list (the screen's own guard applies), not a stray page.
   if (path.startsWith(`${SCREENS.accounts.path}/`)) return SCREENS.accounts.path;
   return SUB_ROUTES.find((r) => r.path === path)?.path ?? SCREEN_LIST.find((screen) => screen.path === path)?.path ?? SCREENS.home.path;

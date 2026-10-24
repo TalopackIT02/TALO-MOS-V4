@@ -5,7 +5,7 @@ import type { Actor } from './foundation.access.js';
 import { FoundationError, serviceBusy } from './foundation.errors.js';
 import { canonicalDigest, isPlainObject } from './foundation.json.js';
 import {
-  LifecycleVersionNotFoundError, ModuleStateConflictError, VersionStateConflictError,
+  LifecycleVersionNotFoundError, ModuleStateConflictError, RecoveryProofError, RouteConflictError, VersionStateConflictError,
 } from './foundation.lifecycle.repository.js';
 import type { ActivationFacts, ActivationResult, LifecycleRepository } from './foundation.lifecycle.repository.js';
 import {
@@ -89,6 +89,8 @@ export const LIFECYCLE_MESSAGES = {
   ACTIVATION_BLOCKED: 'Phiên bản chưa đủ điều kiện để kích hoạt.',
   MODULE_STATE_CONFLICT: 'Module đã ở trạng thái được yêu cầu.',
   MODULE_ENABLE_BLOCKED: 'Module chưa đủ điều kiện để bật.',
+  MODULE_ROUTE_CONFLICT: 'Route của module đang được một module khác (ACTIVE, đang bật) sử dụng: không bật được.',
+  RECOVERY_PROOF_MISMATCH: 'Trạng thái phiên bản không khớp nhật ký cài đặt: không phục hồi (không đoán).',
 } as const;
 export type LifecycleErrorCode = keyof typeof LIFECYCLE_MESSAGES;
 
@@ -118,7 +120,7 @@ class GateRefusedError extends Error {
 
 const ACTION_CODE = {
   APPROVE: 'MODULE_VERSION.APPROVE', REJECT: 'MODULE_VERSION.REJECT', ACTIVATE: 'MODULE_VERSION.ACTIVATE', RETIRE: 'MODULE_VERSION.RETIRE',
-  ENABLE: 'MODULE_REGISTRY.ENABLE', DISABLE: 'MODULE_REGISTRY.DISABLE',
+  ENABLE: 'MODULE_REGISTRY.ENABLE', DISABLE: 'MODULE_REGISTRY.DISABLE', ROLLBACK: 'MODULE_VERSION.ROLLBACK',
 } as const;
 const VERSION_TARGET = 'MODULE_VERSION';
 const REGISTRY_TARGET = 'MODULE_REGISTRY';
@@ -176,6 +178,27 @@ export class ModuleLifecycleService {
       });
     } catch (error) {
       throw this.mapFailure(actor, error, 'ACTIVATION_BLOCKED', 'retire version failed (rolled back)');
+    }
+  }
+
+  // REV01-D1 — controlled recovery of ONE failed upgrade activation, called by the installer only (no HTTP route): the
+  // installer passes its journal facts (the version it activated, the activated_at returned, the version retired by that
+  // activation); the repository re-checks them under the module lock. Needs both ACTIVATE and RETIRE permissions.
+  async recoverUpgrade(actor: Actor, input: { moduleId: string; failedVersionId: string; restoreVersionId: string; failedActivatedAt: string; installId: string }): Promise<ActivationResult> {
+    await this.guard.authorize(actor, MODULE_VERSION_ACTIVATE, ACTION_CODE.ROLLBACK, VERSION_TARGET);
+    await this.guard.authorize(actor, MODULE_VERSION_RETIRE, ACTION_CODE.ROLLBACK, VERSION_TARGET);
+    const moduleId = uuidParam(input.moduleId);
+    const failedVersionId = uuidParam(input.failedVersionId);
+    const restoreVersionId = uuidParam(input.restoreVersionId);
+    if (!moduleId || !failedVersionId || !restoreVersionId) throw new FoundationError(404, 'VERSION_NOT_FOUND');
+    try {
+      return await this.lifecycle.recoverUpgrade({
+        moduleId, failedVersionId, restoreVersionId, failedActivatedAt: input.failedActivatedAt, actorAccountId: actor.userAccountId, correlationId: actor.requestId,
+        gate: (restore) => { if (!manifestIntact(restore)) throw new GateRefusedError(['MANIFEST_INTEGRITY_INVALID']); },
+        audit: (restored) => this.versionAudit(actor, ACTION_CODE.ROLLBACK, restored, 'ROLLED_BACK', { failedVersionId, installId: input.installId }),
+      });
+    } catch (error) {
+      throw this.mapFailure(actor, error, 'ACTIVATION_BLOCKED', 'upgrade recovery failed (rolled back)');
     }
   }
 
@@ -249,6 +272,8 @@ export class ModuleLifecycleService {
     if (error instanceof VersionStateConflictError) return new LifecycleError(409, 'VERSION_STATE_CONFLICT');
     if (error instanceof ModuleStateConflictError) return new LifecycleError(409, 'MODULE_STATE_CONFLICT');
     if (error instanceof GateRefusedError) return new LifecycleError(422, gateCode, error.blockers);
+    if (error instanceof RouteConflictError) return new LifecycleError(409, 'MODULE_ROUTE_CONFLICT', error.conflicts.map((c) => `${c.routePath}@${c.moduleKey}`));
+    if (error instanceof RecoveryProofError) return new LifecycleError(409, 'RECOVERY_PROOF_MISMATCH');
     this.guard.logFailure(message, actor, error);
     return serviceBusy();
   }
