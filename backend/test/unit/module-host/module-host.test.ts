@@ -244,19 +244,23 @@ describe('FMI-01 deployment lock (modules:sync runtime guard)', () => {
     expect(readFileSync(join(out, 'registry.ts'), 'utf8')).toContain('LIVE_PKG');
   });
 
-  it('the real repository: the lock pins exactly the installed SYSTEM_TEST 1.1.1 + DATA_INSPECTOR 0.1.0 and reproduces today\'s registry', () => {
+  it('the real repository: the lock pins every installed release and reproduces today\'s registry', () => {
     const repo = join(import.meta.dirname, '..', '..', '..', '..');
     const releases = join(repo, 'backend', 'module-releases');
     const deployments = JSON.parse(readFileSync(join(repo, 'backend', 'module-deployments.json'), 'utf8'));
     const lock = parseDeployments(deployments);
-    expect([...lock.entries()].map(([k, v]) => `${k}@${v.packageVersion}`).sort()).toEqual(['DATA_INSPECTOR@0.1.0', 'SYSTEM_TEST@1.1.1']);
+    expect([...lock.entries()].map(([k, v]) => `${k}@${v.packageVersion}`).sort()).toEqual([
+      'DATA_INSPECTOR@0.1.0', 'SYSTEM_CONTROLLER_CENTER@0.1.0', 'SYSTEM_TEST@1.1.1',
+    ]);
     for (const [k, v] of lock) {
       const dir = releaseDir(releases, k, v.packageVersion);
       expect([k, hashPackage(dir, walkPackage(dir)).hash]).toEqual([k, v.packageHash]);
     }
     for (const target of ['backend', 'frontend'] as const) {
       const out = join(root, `fmi01-real-${target}`, 'installed-modules');
-      expect(syncModules({ target, releasesDir: releases, outDir: out, deployments, log: () => undefined })).toEqual(['DATA_INSPECTOR', 'SYSTEM_TEST']);
+      expect(syncModules({ target, releasesDir: releases, outDir: out, deployments, log: () => undefined })).toEqual([
+        'DATA_INSPECTOR', 'SYSTEM_CONTROLLER_CENTER', 'SYSTEM_TEST',
+      ]);
       expect(readFileSync(join(out, 'registry.ts'), 'utf8')).toBe(readFileSync(join(repo, target, 'src', 'installed-modules', 'registry.ts'), 'utf8'));
     }
   });

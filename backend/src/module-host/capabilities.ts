@@ -14,7 +14,7 @@ import type { NavigationService } from '../modules/foundation/foundation.navigat
 import { evaluateAccess } from '../modules/foundation/foundation.permissions.js';
 import type { FoundationDb, FoundationRepository } from '../modules/foundation/foundation.repository.js';
 import { HOST_PROTOCOL } from './contract.js';
-import type { HostCapabilities } from './contract.js';
+import type { HostCapabilities, HostPermission } from './contract.js';
 
 // MOD-TEST-02 — the capabilities Foundation / Auth give to a module package (protocol TALO-MODULE-HOST-1). Each one is a
 // thin adapter over the existing, unchanged implementation: sessionHandler (AuthService), AccessGuard + evaluateAccess
@@ -59,6 +59,18 @@ function routesOf(nodes: readonly MenuNode[]): string[] {
   return nodes.flatMap((n) => [...(n.routePath === null ? [] : [n.routePath]), ...routesOf(n.children)]);
 }
 
+// MIC-07 identifies a module permission by its K05 triple. Permission codes provisioned by the installer follow the
+// same deterministic lower-case form. Normalize only permissions owned by this module at the Host boundary so an
+// immutable deployed package with a stale display code cannot disagree with its own MIC triple. Cross-module
+// permissions are left untouched and still have to match the shared catalog exactly.
+export function canonicalModulePermission(moduleKey: string, permission: HostPermission): HostPermission {
+  if (permission.moduleCode !== moduleKey) return permission;
+  return {
+    ...permission,
+    permissionCode: `${permission.moduleCode}.${permission.resourceCode}.${permission.operation}`.toLowerCase(),
+  };
+}
+
 export function createHostCapabilities(moduleKey: string, deps: HostDeps): HostCapabilities {
   const guard = new AccessGuard({ repository: deps.access, logger: deps.logger });
   const handle = sessionHandler({ authService: deps.authService, secureCookie: deps.secureCookie });
@@ -68,8 +80,10 @@ export function createHostCapabilities(moduleKey: string, deps: HostDeps): HostC
     moduleKey,
     logger: deps.logger,
     session: (handler) => handle(handler),
-    authorize: (actor, permission, actionCode, deniedTargetType) => guard.authorize(actor, permission, actionCode, deniedTargetType),
-    evaluate: async (actor, permission) => evaluateAccess(await deps.access.loadAccessFacts(actor.userAccountId, permission), actor.assuranceLevel),
+    authorize: (actor, permission, actionCode, deniedTargetType) =>
+      guard.authorize(actor, canonicalModulePermission(moduleKey, permission), actionCode, deniedTargetType),
+    evaluate: async (actor, permission) =>
+      evaluateAccess(await deps.access.loadAccessFacts(actor.userAccountId, canonicalModulePermission(moduleKey, permission)), actor.assuranceLevel),
     lifecycle: async (key) => {
       const [row] = await deps.db.query(HOST_SQL.lifecycle, [key]);
       if (row === undefined) return null;

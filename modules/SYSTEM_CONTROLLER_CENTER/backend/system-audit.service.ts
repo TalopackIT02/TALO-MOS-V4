@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import type { ModuleActor, ModuleHost } from './host.js';
+import { SYSTEM_CONTROLLER_CENTER_BINDING } from './system-controller-center.permissions.js';
 
 // Recorded audit events ONLY: Foundation B08 and IAM audit. This is not a comprehensive
 // request logger, cannot reconstruct actions that were never audited, and never escalates
 // PostgreSQL privileges or returns raw metadata with possibly sensitive fields.
-export const AUDIT_PERMISSION = { permissionCode: 'system_controller_center.audit.read', moduleCode: 'SYSTEM_CONTROLLER_CENTER', resourceCode: 'AUDIT_LOG', operation: 'READ' } as const;
+export const AUDIT_PERMISSION = SYSTEM_CONTROLLER_CENTER_BINDING.auditRead;
 const uuid = z.string().uuid();
 const querySchema = z.strictObject({
   source: z.enum(['ALL', 'FOUNDATION', 'IAM']).default('ALL'),

@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {SCC_ADMIN_ROLE,ROLE_SQL,isAdministrator} from '../backend/administrator-gate.js';
 import {isProtectedAccountTable,maskModeOf} from '../backend/data-inspector.masking.js';
+import {SYSTEM_CONTROLLER_CENTER_BINDING} from '../backend/system-controller-center.permissions.js';
 const root=join(import.meta.dirname,'..');
 const manifest=JSON.parse(readFileSync(join(root,'module.json'),'utf8')) as {moduleKey:string;packageVersion:string;frontend:{screens:{tabs:{path:string}[]}[]}};
 const mic=JSON.parse(readFileSync(join(root,'mic','module.mic.json'),'utf8')) as {
@@ -23,6 +24,12 @@ describe('SYSTEM_CONTROLLER_CENTER independent package',()=>{
   expect(mic.mic07IamMapping.map(m=>`${m.functionKey}.${m.actionKey}`)).toEqual(pairs);
   expect(mic.mic07IamMapping.every(m=>m.moduleCode==='SYSTEM_CONTROLLER_CENTER' && m.resourceCode===m.functionKey && m.operation===m.actionKey)).toBe(true);
   expect(mic.mic05Api.every(a=>pairs.includes(`${a.functionKey}.${a.actionKey}`))).toBe(true);
+ });
+ it('binds AUDIT_LOG.READ to the deterministic catalog permission code',()=>{
+  const permission=SYSTEM_CONTROLLER_CENTER_BINDING.auditRead;
+  const canonical=`${permission.moduleCode}.${permission.resourceCode}.${permission.operation}`.toLowerCase();
+  expect(canonical).toBe('system_controller_center.audit_log.read');
+  expect(permission.permissionCode).toBe(canonical);
  });
  it('admin role gate is backend-owned, fail closed; direct IAM grants cannot bypass it',async()=>{
   expect(SCC_ADMIN_ROLE).toBe('TALO_SYSTEM_ADMIN');expect(ROLE_SQL).toContain('ur.revoked_at IS NULL');

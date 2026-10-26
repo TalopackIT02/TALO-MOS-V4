@@ -12,7 +12,7 @@ export interface SystemTestBinding {
 export const SYSTEM_CONTROLLER_CENTER_BINDING: SystemTestBinding = {
   moduleKey: SYSTEM_CONTROLLER_CENTER_MODULE_KEY,
   diagnosticsRead: { permissionCode: 'system_controller_center.diagnostics.read', moduleCode: SYSTEM_CONTROLLER_CENTER_MODULE_KEY, resourceCode: 'DIAGNOSTICS', operation: 'READ' },
-  auditRead: { permissionCode: 'system_controller_center.audit.read', moduleCode: SYSTEM_CONTROLLER_CENTER_MODULE_KEY, resourceCode: 'AUDIT_LOG', operation: 'READ' },
+  auditRead: { permissionCode: 'system_controller_center.audit_log.read', moduleCode: SYSTEM_CONTROLLER_CENTER_MODULE_KEY, resourceCode: 'AUDIT_LOG', operation: 'READ' },
   testRunnerExecute: { permissionCode: 'system_controller_center.test_runner.execute', moduleCode: SYSTEM_CONTROLLER_CENTER_MODULE_KEY, resourceCode: 'TEST_RUNNER', operation: 'EXECUTE' },
 };
 export const SYSTEM_CONTROLLER_CENTER_ACTION = {
