@@ -197,6 +197,92 @@ describe('FBE-01A authorisation (effective permission) and DENIED audit', () => 
       .toEqual({ allowed: false, reason: 'NO_VALID_ALLOW' });
   });
 
+  it('T16 SYSTEM_ADMIN inherits permission without explicit grants', () => {
+    const facts: AccessFacts = {
+      permissions: [
+        { permissionId: PERM_READ_ID, minimumAssuranceLevel: 1 },
+      ],
+      account: {
+        accountStatus: 'ACTIVE',
+        notDisabled: true,
+      },
+      grants: [],
+    };
+
+    const adminFacts = {
+      ...facts,
+      systemAdminActive: true,
+    };
+
+    expect(evaluateAccess(adminFacts, 1))
+      .toEqual({ allowed: true });
+  });
+
+  it('T19 repository-derived SYSTEM_ADMIN inheritance respects guards', async () => {
+    const account = (admin: boolean) => ({
+      account_status: 'ACTIVE',
+      not_disabled: true,
+      system_admin_active: admin,
+    });
+
+    // Administrator inherits a defined permission without any grant.
+    const admin = harness();
+    admin.db.iam.accounts.set(ACCOUNT_A, account(true));
+    expect((await get(admin)).status).toBe(200);
+
+    // Revoking the administrator status takes effect on the next request.
+    admin.db.iam.accounts.set(ACCOUNT_A, account(false));
+    expect((await get(admin)).status).toBe(403);
+    expect(JSON.parse(String(admin.db.state.audits[0]?.[A.metadata])).reason)
+      .toBe('NO_VALID_ALLOW');
+
+    // A normal account without grants remains denied.
+    const manager = harness();
+    expect((await get(manager)).status).toBe(403);
+
+    // A valid Direct DENY always overrides administrator inheritance.
+    const denied = harness([
+      { permissionId: PERM_READ_ID, row: VALID_DIRECT_DENY },
+    ]);
+    denied.db.iam.accounts.set(ACCOUNT_A, account(true));
+    expect((await get(denied)).status).toBe(403);
+    expect(JSON.parse(String(denied.db.state.audits[0]?.[A.metadata])).reason)
+      .toBe('DIRECT_DENY');
+
+    // A locked administrator remains ineligible.
+    const locked = harness();
+    locked.db.iam.accounts.set(ACCOUNT_A, {
+      ...account(true),
+      account_status: 'LOCKED',
+    });
+    expect((await get(locked)).status).toBe(403);
+    expect(JSON.parse(String(locked.db.state.audits[0]?.[A.metadata])).reason)
+      .toBe('ACCOUNT_NOT_ELIGIBLE');
+
+    // Administrator inheritance never bypasses session assurance.
+    const assurance = harness();
+    assurance.db.iam.accounts.set(ACCOUNT_A, account(true));
+    assurance.db.iam.permissions = assurance.db.iam.permissions.map((p) =>
+      p.permission_id === PERM_READ_ID
+        ? { ...p, minimum_assurance_level: 2 }
+        : p
+    );
+    expect((await get(assurance)).status).toBe(403);
+    expect(JSON.parse(String(assurance.db.state.audits[0]?.[A.metadata])).reason)
+      .toBe('ASSURANCE_INSUFFICIENT');
+
+    // Undefined permissions cannot be inherited.
+    const undefinedPermission = harness();
+    undefinedPermission.db.iam.accounts.set(ACCOUNT_A, account(true));
+    undefinedPermission.db.iam.permissions =
+      undefinedPermission.db.iam.permissions.filter(
+        (p) => p.permission_id !== PERM_READ_ID
+      );
+    expect((await get(undefinedPermission)).status).toBe(403);
+    expect(JSON.parse(String(undefinedPermission.db.state.audits[0]?.[A.metadata])).reason)
+      .toBe('PERMISSION_NOT_DEFINED');
+  });
+
   it('T15 DENIED-audit write fails → still denied, answered 503 SERVICE_BUSY (never silently skipped, never allowed)', async () => {
     const h = harness([]);
     h.db.failOn.set(FOUNDATION_SQL.insertAudit, pgError('42501'));

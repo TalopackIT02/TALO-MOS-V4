@@ -1,6 +1,6 @@
 // Effective permission (owner decision B-4, FBE-01A):
 //   effective = valid Role ALLOW ∪ valid Direct ALLOW − valid Direct DENY; a valid Direct DENY always wins.
-// No admin bypass, no wildcard. A permission that is not defined in iam_permissions grants nothing.
+// SYSTEM_ADMIN inherits only defined permissions; Direct DENY and assurance still apply.
 // The repository reads raw facts (read-only, parameterised); every rule is decided here, in one pure function.
 
 export interface PermissionRef {
@@ -92,6 +92,7 @@ export interface AccessFacts {
   readonly permissions: readonly PermissionDefinition[];
   readonly account: AccountFacts | null;
   readonly grants: readonly GrantFacts[];
+  readonly systemAdminActive?: boolean;
 }
 
 export type DenyReason =
@@ -113,7 +114,7 @@ export function evaluateAccess(facts: AccessFacts, sessionAssuranceLevel: number
   const valid = facts.grants.filter(isValid);
   if (valid.some((g) => g.source === 'DIRECT' && g.effect === 'DENY')) return { allowed: false, reason: 'DIRECT_DENY' };
   // Role grants are ALLOW by construction (iam_role_permissions has no effect column).
-  const allow = valid.some((g) => g.source === 'ROLE' || (g.source === 'DIRECT' && g.effect === 'ALLOW'));
+  const allow = facts.systemAdminActive === true || valid.some((g) => g.source === 'ROLE' || (g.source === 'DIRECT' && g.effect === 'ALLOW'));
   if (!allow) return { allowed: false, reason: 'NO_VALID_ALLOW' };
   if (!(sessionAssuranceLevel >= permission.minimumAssuranceLevel)) return { allowed: false, reason: 'ASSURANCE_INSUFFICIENT' };
   return { allowed: true };

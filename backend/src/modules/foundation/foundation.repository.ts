@@ -15,7 +15,17 @@ export const FOUNDATION_SQL = {
       FROM iam.iam_permissions AS p
      WHERE p.permission_code = $1 AND p.module_code = $2 AND p.resource_code = $3 AND p.operation = $4`,
   accountFacts: `
-    SELECT a.account_status, (a.disabled_at IS NULL) AS not_disabled
+    SELECT a.account_status, (a.disabled_at IS NULL) AS not_disabled,
+           EXISTS (
+             SELECT 1
+               FROM iam.iam_user_roles AS ur
+               JOIN iam.iam_roles AS r ON r.role_id = ur.role_id
+              WHERE ur.user_account_id = a.user_account_id
+                AND ur.revoked_at IS NULL
+                AND ur.assigned_at <= statement_timestamp()
+                AND r.is_active = TRUE
+                AND r.role_code = 'TALO_SYSTEM_ADMIN'
+           ) AS system_admin_active
       FROM iam.iam_user_accounts AS a
      WHERE a.user_account_id = $1::uuid`,
   // Role grants (role active, assignment not revoked and started) and direct grants (ALLOW/DENY, not revoked, started,
@@ -185,6 +195,7 @@ export class SqlFoundationRepository implements FoundationRepository {
       permissions,
       account: account ? { accountStatus: account.account_status, notDisabled: account.not_disabled } : null,
       grants,
+      systemAdminActive: accountRaw !== undefined && z.object({ system_admin_active: z.boolean().optional() }).parse(accountRaw).system_admin_active === true,
     };
   }
 

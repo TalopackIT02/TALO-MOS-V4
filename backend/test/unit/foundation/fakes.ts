@@ -66,7 +66,7 @@ export interface GrantRow {
 
 export interface IamFixture {
   permissions: PermissionFixture[];
-  accounts: Map<string, { account_status: string; not_disabled: boolean }>;
+  accounts: Map<string, { account_status: string; not_disabled: boolean; system_admin_active?: boolean }>;
   grants: { accountId: string; permissionId: string; row: GrantRow }[];
 }
 

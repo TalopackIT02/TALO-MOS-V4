@@ -161,7 +161,7 @@ const inventoryRow = z.object({
 });
 const functionIdRow = z.object({ function_id: z.string() });
 const permissionRow = z.object({ permission_id: z.string(), minimum_assurance_level: z.number().int() });
-const accountRow = z.object({ account_status: z.string(), not_disabled: z.boolean() });
+const accountRow = z.object({ account_status: z.string(), not_disabled: z.boolean(), system_admin_active: z.boolean().optional() });
 const grantRow = z.object({
   source: z.enum(['ROLE', 'DIRECT']), effect: z.string(), role_active: z.boolean(), not_revoked: z.boolean(), started: z.boolean(), not_expired: z.boolean(),
 });
@@ -301,6 +301,6 @@ export class SqlNavigationRepository implements NavigationRepository {
     const account = accountRaw === undefined ? null : accountRow.parse(accountRaw);
     const [only] = permissions;
     const grants = permissions.length === 1 && only ? (await this.db.query(FOUNDATION_SQL.grantFacts, [userAccountId, only.permissionId])).map(toGrant) : [];
-    return { permissions, account: account ? { accountStatus: account.account_status, notDisabled: account.not_disabled } : null, grants };
+    return { permissions, account: account ? { accountStatus: account.account_status, notDisabled: account.not_disabled } : null, grants, systemAdminActive: account?.system_admin_active === true };
   }
 }
