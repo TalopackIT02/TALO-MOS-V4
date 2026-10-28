@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dataInspectorApi, describeFailure } from './dataInspectorApi';
-import type { ApiResult, ColumnsView, ReadStatus, RowsView, TableEntry, TablesView } from './dataInspectorApi';
+import type { AccessPath, ApiResult, ColumnsView, ReadStatus, RowsView, TableEntry, TablesView } from './dataInspectorApi';
 import './data-inspector.css';
 
 // DATA_INSPECTOR screen `data.inspector` (route /data-inspector, one tab "Xem dữ liệu"), inside the Host AppShell.
@@ -25,6 +25,19 @@ const STATUS_LABEL: Record<ReadStatus, string> = {
   UNKNOWN: 'Không xác định',
 };
 
+// SCC 0.1.2: how the rows of a table can be seen (server decision; the client only labels it).
+const ACCESS_LABEL: Record<AccessPath, string> = {
+  DIRECT: 'Đọc trực tiếp',
+  CONTROLLED: 'Đọc có kiểm soát',
+  PROTECTED: 'Được bảo vệ',
+  NOT_READABLE: 'Không có quyền SELECT',
+};
+
+function AccessBadge({ access }: { access: AccessPath }) {
+  const tone = access === 'DIRECT' ? 'readable' : access === 'CONTROLLED' ? 'partial' : access === 'PROTECTED' ? 'masked' : 'not_readable';
+  return <span className={`di-badge di-${tone}`}>{ACCESS_LABEL[access]}</span>;
+}
+
 function FeedbackLine({ feedback }: { feedback: Feedback | null }) {
   if (!feedback) return null;
   return <div className={`fx-msg ${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>{feedback.text}</div>;
@@ -46,6 +59,7 @@ export function DataInspectorScreen({ onSessionLost }: { tab: number; onSessionL
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogFeedback, setCatalogFeedback] = useState<Feedback | null>(null);
   const [filter, setFilter] = useState('');
+  const [showSystem, setShowSystem] = useState(false);
   const [selected, setSelected] = useState<TableEntry | null>(null);
   const [structure, setStructure] = useState<ColumnsView | null>(null);
   const [structureLoading, setStructureLoading] = useState(false);
@@ -113,15 +127,20 @@ export function DataInspectorScreen({ onSessionLost }: { tab: number; onSessionL
     seq.current.rows += 1; // drop a pending page of the previous table
     setRowsLoading(false);
     void loadStructure(t.tableKey);
-    if (t.readStatus === 'NOT_READABLE') {
-      setRowsFeedback({ tone: 'info', text: 'Bảng tồn tại nhưng vai trò PostgreSQL của hệ thống không được cấp quyền SELECT: chỉ hiển thị cấu trúc, không hiển thị dữ liệu.' });
+    if (t.access === 'NOT_READABLE' || t.table === 'iam_audit_logs') {
+      const audit = t.table === 'fnd_audit_logs' || t.table === 'iam_audit_logs';
+      setRowsFeedback({ tone: 'info', text: audit
+        ? 'Dữ liệu audit không xem dạng bảng thô: mở màn hình Nhật ký hệ thống (đọc qua audit_api, có bộ lọc và phân trang).'
+        : 'Bảng tồn tại nhưng vai trò PostgreSQL của hệ thống không được cấp quyền SELECT và chưa có cơ chế đọc có kiểm soát được duyệt: chỉ hiển thị cấu trúc.' });
+    } else if (t.access === 'PROTECTED') {
+      setRowsFeedback({ tone: 'info', text: 'Bảng chứa dữ liệu xác thực / tài khoản được bảo vệ: chỉ hiển thị cấu trúc. Thông tin quản trị tài khoản xem ở Ma trận phân quyền.' });
     } else {
       void loadRows(t.tableKey, 1, pageSize);
     }
   }
 
   function go(nextPage: number, size: number = pageSize) {
-    if (!selected || selected.readStatus === 'NOT_READABLE') return;
+    if (!selected || selected.access === 'NOT_READABLE' || selected.access === 'PROTECTED') return;
     void loadRows(selected.tableKey, nextPage, size);
   }
 
@@ -141,9 +160,10 @@ export function DataInspectorScreen({ onSessionLost }: { tab: number; onSessionL
 
   const visible = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    const all = catalog?.tables ?? [];
+    const all = (catalog?.tables ?? []).filter((t) => showSystem || t.category === 'BUSINESS');
     return q === '' ? all : all.filter((t) => `${t.schema}.${t.table}`.toLowerCase().includes(q));
-  }, [catalog, filter]);
+  }, [catalog, filter, showSystem]);
+  const systemCount = useMemo(() => (catalog?.tables ?? []).filter((t) => t.category === 'SYSTEM_CATALOG').length, [catalog]);
 
   const from = data && data.rows.length > 0 ? (data.page - 1) * data.pageSize + 1 : 0;
   const to = data ? from + Math.max(0, data.rows.length - 1) : 0;
@@ -161,6 +181,7 @@ export function DataInspectorScreen({ onSessionLost }: { tab: number; onSessionL
             <input type="search" aria-label="Tìm schema hoặc tên bảng" placeholder="Tìm schema / tên bảng…" maxLength={128} value={filter} onChange={(e) => setFilter(e.target.value)} />
             <button type="button" className="fx-btn" disabled={catalogLoading} onClick={refreshCatalog}>Làm mới</button>
           </div>
+          <label className="muted di-system-toggle"><input type="checkbox" checked={showSystem} onChange={(e) => setShowSystem(e.target.checked)} /> Hiện bảng hệ thống PostgreSQL ({systemCount})</label>
           <FeedbackLine feedback={catalogFeedback} />
           {catalog && !catalog.catalogComplete && <div className="fx-msg info" role="status">Danh mục bị giới hạn số lượng: chưa hiển thị toàn bộ bảng.</div>}
           {catalogLoading && <p className="muted">Đang tải danh mục…</p>}
@@ -171,7 +192,8 @@ export function DataInspectorScreen({ onSessionLost }: { tab: number; onSessionL
               <button type="button" key={t.tableKey} className={t.tableKey === selected?.tableKey ? 'di-item active' : 'di-item'} onClick={() => choose(t)}>
                 <span className="di-name"><small>{t.schema}.</small>{t.table}</span>
                 <span className="di-flags">
-                  {t.readStatus !== 'READABLE' && <StatusBadge status={t.readStatus} />}
+                  {t.access !== 'DIRECT' ? <AccessBadge access={t.access} /> : t.readStatus !== 'READABLE' && <StatusBadge status={t.readStatus} />}
+                  {t.category === 'SYSTEM_CATALOG' && <span className="di-badge di-unknown" title="Catalog hệ thống PostgreSQL">SYS</span>}
                   {t.kind === 'PARTITIONED_TABLE' && <span className="di-badge di-unknown" title="Bảng phân vùng">P</span>}
                   {t.rowSecurity && <span className="di-badge di-partial" title="Row Level Security đang bật">RLS</span>}
                 </span>
@@ -186,11 +208,18 @@ export function DataInspectorScreen({ onSessionLost }: { tab: number; onSessionL
             <>
               <div className="di-title">
                 <b>{selected.schema}.{selected.table}</b>
-                <StatusBadge status={selected.readStatus} />
+                <AccessBadge access={selected.access} />
+                {selected.access === 'DIRECT' && <StatusBadge status={selected.readStatus} />}
                 {selected.rowSecurity && <span className="muted">· RLS bật: chỉ thấy các dòng mà vai trò PostgreSQL được phép xem</span>}
               </div>
               {stale && <button type="button" className="fx-btn" onClick={refreshCatalog}>Làm mới danh sách bảng</button>}
 
+              {structure?.projection && (
+                <div className="fx-msg info" role="status">
+                  <b>Đọc có kiểm soát</b> · {structure.projection.source === 'DB_FUNCTION' ? `hàm database ${structure.projection.reader}` : 'projection cố định ở Backend SCC'} · {structure.projection.note}
+                  {structure.projection.withheldColumns.length > 0 && <> · Không đọc: {structure.projection.withheldColumns.join(', ')}</>}
+                </div>
+              )}
               <h4 className="di-section">Cấu trúc</h4>
               <FeedbackLine feedback={structureFeedback} />
               {structureLoading && <p className="muted">Đang tải cấu trúc…</p>}
@@ -227,7 +256,8 @@ export function DataInspectorScreen({ onSessionLost }: { tab: number; onSessionL
               {rowsLoading && <p className="muted">Đang tải dữ liệu…</p>}
               {data && (
                 <>
-                  {data.readStatus === 'PARTIAL' && <div className="fx-msg info" role="status">Chỉ hiển thị các cột mà vai trò PostgreSQL được cấp quyền SELECT; đây không phải toàn bộ dữ liệu bảng.</div>}
+                  {data.access === 'DIRECT' && data.readStatus === 'PARTIAL' && <div className="fx-msg info" role="status">Chỉ hiển thị các cột mà vai trò PostgreSQL được cấp quyền SELECT; đây không phải toàn bộ dữ liệu bảng.</div>}
+                  {data.access === 'CONTROLLED' && data.projection && <div className="fx-msg info" role="status">Dữ liệu từ cơ chế đọc có kiểm soát ({data.projection.reader}); chỉ các cột đã duyệt.{data.projection.withheldColumns.length > 0 ? ` Không đọc: ${data.projection.withheldColumns.join(', ')}.` : ''}</div>}
                   {data.columnsLimited && <div className="fx-msg info" role="status">Bảng có nhiều cột: chỉ hiển thị {data.columns.length} cột đầu tiên.</div>}
                   {data.ordering === 'UNSTABLE_NO_KEY' && <div className="fx-msg info" role="status">Bảng không có khóa chính đọc được: thứ tự dòng giữa các trang không ổn định.</div>}
                   <div className="di-grid">
@@ -254,7 +284,7 @@ export function DataInspectorScreen({ onSessionLost }: { tab: number; onSessionL
                   </div>
                   <div className="di-pager">
                     <button type="button" className="fx-btn" disabled={rowsLoading || data.page <= 1} onClick={() => go(data.page - 1)}>‹ Trước</button>
-                    <span className="muted">Trang {data.page} · dòng {from}–{to}{data.ordering === 'PRIMARY_KEY' ? ` · sắp xếp theo ${data.orderBy.join(', ')}` : ''}</span>
+                    <span className="muted">Trang {data.page} · dòng {from}–{to}{data.ordering !== 'UNSTABLE_NO_KEY' ? ` · sắp xếp theo ${data.orderBy.join(', ')}` : ''}</span>
                     <button type="button" className="fx-btn" disabled={rowsLoading || !data.hasNext} onClick={() => go(data.page + 1)}>Tiếp ›</button>
                     <button type="button" className="fx-btn" disabled={rowsLoading} onClick={() => go(page)}>Làm mới</button>
                   </div>

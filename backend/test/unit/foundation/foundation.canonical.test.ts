@@ -125,6 +125,21 @@ describe('MIC-1.0 schema (P-16)', () => {
     expect(validateMic({ ...mic, mic02Functions: [], mic03Actions: [], mic04Navigation: [], mic05Api: [], mic06DataResources: [], mic07IamMapping: [] }, ctx()).ok).toBe(true);
   });
 
+  it('accepts only trusted Installer read-probe placeholders and safe query parameter names', () => {
+    const mic = validMic();
+    const withProbe = (query: Record<string, string>) => ({
+      ...mic,
+      mic05Api: [{ ...mic.mic05Api[0], readProbe: { query } }, ...mic.mic05Api.slice(1)],
+    });
+    expect(validateMic(withProbe({ moduleKey: '$moduleKey', accountId: '$actorAccountId' }), ctx()).ok).toBe(true);
+    const asserted = { ...mic, mic05Api: [{ ...mic.mic05Api[0], readProbe: { query: {}, assertions: [{ path: ['logs', 'complete'], equals: true }] } }, ...mic.mic05Api.slice(1)] };
+    expect(validateMic(asserted, ctx()).ok).toBe(true);
+    expect(errorsOf({ ...asserted, mic05Api: [{ ...asserted.mic05Api[0], readProbe: { query: {}, assertions: [{ path: ['bad.path'], equals: true }] } }, ...mic.mic05Api.slice(1)] })).toEqual(['MIC_SCHEMA_INVALID']);
+    expect(errorsOf(withProbe({ moduleKey: 'SYSTEM_CONTROLLER_CENTER' }))).toEqual(['MIC_SCHEMA_INVALID']);
+    expect(errorsOf(withProbe({ 'bad&name': '$moduleKey' }))).toEqual(['MIC_SCHEMA_INVALID']);
+    expect(errorsOf({ ...withProbe({ moduleKey: '$moduleKey' }), mic05Api: [{ ...withProbe({ moduleKey: '$moduleKey' }).mic05Api[0], readProbe: { query: { moduleKey: '$moduleKey' }, headers: { Authorization: 'x' } } }, ...mic.mic05Api.slice(1)] })).toEqual(['MIC_SCHEMA_INVALID']);
+  });
+
   it('schema violations → MIC_SCHEMA_INVALID only', () => {
     const mic = validMic();
     const bad: unknown[] = [

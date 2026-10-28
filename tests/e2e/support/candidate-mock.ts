@@ -39,9 +39,9 @@ const runOf = (status: 'RUNNING' | 'COMPLETED', fail = false) => ({
   })),
 });
 const STEPS = ['VERIFY', 'RELEASE', 'REGISTER', 'VERSION', 'MIC', 'SUBMIT', 'APPROVE', 'LOCK', 'RESTART', 'ACTIVATE', 'ENABLE', 'IAM_CATALOG', 'NAVIGATION', 'POSTCHECK'];
-const steps = (n: number) => STEPS.map((key, i) => ({ key, label: `Bước ${key}`, status: i < n ? 'DONE' : 'PENDING', at: null, detail: '' }));
+export const steps = (n: number) => STEPS.map((key, i) => ({ key, label: `Bước ${key}`, status: i < n ? 'DONE' : 'PENDING', at: null, detail: '' }));
 export const POSTCHECK = ['B02_ACTIVE', 'RUNTIME_RELEASE', 'IAM_CATALOG', 'IAM_POLICY', 'NAVIGATION', 'API_SMOKE', 'ACCESS_VERIFIED'];
-const install = (state: string, o: Record<string, unknown> = {}) => ({ installId: IID, candidateId: CID, moduleKey: 'CUSTOMER_MANAGEMENT', packageVersion: '0.1.0', packageHash: HASH,
+export const install = (state: string, o: Record<string, unknown> = {}) => ({ installId: IID, candidateId: CID, moduleKey: 'CUSTOMER_MANAGEMENT', packageVersion: '0.1.0', packageHash: HASH,
   classification: 'UPGRADE', state, expiresAt: '2026-10-23T03:00:00.000Z', blockers: [], warnings: ['Chưa có deploy supervisor: DEPLOY_RESTART_REQUIRED.'], steps: steps(0), postcheck: [], recovery: [],
   nextActions: [], navigationPlan: { area: 'Quản lý khách hàng', menu: 'Khách hàng', links: [{ functionKey: 'CUSTOMER', title: 'Danh sách khách hàng', developer: false }] },
   micDiff: [{ section: 'mic02Functions', draft: 1, candidate: 3, changed: true }, { section: 'mic05Api', draft: 0, candidate: 7, changed: true }, { section: 'mic01Identity', draft: 1, candidate: 1, changed: false }], ...o });

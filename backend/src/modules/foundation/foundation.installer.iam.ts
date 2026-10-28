@@ -18,8 +18,25 @@ export function createIamCatalog(db: FoundationDb, rootAccountId: string | null)
       return rows.map((r) => row.parse(r)).map((r) => ({ permissionCode: r.permission_code, moduleCode: r.module_code, resourceCode: r.resource_code, operation: r.operation, minimumAssuranceLevel: r.minimum_assurance_level }));
     },
     async assignments(moduleCode: string): Promise<number> {
-      const [r] = await db.query(`SELECT (SELECT count(*) FROM iam.iam_role_permissions rp JOIN iam.iam_permissions p ON p.permission_id = rp.permission_id WHERE p.module_code = $1)
-        + (SELECT count(*) FROM iam.iam_user_permissions up JOIN iam.iam_permissions p ON p.permission_id = up.permission_id WHERE p.module_code = $1 AND up.effect = 'ALLOW') AS n`, [moduleCode]);
+      const [r] = await db.query(`SELECT
+        (SELECT count(*) FROM iam.iam_role_permissions rp
+            JOIN iam.iam_permissions p ON p.permission_id = rp.permission_id
+            JOIN iam.iam_roles role_grant ON role_grant.role_id = rp.role_id
+            JOIN iam.iam_user_roles role_user ON role_user.role_id = role_grant.role_id
+            JOIN iam.iam_user_accounts role_account ON role_account.user_account_id = role_user.user_account_id
+           WHERE p.module_code = $1 AND role_grant.is_active = TRUE
+             AND role_user.revoked_at IS NULL AND role_user.assigned_at <= statement_timestamp()
+             AND role_account.account_status = 'ACTIVE' AND role_account.disabled_at IS NULL)
+        + (SELECT count(*) FROM iam.iam_user_permissions up JOIN iam.iam_permissions p ON p.permission_id = up.permission_id
+            WHERE p.module_code = $1 AND up.effect = 'ALLOW' AND up.revoked_at IS NULL
+              AND up.assigned_at <= statement_timestamp()
+              AND (up.expires_at IS NULL OR up.expires_at > statement_timestamp()))
+        + (SELECT count(DISTINCT ur.user_account_id) FROM iam.iam_user_roles ur
+            JOIN iam.iam_roles r ON r.role_id = ur.role_id
+            JOIN iam.iam_user_accounts a ON a.user_account_id = ur.user_account_id
+           WHERE r.role_code = 'TALO_SYSTEM_ADMIN' AND r.is_active = TRUE
+             AND ur.revoked_at IS NULL AND ur.assigned_at <= statement_timestamp()
+             AND a.account_status = 'ACTIVE' AND a.disabled_at IS NULL) AS n`, [moduleCode]);
       return Number((r as { n?: unknown } | undefined)?.n ?? 0);
     },
     // REV01-D2: the privileges the real write path needs, at COLUMN level (the TEST grants are column grants; a table-level

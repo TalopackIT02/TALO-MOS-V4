@@ -34,6 +34,7 @@ export const AUDIT_MESSAGES = {
   VALIDATION_ERROR: 'Bộ lọc nhật ký không hợp lệ.',
   FORBIDDEN: 'Chỉ Administrator có quyền AUDIT_LOG.READ mới được xem nhật ký.',
   SERVICE_BUSY: 'Không xác minh được tài khoản hoặc trạng thái module.',
+  MODULE_UNAVAILABLE: 'Module chưa ACTIVE hoặc chưa bật.',
 } as const;
 export type AuditErrorCode = keyof typeof AUDIT_MESSAGES;
 export class AuditError extends Error {
@@ -42,29 +43,12 @@ export class AuditError extends Error {
   }
 }
 
-// Queries are static. Only bound parameters appear in predicates; no arbitrary SQL/paths.
-const base = `
-  FROM %SOURCE%.%TABLE% l
-  LEFT JOIN iam.iam_user_accounts a ON a.user_account_id=l.actor_account_id
-  WHERE l.occurred_at >= $1::timestamptz AND l.occurred_at <= $2::timestamptz
-  AND ($3::text='ALL' OR ($3::text='ISSUES' AND l.outcome IN ('FAILURE','DENIED')) OR l.outcome=$3::text)
-  AND ($4::text='' OR l.action_code ILIKE '%' || $4::text || '%')
-  AND ($5::uuid IS NULL OR l.actor_account_id=$5::uuid)
-  ORDER BY l.occurred_at DESC, l.%ID% DESC LIMIT $6::int`;
-const foundationSQL = `SELECT l.event_id::text AS event_id, 'FOUNDATION'::text AS source,
-  to_char(l.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS occurred_at,
-  l.actor_account_id::text AS actor_account_id, a.username AS actor_username,
-  l.action_code, l.target_type, l.target_id::text AS target_id, l.outcome,
-  l.metadata->>'reason' AS reason, l.metadata->>'errorCode' AS error_code,
-  l.correlation_id AS correlation_id
-  ${base.replace('%SOURCE%','foundation').replace('%TABLE%','fnd_audit_logs').replace('%ID%','event_id')}`;
-const iamSQL = `SELECT l.audit_id::text AS event_id, 'IAM'::text AS source,
-  to_char(l.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS occurred_at,
-  l.actor_account_id::text AS actor_account_id, a.username AS actor_username,
-  l.action_code, l.target_type, l.target_id::text AS target_id, l.outcome,
-  l.metadata->>'reason' AS reason, l.metadata->>'errorCode' AS error_code,
-  NULL::text AS correlation_id
-  ${base.replace('%SOURCE%','iam').replace('%TABLE%','iam_audit_logs').replace('%ID%','audit_id')}`;
+// The API role receives EXECUTE on these fixed SECURITY DEFINER readers, never SELECT on either raw audit table.
+// The database functions repeat all validation, project a closed column list and suppress arbitrary metadata.
+const foundationSQL = `SELECT * FROM audit_api.read_foundation_audit(
+  $1::timestamptz,$2::timestamptz,$3::text,$4::text,$5::uuid,$6::integer)`;
+const iamSQL = `SELECT * FROM audit_api.read_iam_audit(
+  $1::timestamptz,$2::timestamptz,$3::text,$4::text,$5::uuid,$6::integer)`;
 const eventRow = z.object({
   event_id:z.string(),source:z.enum(['FOUNDATION','IAM']),occurred_at:z.string(),actor_account_id:z.string().nullable(),
   actor_username:z.string().nullable(),action_code:z.string(),target_type:z.string(),target_id:z.string().nullable(),
@@ -90,7 +74,8 @@ export class SystemAuditService {
     let state;
     try {state=await this.host.lifecycle('SYSTEM_CONTROLLER_CENTER');}
     catch {throw new AuditError(503,'SERVICE_BUSY');}
-    if(!state || !state.isEnabled || state.activeVersions!==1) throw new AuditError(503,'SERVICE_BUSY');
+    // SCC 0.1.2: a disabled / not ACTIVE module is reported as such (same code as every other SCC route), not as "busy".
+    if(!state || !state.isEnabled || state.activeVersions!==1) throw new AuditError(503,'MODULE_UNAVAILABLE');
     const raw=(query!==null && typeof query==='object')?query:{};
     const parsed=querySchema.safeParse(raw);
     if(!parsed.success)throw new AuditError(400,'VALIDATION_ERROR', [...new Set(parsed.error.issues.map(i=>String(i.path[0]??'query')))]);

@@ -2,7 +2,7 @@
   "packageFormat": "TALO-MODULE-PACKAGE-1",
   "moduleKey": "SYSTEM_CONTROLLER_CENTER",
   "name": "System Controller Center",
-  "packageVersion": "0.1.0",
+  "packageVersion": "0.1.2",
   "contractVersion": "MIC-1.0",
   "hostProtocol": "TALO-MODULE-HOST-1",
   "backendEntry": "backend/index.ts",

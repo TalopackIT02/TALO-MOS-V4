@@ -2,6 +2,11 @@ import { useEffect,useState } from 'react';
 import {controllerList,exportAll,printable} from './controllerApi';
 import type {ListResult} from './controllerApi';
 import './controller.css';
+// Grant-source outcome only (Direct DENY wins); assurance / account state / lifecycle are checked at runtime.
+function grantOutcome(r:Record<string,unknown>):string{
+ if(r.directDeny===true)return 'DENY (Direct)';
+ return r.viaRole===true||r.viaAdministrator===true||r.directAllow===true?'ALLOW':'—';
+}
 export function AccessMatrixTab({onSessionLost}:{onSessionLost:()=>void}){
  const [accountsPage,setAccountsPage]=useState(1),[matrixPage,setMatrixPage]=useState(1);
  const [accounts,setAccounts]=useState<ListResult|null>(null),[matrix,setMatrix]=useState<ListResult|null>(null);
@@ -17,8 +22,8 @@ export function AccessMatrixTab({onSessionLost}:{onSessionLost:()=>void}){
   </section>
   {accountId&&<section className="scc-card"><div className="scc-header"><div><h3>Quyền của {username}</h3><p>{matrix?.assumption||'Đang tải nguồn quyền…'}</p></div>
     <button className="scc-btn" disabled={!matrix} onClick={()=>void exportAll(`access/matrix?accountId=${encodeURIComponent(accountId)}`,'IAM_GRANT_MATRIX',onSessionLost,`${username} / ${accountId}\n${matrix?.assumption??''}`).catch(e=>setError(String(e)))}>Xuất TXT toàn bộ</button></div>
-   <div className="scc-table"><table><thead><tr><th>Permission</th><th>Module</th><th>Thao tác</th><th>Role</th><th>Direct ALLOW</th><th>Direct DENY</th><th>Min AL</th></tr></thead><tbody>
-   {matrix?.rows.map((r,i)=><tr key={i}><td>{printable(r.permissionCode)}</td><td>{printable(r.moduleCode)}</td><td>{printable(r.operation)}</td><td>{r.viaRole?'Có':'—'}</td><td>{r.directAllow?'Có':'—'}</td><td>{r.directDeny?'Có':'—'}</td><td>{printable(r.minimumAssuranceLevel)}</td></tr>)}
+   <div className="scc-table"><table><thead><tr><th>Permission</th><th>Module</th><th>Thao tác</th><th>Role</th><th>Admin kế thừa</th><th>Direct ALLOW</th><th>Direct DENY</th><th>Nguồn hiệu lực</th><th>Min AL</th></tr></thead><tbody>
+   {matrix?.rows.map((r,i)=><tr key={i}><td>{printable(r.permissionCode)}</td><td>{printable(r.moduleCode)}</td><td>{printable(r.operation)}</td><td>{r.viaRole?'Có':'—'}</td><td>{r.viaAdministrator?'Có':'—'}</td><td>{r.directAllow?'Có':'—'}</td><td>{r.directDeny?'Có':'—'}</td><td>{grantOutcome(r)}</td><td>{printable(r.minimumAssuranceLevel)}</td></tr>)}
    </tbody></table></div><div className="scc-pager"><button className="scc-btn" disabled={matrixPage===1} onClick={()=>setMatrixPage(p=>p-1)}>← Trước</button>Trang {matrixPage}<button className="scc-btn" disabled={!matrix?.hasNext} onClick={()=>setMatrixPage(p=>p+1)}>Tiếp →</button></div></section>}
   </div>;
 }

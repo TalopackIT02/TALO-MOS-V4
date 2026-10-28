@@ -22,6 +22,14 @@ function valid(x:unknown):x is Logs {
   }) && x.events.every(v=>isRecord(v)&&typeof v.eventId==='string'&&typeof v.actionCode==='string'&&typeof v.occurredAt==='string'&&typeof v.outcome==='string');
 }
 const time=(iso:string)=>new Date(iso).toLocaleString('vi-VN');
+// An unavailable source is a PostgreSQL condition, never an IAM refusal (IAM / Administrator Gate answer 403 instead).
+function sourceHint(sources:Logs['sources']):string{
+  const states=(['FOUNDATION','IAM'] as const).filter(s=>sources[s].state==='UNAVAILABLE').map(s=>sources[s].sqlstate);
+  if(states.includes('3F000')||states.includes('42883'))return 'Database API audit_api chưa được cài đặt trên PostgreSQL (lỗi database, không phải phân quyền IAM).';
+  if(states.includes('42501'))return 'PostgreSQL từ chối: DB role của Backend thiếu quyền EXECUTE trên audit_api (lỗi database, không phải phân quyền IAM).';
+  if(states.includes('57014'))return 'Truy vấn audit vượt giới hạn thời gian 5 giây; thu hẹp khoảng thời gian hoặc bộ lọc.';
+  return 'Kiểm tra trạng thái PostgreSQL và log máy chủ (lỗi database, không phải phân quyền IAM).';
+}
 export function SystemLogsTab({onSessionLost}:{onSessionLost:()=>void}){
   const [source,setSource]=useState<'ALL'|Source>('ALL');
   const [outcome,setOutcome]=useState('ISSUES');
@@ -74,7 +82,7 @@ export function SystemLogsTab({onSessionLost}:{onSessionLost:()=>void}){
           <b>{src}</b> <span className={result.sources[src].state==='AVAILABLE'?'sl-ok':'sl-warn'}>{result.sources[src].state}</span>
           {result.sources[src].sqlstate&&<small>SQLSTATE {result.sources[src].sqlstate}</small>}</div>)}
       </div>
-      {!result.complete&&<p className="sl-warning" role="status">Chưa đọc được đầy đủ các nguồn đã chọn. Không được hiểu kết quả trống là hệ thống không có lỗi. Kiểm tra quyền SELECT của DB role hoặc log máy chủ.</p>}
+      {!result.complete&&<p className="sl-warning" role="status">Chưa đọc được đầy đủ các nguồn đã chọn. Không được hiểu kết quả trống là hệ thống không có lỗi. {sourceHint(result.sources)}</p>}
       <p className="sl-caption">{time(result.from)} → {time(result.to)} · Trang {result.page} · {result.events.length} bản ghi đang hiển thị · Nguồn: audit đã lưu (không phải toàn bộ request hoặc exception chưa ghi log)</p>
       <div className="sl-table-wrap"><table className="sl-table"><thead><tr><th>Thời gian</th><th>Nguồn</th><th>Tài khoản</th><th>Hành động</th><th>Kết quả</th></tr></thead>
       <tbody>{result.events.map(x=><tr key={`${x.source}-${x.eventId}`} onClick={()=>setSelected(x)} tabIndex={0} onKeyDown={e=>{if(e.key==='Enter')setSelected(x);}}>

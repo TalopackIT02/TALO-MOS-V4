@@ -19,7 +19,7 @@ import { isDeveloperFunction } from './foundation.navigation.builder.js';
 import type { Draft } from './foundation.navigation.builder.js';
 import type { NavigationService } from './foundation.navigation.service.js';
 import {
-  MODULE_REGISTRY_CREATE, MODULE_REGISTRY_ENABLE, MODULE_REGISTRY_READ, MODULE_VERSION_ACTIVATE, MODULE_VERSION_APPROVE, MODULE_VERSION_CREATE,
+  MODULE_REGISTRY_CREATE, MODULE_REGISTRY_DISABLE, MODULE_REGISTRY_ENABLE, MODULE_REGISTRY_READ, MODULE_VERSION_ACTIVATE, MODULE_VERSION_APPROVE, MODULE_VERSION_CREATE,
   MODULE_VERSION_RETIRE, MODULE_VERSION_SUBMIT, MODULE_VERSION_UPDATE, NAVIGATION_MANAGE, evaluateAccess,
 } from './foundation.permissions.js';
 import type { PermissionRef } from './foundation.permissions.js';
@@ -78,6 +78,8 @@ const MESSAGES = {
   RESTART_PENDING: 'Backend / Frontend đang chạy chưa nạp release mới. Khởi động lại rồi bấm Tiếp tục.',
   UPGRADE_RECOVERY_UNAVAILABLE: 'Module đang có phiên bản ACTIVE khác nhưng không có điểm phục hồi hợp lệ: cutover bị chặn.',
   UPGRADE_STATE_MISMATCH: 'Trạng thái B02 không khớp điểm phục hồi / nhật ký của lượt cài đặt: không tiếp tục, không đoán.',
+  JOURNAL_STATE_MISMATCH: 'B01 / B02 hiện tại không khớp nhật ký của lượt cài đặt: không đóng, không đoán.',
+  CLOSE_NOT_APPLICABLE: 'Chỉ đóng được lượt cài đặt NEW_MODULE thất bại (RECOVERY_REQUIRED, không có điểm phục hồi nâng cấp).',
   INSTALLER_INTERNAL_ERROR: 'Lỗi không xác định của trình cài đặt.',
 } as const;
 export type InstallerErrorCode = keyof typeof MESSAGES | 'VALIDATION_ERROR';
@@ -185,7 +187,8 @@ export interface IamPermissionRow { readonly permissionCode: string; readonly mo
 export interface IamCatalog {
   readonly permission: PermissionRef;
   existing(moduleCode: string): Promise<IamPermissionRow[]>;
-  // Role / direct ALLOW assignments of the module's permissions (IAM policy applied by an administrator; never by us).
+  // Valid policy sources for the module: explicit ALLOW assignments plus eligible TALO_SYSTEM_ADMIN holders whose
+  // access is inherited dynamically by the evaluator. This check is read-only and never creates a grant.
   assignments(moduleCode: string): Promise<number>;
   // INSERT privilege of the IAM connection on iam.iam_permissions (read-only check, never granted here).
   writable(): Promise<boolean>;
@@ -217,6 +220,7 @@ export interface InstallerDeps {
 const createBody = z.strictObject({ scanId: z.uuid(), moduleKey: z.string().regex(/^[A-Z][A-Z0-9_]{0,79}$/) });
 const emptyBody = z.strictObject({});
 const commitBody = z.strictObject({ planId: z.uuid(), acknowledge: z.literal(true) });
+const closeBody = z.strictObject({ acknowledge: z.literal(true) });
 const DENIED_TARGET = 'MODULE_INSTALLER';
 const TERMINAL: readonly CandidateStatus[] = ['INVALIDATED', 'CANCELLED'];
 const OPEN_INSTALL: readonly InstallState[] = ['PREPARING', 'STAGED', 'PUBLISHING', 'AWAITING_RESTART', 'CUTTING_OVER', 'POSTCHECK', 'POSTCHECK_INCOMPLETE', 'RECOVERY_REQUIRED', 'RECOVERY_AWAITING_RESTART'];
@@ -246,7 +250,10 @@ type Mic = {
   mic01Identity: { moduleKey: string; moduleName: string; moduleVersion: string; micStandard: string };
   mic02Functions: { functionKey: string; name: string }[];
   mic04Navigation: { routePath?: string; menuLabel: string; functionKey?: string }[];
-  mic05Api: { method: string; path: string }[];
+  mic05Api: { method: string; path: string; readProbe?: {
+    query: Record<string, '$moduleKey' | '$actorAccountId'>;
+    assertions?: { path: string[]; equals: string | boolean | number }[];
+  } }[];
   mic07IamMapping: { functionKey: string; actionKey: string; moduleCode: string; resourceCode: string; operation: string; minimumAssuranceLevel: number }[];
   mic10Manifest: { testEvidence: { name: string; result: string; reference: string }[] } & Record<string, unknown>;
 } & Record<string, unknown>;
@@ -711,6 +718,47 @@ export class ModuleInstallerService {
     return this.install(installId);
   }
 
+  // Close a FAILED NEW_MODULE installation (journal RECOVERY_REQUIRED, no upgrade recovery point) as FAILED_SAFE, so the
+  // module is no longer "in progress" (a later plan, e.g. an upgrade, is not blocked by INSTALL_IN_PROGRESS) and the
+  // journal states the truth. Foundation-native: under the module lock, the journal and B01 / B02 are re-read; the module
+  // must still be the one this journal registered; if it is ENABLED it is DISABLED through the Lifecycle Service (B07 +
+  // B08 audit) and read back as disabled before anything is written to the journal. Nothing else changes: B02 (the
+  // ACTIVE version stays ACTIVE), B07 / B08, the release store, the deployment lock and B09 are left as they are. Any
+  // mismatch or failure → nothing written to the journal (fail closed). Requires an explicit acknowledgement.
+  async closeFailedInstall(actor: Actor, installId: unknown, body: unknown): Promise<InstallRecord> {
+    await this.authorize(actor, 'MODULE_INSTALL.CLOSE_FAILED', MODULE_REGISTRY_READ, MODULE_VERSION_ACTIVATE, MODULE_REGISTRY_DISABLE);
+    this.body(closeBody, body);
+    const r = this.install(installId);
+    const applicable = (x: InstallRecord) => x.state === 'RECOVERY_REQUIRED' && x.classification === 'NEW_MODULE' && !x.recoveryPoint && !x.rollback
+      && x.after.moduleId !== null && x.after.versionId !== null;
+    if (!applicable(r)) throw new InstallerError(409, 'CLOSE_NOT_APPLICABLE');
+    return this.withModuleLock(r.moduleKey, async () => {
+      const fresh = this.install(r.installId);
+      if (fresh.updatedAt !== r.updatedAt || !applicable(fresh)) throw new InstallerError(409, 'INSTALL_STATE_CONFLICT');
+      const facts = await this.moduleFacts(fresh.moduleKey);
+      const version = facts.versions.find((v) => v.versionId === fresh.after.versionId);
+      if (facts.moduleId === null || facts.moduleId !== fresh.after.moduleId || version === undefined) throw new InstallerError(409, 'JOURNAL_STATE_MISMATCH');
+      const moduleId = facts.moduleId;
+      const notes: string[] = [];
+      if (facts.enabled === true) {
+        await this.deps.lifecycle.disable(actor, moduleId, {});
+        notes.push('Module đang BẬT (khác nhật ký): đã TẮT qua Lifecycle (B07 DISABLE + B08) để đóng an toàn.');
+      } else notes.push('Module đã TẮT: không thay đổi B01.');
+      const after = await this.moduleFacts(fresh.moduleKey);
+      if (after.enabled !== false) throw new InstallerError(409, 'JOURNAL_STATE_MISMATCH');
+      fresh.after.enabled = false;
+      fresh.after.versionStatus = after.versions.find((v) => v.versionId === fresh.after.versionId)?.status ?? null;
+      fresh.recovery = [...fresh.recovery,
+        `Đóng lượt cài đặt thất bại (FAILED_SAFE) bởi ${actor.userAccountId}: ${notes.join(' ')}`,
+        `Giữ nguyên: B02 ${fresh.packageVersion} ${fresh.after.versionStatus ?? '—'}, B07/B08, kho release, lock triển khai, menu B09. Không xóa dữ liệu.`,
+        'Có thể lập kế hoạch cài đặt mới (ví dụ phiên bản sửa lỗi) cho module này.'];
+      fresh.nextActions = [];
+      this.save(fresh, 'FAILED_SAFE', actor.userAccountId, `failed NEW_MODULE installation closed (acknowledged); module disabled${facts.enabled === true ? ' by this operation' : ' already'}`);
+      this.deps.logger.warn('module install closed as failed safe', { requestId: actor.requestId, installId: fresh.installId, moduleKey: fresh.moduleKey, disabledNow: facts.enabled === true });
+      return fresh;
+    });
+  }
+
   async continueInstall(actor: Actor, installId: unknown, body: unknown, probe: AccessProbe = {}): Promise<InstallRecord> {
     await this.authorize(actor, 'MODULE_INSTALL.CONTINUE', MODULE_REGISTRY_READ, MODULE_VERSION_ACTIVATE);
     this.body(emptyBody, body);
@@ -1060,8 +1108,8 @@ export class ModuleInstallerService {
     const bad = mic.mic07IamMapping.filter((m) => existing.filter((e) => e.resourceCode === m.resourceCode && e.operation === m.operation && e.minimumAssuranceLevel === m.minimumAssuranceLevel).length !== 1);
     out.push({ key: 'IAM_CATALOG', status: bad.length === 0 && this.deps.iam !== null ? 'PASS' : 'FAIL', detail: `CATALOG_READY: ${mic.mic07IamMapping.length - bad.length}/${mic.mic07IamMapping.length} quyền K05 có đúng một bản ghi.` });
     const assigned = this.deps.iam ? await this.deps.iam.assignments(r.moduleKey).catch(() => -1) : -1;
-    out.push(assigned > 0 ? { key: 'IAM_POLICY', status: 'PASS', detail: `POLICY_READY: ${assigned} phân quyền (vai trò / trực tiếp) cho quyền của module.` }
-      : { key: 'IAM_POLICY', status: 'NOT_TESTED', detail: assigned === 0 ? 'Chưa gán quyền module cho vai trò / tài khoản nào (trình cài đặt không tự gán).' : 'Không đọc được phân quyền IAM.' });
+    out.push(assigned > 0 ? { key: 'IAM_POLICY', status: 'PASS', detail: `POLICY_READY: ${assigned} nguồn policy hợp lệ (ALLOW tĩnh hoặc TALO_SYSTEM_ADMIN kế thừa động); không tạo GRANT.` }
+      : { key: 'IAM_POLICY', status: 'NOT_TESTED', detail: assigned === 0 ? 'Không có ALLOW tĩnh hoặc TALO_SYSTEM_ADMIN hợp lệ để kiểm chứng policy (trình cài đặt không tự gán).' : 'Không đọc được phân quyền IAM.' });
     const layout = await this.deps.navigation.layout(actor);
     const functions = (await this.deps.db.query(`SELECT function_id::text AS function_id, function_key FROM foundation.fnd_functions WHERE module_id = $1::uuid`, [moduleId])) as { function_id: string; function_key: string }[];
     const shown = new Set(layout.areas.filter((a) => a.visible).flatMap((a) => a.menus.filter((m) => m.visible).flatMap((m) => m.items.filter((l) => l.visible).map((l) => l.functionId))));
@@ -1071,15 +1119,16 @@ export class ModuleInstallerService {
     out.push({ key: 'NAVIGATION', status: missingLinks.length === 0 && legacy === 0 ? 'PASS' : 'FAIL',
       detail: `${routable.length - missingLinks.length}/${routable.length} chức năng có liên kết hiển thị AREA → MENU → FUNCTION; ${legacy} mục legacy hiển thị của module.` });
     out.push(await this.apiSmoke(r.moduleKey, mic));
-    out.push(await this.accessCheck(r.moduleKey, mic, probe));
+    out.push(await this.accessCheck(actor, r.moduleKey, mic, probe));
     return out;
   }
 
   // ACCESS_VERIFIED: the operator's OWN session (the cookie of the "Tiếp tục" request, forwarded in-process, never stored
   // or logged) on every MIC-05 GET without a path parameter of the REAL module router: 200 + JSON object without an error
-  // envelope = allowed and served. 403 = this principal has no module permission → NOT_TESTED (not a success). Anything
-  // else (5xx, non-JSON, 200 with an error) → FAIL. POST / parameterised routes are not called (side effects / data).
-  private async accessCheck(moduleKey: string, mic: Mic, probe: AccessProbe): Promise<InstallRecord['postcheck'][number]> {
+  // envelope, plus every declarative readProbe assertion = allowed and served. 403 = this principal has no module
+  // permission → NOT_TESTED (not a success). Anything else (5xx, non-JSON, 200 with an error or a failed response
+  // assertion) → FAIL. POST / parameterised routes are not called (side effects / data).
+  private async accessCheck(actor: Actor, moduleKey: string, mic: Mic, probe: AccessProbe): Promise<InstallRecord['postcheck'][number]> {
     const router = this.deps.runtime.routers.get(moduleKey);
     const gets = mic.mic05Api.filter((a) => a.method.toUpperCase() === 'GET' && !/\{[A-Za-z0-9_]+\}/.test(a.path));
     if (!router || probe.cookie === undefined || probe.cookie === '') return { key: 'ACCESS_VERIFIED', status: 'NOT_TESTED', detail: 'Không có phiên của người thao tác để kiểm tra truy cập thật.' };
@@ -1094,18 +1143,31 @@ export class ModuleInstallerService {
     let denied = 0;
     try {
       for (const a of gets) {
-        const res = await fetch(`${base}${a.path}`, { headers: { Accept: 'application/json', Cookie: probe.cookie, ...(probe.userAgent ? { 'User-Agent': probe.userAgent } : {}) } });
+        const url = new URL(a.path, base);
+        for (const [key, source] of Object.entries(a.readProbe?.query ?? {})) {
+          url.searchParams.set(key, source === '$moduleKey' ? moduleKey : actor.userAccountId);
+        }
+        const res = await fetch(url, { headers: { Accept: 'application/json', Cookie: probe.cookie, ...(probe.userAgent ? { 'User-Agent': probe.userAgent } : {}) } });
         const json = (await res.json().catch(() => undefined)) as unknown;
         const object = typeof json === 'object' && json !== null && !Array.isArray(json);
-        if (res.status === 200 && object && !('error' in json)) ok += 1;
+        const healthyEnvelope = object && !('error' in json);
+        const failedAssertion = healthyEnvelope ? a.readProbe?.assertions?.find((assertion) => {
+          let value: unknown = json;
+          for (const segment of assertion.path) {
+            if (typeof value !== 'object' || value === null || Array.isArray(value) || !(segment in value)) return true;
+            value = (value as Record<string, unknown>)[segment];
+          }
+          return value !== assertion.equals;
+        }) : undefined;
+        if (res.status === 200 && healthyEnvelope && !failedAssertion) ok += 1;
         else if (res.status === 403) denied += 1;
-        results.push(`GET ${a.path} → ${res.status}${res.status === 200 && !object ? ' (không phải JSON object)' : ''}`);
+        results.push(`GET ${a.path} → ${res.status}${res.status === 200 && !object ? ' (không phải JSON object)' : ''}${failedAssertion ? ` (sai hợp đồng tại ${failedAssertion.path.join('.')})` : ''}`);
       }
     } finally {
       server.closeAllConnections();
       server.close();
     }
-    if (ok === gets.length) return { key: 'ACCESS_VERIFIED', status: 'PASS', detail: `${ok}/${gets.length} API GET trả 200 JSON với phiên được cấp quyền (chưa kiểm schema chi tiết từng trường). 401 không phiên: xem API_SMOKE.` };
+    if (ok === gets.length) return { key: 'ACCESS_VERIFIED', status: 'PASS', detail: `${ok}/${gets.length} API GET trả 200 JSON và thỏa các assertion khai báo với phiên được cấp quyền. 401 không phiên: xem API_SMOKE.` };
     if (ok + denied === gets.length) return { key: 'ACCESS_VERIFIED', status: 'NOT_TESTED', detail: `Phiên đang thao tác bị từ chối 403 (${denied}/${gets.length}): chưa có principal được cấp quyền để chứng minh truy cập.` };
     return { key: 'ACCESS_VERIFIED', status: 'FAIL', detail: results.join('; ') };
   }

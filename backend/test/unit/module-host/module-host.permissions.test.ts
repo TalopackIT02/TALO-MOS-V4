@@ -123,9 +123,28 @@ describe('module Host permission binding', () => {
     expect(h.audits.at(-1)?.metadata.reason).toBe('DIRECT_DENY');
   });
 
-  it('does not rewrite a permission owned by another module', () => {
+  it('limits the compatibility alias to the exact immutable SCC AUDIT_LOG.READ binding', () => {
     const foreign: HostPermission = { permissionCode: 'iam.audit.read', moduleCode: 'IAM', resourceCode: 'AUDIT', operation: 'READ' };
     expect(canonicalModulePermission(MODULE_KEY, foreign)).toBe(foreign);
+
+    const unrelatedScc: HostPermission = {
+      permissionCode: 'system_controller_center.diagnostic.read',
+      moduleCode: MODULE_KEY,
+      resourceCode: 'DIAGNOSTICS',
+      operation: 'READ',
+    };
+    expect(canonicalModulePermission(MODULE_KEY, unrelatedScc)).toBe(unrelatedScc);
+
+    const systemTestAudit: HostPermission = {
+      permissionCode: 'system_test.audit.read',
+      moduleCode: 'SYSTEM_TEST',
+      resourceCode: 'AUDIT_LOG',
+      operation: 'READ',
+    };
+    expect(canonicalModulePermission('SYSTEM_TEST', systemTestAudit)).toBe(systemTestAudit);
+
+    const wrongTriple: HostPermission = { ...STALE_AUDIT_PERMISSION, resourceCode: 'AUDIT' };
+    expect(canonicalModulePermission(MODULE_KEY, wrongTriple)).toBe(wrongTriple);
   });
 
   it('keeps the SCC lifecycle gate fail closed when the module is disabled', async () => {

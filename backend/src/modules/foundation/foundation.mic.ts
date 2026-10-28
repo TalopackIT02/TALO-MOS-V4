@@ -73,6 +73,15 @@ export const micSchema = z.strictObject({
     functionKey: key(),
     actionKey: key(),
     errors: texts(),
+    // Optional authenticated GET probe. Values are resolved by the Installer from trusted runtime context; packages
+    // cannot inject arbitrary query values, cookies or headers. Parameterised paths remain excluded from access probes.
+    readProbe: z.strictObject({
+      query: z.record(z.string().min(1).max(80).regex(/^[A-Za-z][A-Za-z0-9_]*$/), z.enum(['$moduleKey', '$actorAccountId'])),
+      assertions: z.array(z.strictObject({
+        path: z.array(z.string().min(1).max(80).regex(/^[A-Za-z][A-Za-z0-9_]*$/)).min(1).max(8),
+        equals: z.union([z.string().max(120), z.boolean(), z.number().finite()]),
+      })).min(1).max(8).optional(),
+    }).optional(),
   })),
   mic06DataResources: z.array(z.strictObject({
     resourceKey: key(120), // B10.resource_key

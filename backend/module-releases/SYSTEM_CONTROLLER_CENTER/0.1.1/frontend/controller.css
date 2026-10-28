@@ -1,0 +1,13 @@
+/* SCC — component-scoped; never change host AppShell sizing. */
+.scc-page{min-width:0;max-width:100%;display:grid;gap:14px;padding:2px}
+.scc-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.scc-header h2,.scc-header h3{margin:0;color:#075f40}.scc-header p{font-size:12.5px;color:#516175;line-height:1.55;margin:7px 0}
+.scc-card{border:1px solid #d7e1e6;border-radius:9px;padding:16px;background:#fff;min-width:0}
+.scc-card h3{margin:0 0 12px;font-size:15px}
+.scc-table{max-width:100%;overflow-x:auto;border:1px solid #e2e8ee;border-radius:7px}
+.scc-table table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
+.scc-table th,.scc-table td{text-align:left;vertical-align:top;padding:9px 11px;border-bottom:1px solid #edf1f4;white-space:normal;overflow-wrap:anywhere}
+.scc-table th{background:#f5f8fa;color:#425567}.scc-table small{display:block;color:#607286;padding-top:4px}
+.scc-btn{background:#fff;border:1px solid #ced9df;border-radius:7px;padding:8px 12px;color:#096540;cursor:pointer;font:inherit;font-size:12px}
+.scc-btn:disabled{opacity:.45;cursor:default}.scc-pager{display:flex;justify-content:flex-end;gap:10px;align-items:center;padding-top:12px;font-size:12px}
+.scc-error{color:#a52424;background:#fff6f4;border:1px solid #efc3bf;padding:10px;border-radius:7px}

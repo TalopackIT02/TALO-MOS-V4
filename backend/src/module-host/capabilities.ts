@@ -59,16 +59,16 @@ function routesOf(nodes: readonly MenuNode[]): string[] {
   return nodes.flatMap((n) => [...(n.routePath === null ? [] : [n.routePath]), ...routesOf(n.children)]);
 }
 
-// MIC-07 identifies a module permission by its K05 triple. Permission codes provisioned by the installer follow the
-// same deterministic lower-case form. Normalize only permissions owned by this module at the Host boundary so an
-// immutable deployed package with a stale display code cannot disagree with its own MIC triple. Cross-module
-// permissions are left untouched and still have to match the shared catalog exactly.
+// Compatibility for the one immutable SCC 0.1.0 binding that predates its catalog code. Keep this exact: deriving a
+// code from every module-owned K05 triple would silently change unrelated permission contracts (including invalid
+// bindings which must continue to fail closed). Remove this alias after the SCC release using AUDIT_LOG.READ is active.
 export function canonicalModulePermission(moduleKey: string, permission: HostPermission): HostPermission {
-  if (permission.moduleCode !== moduleKey) return permission;
-  return {
-    ...permission,
-    permissionCode: `${permission.moduleCode}.${permission.resourceCode}.${permission.operation}`.toLowerCase(),
-  };
+  if (moduleKey !== 'SYSTEM_CONTROLLER_CENTER'
+      || permission.permissionCode !== 'system_controller_center.audit.read'
+      || permission.moduleCode !== 'SYSTEM_CONTROLLER_CENTER'
+      || permission.resourceCode !== 'AUDIT_LOG'
+      || permission.operation !== 'READ') return permission;
+  return { ...permission, permissionCode: 'system_controller_center.audit_log.read' };
 }
 
 export function createHostCapabilities(moduleKey: string, deps: HostDeps): HostCapabilities {

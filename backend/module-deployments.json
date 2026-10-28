@@ -8,8 +8,8 @@
     },
     {
       "moduleKey": "SYSTEM_CONTROLLER_CENTER",
-      "packageVersion": "0.1.0",
-      "packageHash": "f049fb885d8b87e63cac9d7cc1a072641aa36a50bed0438f19889b4f67bc9238"
+      "packageVersion": "0.1.2",
+      "packageHash": "76003a14c0214718f370b014ac9ad9361fe7bd51d15d95bc731a152631096495"
     },
     {
       "moduleKey": "SYSTEM_TEST",

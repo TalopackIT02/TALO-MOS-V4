@@ -2,7 +2,7 @@
   "mic01Identity": {
     "moduleKey": "SYSTEM_CONTROLLER_CENTER",
     "moduleName": "System Controller Center",
-    "moduleVersion": "0.1.0",
+    "moduleVersion": "0.1.2",
     "micStandard": "MIC-1.0"
   },
   "mic02Functions": [
@@ -238,6 +238,11 @@
       "path": "/api/system-controller-center/architecture/functions",
       "functionKey": "ARCHITECTURE",
       "actionKey": "READ",
+      "readProbe": {
+        "query": {
+          "moduleKey": "$moduleKey"
+        }
+      },
       "errors": [
         "ADMIN_ROLE_REQUIRED",
         "ADMIN_ROLE_CHECK_UNAVAILABLE",
@@ -268,6 +273,11 @@
       "path": "/api/system-controller-center/access/matrix",
       "functionKey": "ACCESS_MATRIX",
       "actionKey": "READ",
+      "readProbe": {
+        "query": {
+          "accountId": "$actorAccountId"
+        }
+      },
       "errors": [
         "ADMIN_ROLE_REQUIRED",
         "ADMIN_ROLE_CHECK_UNAVAILABLE",
@@ -283,6 +293,14 @@
       "path": "/api/system-controller-center/audit/logs",
       "functionKey": "AUDIT_LOG",
       "actionKey": "READ",
+      "readProbe": {
+        "query": {},
+        "assertions": [
+          { "path": ["logs", "complete"], "equals": true },
+          { "path": ["logs", "sources", "FOUNDATION", "state"], "equals": "AVAILABLE" },
+          { "path": ["logs", "sources", "IAM", "state"], "equals": "AVAILABLE" }
+        ]
+      },
       "errors": [
         "ADMIN_ROLE_REQUIRED",
         "ADMIN_ROLE_CHECK_UNAVAILABLE",
@@ -479,6 +497,214 @@
           "approvalMode": "NOT_REQUIRED"
         }
       ]
+    },
+    {
+      "resourceKey": "SYSTEM_MODULE_EVENTS",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "event_type",
+          "type": "text"
+        },
+        {
+          "name": "module_key",
+          "type": "text"
+        },
+        {
+          "name": "module_version",
+          "type": "text"
+        },
+        {
+          "name": "before_status",
+          "type": "text"
+        },
+        {
+          "name": "after_status",
+          "type": "text"
+        },
+        {
+          "name": "before_enabled",
+          "type": "boolean"
+        },
+        {
+          "name": "after_enabled",
+          "type": "boolean"
+        },
+        {
+          "name": "manifest_hash",
+          "type": "text"
+        },
+        {
+          "name": "actor_username",
+          "type": "text"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ROWS",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "SYSTEM_DATA_ACCESS_RULES",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "access_rule_id",
+          "type": "uuid"
+        },
+        {
+          "name": "module_key",
+          "type": "text"
+        },
+        {
+          "name": "module_version",
+          "type": "text"
+        },
+        {
+          "name": "resource_key",
+          "type": "text"
+        },
+        {
+          "name": "data_operation",
+          "type": "text"
+        },
+        {
+          "name": "approval_mode",
+          "type": "text"
+        },
+        {
+          "name": "workflow_key",
+          "type": "text"
+        },
+        {
+          "name": "is_enabled",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ROWS",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "IAM_MEMBERSHIP_ADMIN_VIEW",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "membership_id",
+          "type": "uuid"
+        },
+        {
+          "name": "employee_code",
+          "type": "text"
+        },
+        {
+          "name": "full_name",
+          "type": "text"
+        },
+        {
+          "name": "membership_status",
+          "type": "text"
+        },
+        {
+          "name": "joined_at",
+          "type": "date"
+        },
+        {
+          "name": "left_at",
+          "type": "date"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "linked_accounts",
+          "type": "integer"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ROWS",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "IAM_SESSION_METADATA",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "uuid"
+        },
+        {
+          "name": "username",
+          "type": "text"
+        },
+        {
+          "name": "user_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "session_state",
+          "type": "text"
+        },
+        {
+          "name": "assurance_level",
+          "type": "smallint"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "last_seen_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamptz"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ROWS",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
     }
   ],
   "mic07IamMapping": [
@@ -553,11 +779,14 @@
     ]
   },
   "mic09Compatibility": {
-    "kind": "INITIAL_REGISTRATION",
+    "kind": "CHANGE",
+    "fromVersion": "0.1.1",
     "changes": [
-      "Module mới, độc lập SYSTEM_TEST và DATA_INSPECTOR; không đè release hay route cũ",
-      "Chỉ role TALO_SYSTEM_ADMIN với quyền IAM K05 được truy cập",
-      "Data Explorer chỉ đọc; chặn dữ liệu tài khoản; dữ liệu khác tuân thủ PostgreSQL SELECT/RLS"
+      "Data Inspection: đọc có kiểm soát fnd_module_events / fnd_data_access_rules qua foundation_read_api (cần Database Access Gate SCC 0.1.2)",
+      "Data Inspection: projection quản trị iam_memberships (không employee_id) và metadata iam_sessions (không session_token_hash)",
+      "Data Inspection: phân loại BUSINESS / SYSTEM_CATALOG và đường truy cập DIRECT / CONTROLLED / PROTECTED / NOT_READABLE",
+      "Thống nhất 503 MODULE_UNAVAILABLE khi module tắt cho Data Inspection và Audit Logs",
+      "Giữ nguyên: chỉ TALO_SYSTEM_ADMIN; không đổi IAM K05, route, menu; iam_credentials / iam_account_verifications vẫn PROTECTED"
     ]
   },
   "mic10Manifest": {
@@ -565,7 +794,7 @@
     "hashAlgorithm": "SHA-256",
     "testEvidence": [
       {
-        "name": "Foundation FMI-02 preflight SYSTEM_CONTROLLER_CENTER 0.1.0",
+        "name": "Foundation FMI-02 preflight SYSTEM_CONTROLLER_CENTER 0.1.1",
         "result": "NOT_TESTED",
         "reference": "PENDING_FMI02_RUN_AND_HASH"
       }

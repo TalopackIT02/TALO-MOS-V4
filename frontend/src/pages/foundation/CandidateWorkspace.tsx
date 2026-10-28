@@ -32,6 +32,8 @@ const FAILURES: Record<string, string> = {
   INSTALL_IN_PROGRESS: 'Module đang có một lượt cài đặt khác.', INSTALL_STATE_CONFLICT: 'Lượt cài đặt không ở trạng thái cho phép thao tác này.',
   UPGRADE_RECOVERY_UNAVAILABLE: 'Module có phiên bản ACTIVE nhưng không có điểm phục hồi hợp lệ (lock / release cũ): cutover bị chặn.',
   UPGRADE_STATE_MISMATCH: 'Trạng thái phiên bản không khớp điểm phục hồi của lượt cài đặt: không tiếp tục (không đoán).',
+  CLOSE_NOT_APPLICABLE: 'Chỉ đóng được lượt cài đặt module mới thất bại (RECOVERY_REQUIRED, không phải nâng cấp).',
+  JOURNAL_STATE_MISMATCH: 'Module / phiên bản hiện tại không khớp nhật ký cài đặt: không đóng (không đoán). Kiểm tra trong Quản lý Module.',
   SERVICE_BUSY: 'Hệ thống đang bận (không kiểm tra được quyền).', UNEXPECTED_RESPONSE: 'API trả dữ liệu không đúng hợp đồng; dữ liệu không được hiển thị.', VALIDATION_ERROR: 'Yêu cầu không hợp lệ.',
 };
 function failureText(f: ApiFailure): string {
@@ -60,6 +62,7 @@ export function CandidateWorkspace({ candidateId, canInstall, onSessionLost, onO
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<PreflightCheckView | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [closeConfirm, setCloseConfirm] = useState(false);
   const timer = useRef<number | null>(null);
 
   const settle = useCallback(<T,>(r: ApiResult<T>): T | null => {
@@ -140,6 +143,13 @@ export function CandidateWorkspace({ candidateId, canInstall, onSessionLost, onO
     setConfirm(false);
     if (r) setPlan(r);
     setRuntime(quiet(await installerApi.runtimeRelease()));
+  });
+  const closeFailed = () => act(async () => {
+    if (!plan) return;
+    const r = settle(await installerApi.closeFailed(plan.installId));
+    setCloseConfirm(false);
+    const fresh = r ?? settle(await installerApi.getInstallation(plan.installId));
+    if (fresh) setPlan(fresh);
   });
   const resume = () => act(async () => {
     if (!plan) return;
@@ -281,6 +291,7 @@ export function CandidateWorkspace({ candidateId, canInstall, onSessionLost, onO
                 <button type="button" className="fx-btn primary" disabled={busy} onClick={() => void resume()}>Tiếp tục</button>
               </>
             )}
+            {plan.state === 'RECOVERY_REQUIRED' && plan.classification === 'NEW_MODULE' && !plan.hasRecoveryPoint && <button type="button" className="fx-btn" disabled={busy} onClick={() => setCloseConfirm(true)}>Đóng lượt cài đặt thất bại…</button>}
             {plan.state !== 'PREPARED' && plan.state !== 'BLOCKED' && <button type="button" className="fx-btn" onClick={() => void installerApi.downloadInstallReport(plan.installId).then(settle)}>Tải báo cáo cài đặt</button>}
           </div>
           {plan.state === 'RECOVERED' && <div className="fx-msg info">Nâng cấp thất bại và đã phục hồi phiên bản trước: runtime, B02, B01, menu và API đã được xác minh. Phiên bản mới không hoạt động.</div>}
@@ -312,6 +323,24 @@ export function CandidateWorkspace({ candidateId, canInstall, onSessionLost, onO
           )}
           {detail.limitations.length > 0 && <><h4>Giới hạn</h4><ul>{detail.limitations.map((l) => <li key={l}>{l}</li>)}</ul></>}
         </Drawer>
+      )}
+
+      {closeConfirm && plan && (
+        <ConfirmModal
+          busy={busy}
+          spec={{
+            title: 'Đóng lượt cài đặt thất bại', object: `${plan.moduleKey} ${plan.packageVersion} · lượt ${plan.installId.slice(0, 8)} (module mới)`,
+            transition: 'RECOVERY_REQUIRED → FAILED_SAFE',
+            impact: [
+              'Nếu module đang BẬT: TẮT qua Lifecycle (có B07 / B08) — route, menu và API của module ngừng phục vụ.',
+              'Giữ nguyên phiên bản B02, B07 / B08, kho release, lock triển khai và menu B09; không xóa dữ liệu.',
+              'Lượt cài đặt kết thúc; có thể lập kế hoạch cài đặt mới (ví dụ phiên bản sửa lỗi) cho module.',
+            ],
+            irreversible: 'Không mở lại được lượt cài đặt này; bật lại module phải qua Quản lý Module.', confirmLabel: 'Đóng lượt cài đặt',
+          }}
+          onConfirm={() => void closeFailed()}
+          onCancel={() => setCloseConfirm(false)}
+        />
       )}
 
       {confirm && plan && (

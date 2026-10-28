@@ -190,6 +190,8 @@ export type InstallState = 'PREPARED' | 'BLOCKED' | 'PREPARING' | 'STAGED' | 'PU
   | 'INSTALLED_ACTIVE' | 'POSTCHECK_INCOMPLETE' | 'RECOVERY_REQUIRED' | 'RECOVERY_AWAITING_RESTART' | 'RECOVERED' | 'FAILED_SAFE' | 'EXPIRED';
 export interface Installation {
   installId: string; candidateId: string; moduleKey: string; packageVersion: string; packageHash: string; classification: string; state: InstallState;
+  // An upgrade journal carries a recovery point (rollback path); a NEW_MODULE one does not.
+  hasRecoveryPoint: boolean;
   expiresAt: string; blockers: { code: string; message: string }[]; warnings: string[];
   steps: { key: string; label: string; status: 'PENDING' | 'DONE' | 'SKIPPED' | 'FAILED'; at: string | null; detail: string }[];
   postcheck: { key: string; status: 'PASS' | 'FAIL' | 'NOT_TESTED'; detail: string }[]; recovery: string[];
@@ -260,6 +262,7 @@ export function parseInstallation(v: unknown, at = 'installation'): Installation
   return {
     installId: str(x, 'installId', at), candidateId: str(x, 'candidateId', at), moduleKey: str(x, 'moduleKey', at), packageVersion: str(x, 'packageVersion', at),
     packageHash: str(x, 'packageHash', at), classification: str(x, 'classification', at), state: oneOf(x, 'state', INSTALL_STATES, at), expiresAt: str(x, 'expiresAt', at),
+    hasRecoveryPoint: x['recoveryPoint'] !== undefined && x['recoveryPoint'] !== null,
     blockers: arr(x, 'blockers', at).map((b, i) => {
       const o = obj(b, `${at}.blockers[${i}]`);
       return { code: str(o, 'code', `${at}.blockers[${i}]`), message: str(o, 'message', `${at}.blockers[${i}]`) };
@@ -379,6 +382,7 @@ export const installerApi = {
   commit: (id: string, planId: string) => jsonCall('POST', `${CANDIDATES}/${enc(id)}/install/commit`, { planId, acknowledge: true }, (b) => parseInstallation(b['installation'])),
   getInstallation: (installId: string) => jsonCall('GET', `/foundation/module-installations/${enc(installId)}`, undefined, (b) => parseInstallation(b['installation'])),
   continueInstall: (installId: string) => jsonCall('POST', `/foundation/module-installations/${enc(installId)}/continue`, {}, (b) => parseInstallation(b['installation'])),
+  closeFailed: (installId: string) => jsonCall('POST', `/foundation/module-installations/${enc(installId)}/close-failed`, { acknowledge: true }, (b) => parseInstallation(b['installation'])),
   downloadInstallReport: (installId: string) => download(`/foundation/module-installations/${enc(installId)}/report.txt`),
   runtimeRelease: () => jsonCall('GET', '/foundation/runtime-release', undefined, (b) => parseRuntime(b['runtime'])),
 };

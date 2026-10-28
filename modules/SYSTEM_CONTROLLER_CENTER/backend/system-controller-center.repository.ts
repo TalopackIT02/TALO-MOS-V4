@@ -33,9 +33,8 @@ export const SYSTEM_CONTROLLER_CENTER_SQL = {
     s.deadlocks::text AS deadlocks, s.xact_commit::text AS commits, s.xact_rollback::text AS rollbacks,
     s.stats_reset::text AS stats_reset
     FROM pg_catalog.pg_stat_database s WHERE s.datname=current_database()`,
-  audit: `SELECT count(*) FILTER (WHERE outcome='DENIED')::int AS denied,
-    count(*) FILTER (WHERE outcome='FAILURE')::int AS failures
-    FROM foundation.fnd_audit_logs WHERE occurred_at >= statement_timestamp() - interval '1 hour'`,
+  audit: `SELECT denied, failures FROM audit_api.read_foundation_audit_summary(
+    statement_timestamp() - interval '1 hour', statement_timestamp())`,
 } as const;
 
 export interface ModuleState { readonly moduleId: string; readonly isEnabled: boolean; readonly activeVersions: number }

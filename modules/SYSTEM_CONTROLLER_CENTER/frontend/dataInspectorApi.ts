@@ -23,6 +23,9 @@ const maskMode = (v: unknown): MaskMode => {
 };
 
 export type ReadStatus = 'READABLE' | 'PARTIAL' | 'NOT_READABLE' | 'UNKNOWN';
+// SCC 0.1.2: business tables vs PostgreSQL catalogs, and how the rows can be seen (decided by the server).
+export type TableCategory = 'BUSINESS' | 'SYSTEM_CATALOG';
+export type AccessPath = 'DIRECT' | 'CONTROLLED' | 'PROTECTED' | 'NOT_READABLE';
 
 export interface TableEntry {
   tableKey: string;
@@ -31,6 +34,17 @@ export interface TableEntry {
   kind: 'BASE_TABLE' | 'PARTITIONED_TABLE';
   readStatus: ReadStatus;
   rowSecurity: boolean;
+  category: TableCategory;
+  access: AccessPath;
+}
+
+export interface ProjectionInfo {
+  key: string;
+  source: 'DB_FUNCTION' | 'BACKEND_PROJECTION';
+  reader: string;
+  columns: string[];
+  withheldColumns: string[];
+  note: string;
 }
 
 export interface TablesView {
@@ -50,6 +64,7 @@ export interface ColumnEntry {
 
 export interface ColumnsView extends TableEntry {
   columns: ColumnEntry[];
+  projection: ProjectionInfo | null;
 }
 
 export interface RowsView {
@@ -65,8 +80,10 @@ export interface RowsView {
   rows: { cells: (string | null)[]; truncated: number[]; masked: number[] }[];
   cellMaxChars: number;
   rowSecurity: boolean;
-  ordering: 'PRIMARY_KEY' | 'UNSTABLE_NO_KEY';
+  ordering: 'PRIMARY_KEY' | 'UNSTABLE_NO_KEY' | 'PROJECTION_ORDER';
   orderBy: string[];
+  access: 'DIRECT' | 'CONTROLLED';
+  projection: ProjectionInfo | null;
 }
 
 type Json = Record<string, unknown>;
@@ -101,12 +118,24 @@ function strings(v: unknown): string[] {
   return v;
 }
 
+const ACCESS_PATHS: readonly AccessPath[] = ['DIRECT', 'CONTROLLED', 'PROTECTED', 'NOT_READABLE'];
+
 function toEntry(v: unknown): TableEntry {
   const o = obj(v);
   const readStatus = READ_STATUSES.find((s) => s === o.readStatus);
   const kind = o.kind === 'BASE_TABLE' || o.kind === 'PARTITIONED_TABLE' ? o.kind : undefined;
-  if (!readStatus || !kind) throw new Error('entry');
-  return { tableKey: str(o, 'tableKey'), schema: str(o, 'schema'), table: str(o, 'table'), kind, readStatus, rowSecurity: bool(o, 'rowSecurity') };
+  const category = o.category === 'BUSINESS' || o.category === 'SYSTEM_CATALOG' ? o.category : undefined;
+  const access = ACCESS_PATHS.find((a) => a === o.access);
+  if (!readStatus || !kind || !category || !access) throw new Error('entry');
+  return { tableKey: str(o, 'tableKey'), schema: str(o, 'schema'), table: str(o, 'table'), kind, readStatus, rowSecurity: bool(o, 'rowSecurity'), category, access };
+}
+
+function toProjection(v: unknown): ProjectionInfo | null {
+  if (v === undefined) return null;
+  const o = obj(v);
+  const source = o.source === 'DB_FUNCTION' || o.source === 'BACKEND_PROJECTION' ? o.source : undefined;
+  if (!source) throw new Error('projection');
+  return { key: str(o, 'key'), source, reader: str(o, 'reader'), columns: strings(o.columns), withheldColumns: strings(o.withheldColumns), note: str(o, 'note') };
 }
 
 function toTables(v: unknown): TablesView {
@@ -127,6 +156,7 @@ function toColumns(v: unknown): ColumnsView {
         primaryKey: bool(x, 'primaryKey'), selectPrivilege: bool(x, 'selectPrivilege'), masking: maskMode(x.masking),
       };
     }),
+    projection: toProjection(o.projection),
   };
 }
 
@@ -145,12 +175,13 @@ function toRows(v: unknown): RowsView {
     return { cells: x.cells.map((c) => (typeof c === 'string' ? c : null)), truncated: indexes(x.truncated), masked: indexes(x.masked) };
   });
   const readStatus = o.readStatus === 'READABLE' || o.readStatus === 'PARTIAL' ? o.readStatus : undefined;
-  const ordering = o.ordering === 'PRIMARY_KEY' || o.ordering === 'UNSTABLE_NO_KEY' ? o.ordering : undefined;
-  if (!readStatus || !ordering) throw new Error('rows view');
+  const ordering = o.ordering === 'PRIMARY_KEY' || o.ordering === 'UNSTABLE_NO_KEY' || o.ordering === 'PROJECTION_ORDER' ? o.ordering : undefined;
+  const access = o.access === 'DIRECT' || o.access === 'CONTROLLED' ? o.access : undefined;
+  if (!readStatus || !ordering || !access) throw new Error('rows view');
   return {
     tableKey: str(o, 'tableKey'), readStatus, page: num(o, 'page'), pageSize: num(o, 'pageSize'), hasNext: bool(o, 'hasNext'), columns,
     columnTypes: strings(o.columnTypes), columnMasking: Array.isArray(o.columnMasking) ? o.columnMasking.map(maskMode) : [], columnsLimited: bool(o, 'columnsLimited'), rows, cellMaxChars: num(o, 'cellMaxChars'),
-    rowSecurity: bool(o, 'rowSecurity'), ordering, orderBy: strings(o.orderBy),
+    rowSecurity: bool(o, 'rowSecurity'), ordering, orderBy: strings(o.orderBy), access, projection: toProjection(o.projection),
   };
 }
 
@@ -198,7 +229,10 @@ const BY_CODE: Record<string, string> = {
   QUERY_TIMEOUT: 'Truy vấn vượt quá giới hạn thời gian cho phép (5 giây). Hãy thử trang khác hoặc giảm số dòng/trang.',
   SESSION_INVALID: 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.',
   PASSWORD_CHANGE_REQUIRED: 'Bạn cần đổi mật khẩu trước khi sử dụng hệ thống.',
-  SERVICE_BUSY: 'Hệ thống đang bận hoặc module chưa sẵn sàng. Vui lòng thử lại sau ít phút.',
+  SERVICE_BUSY: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
+  MODULE_UNAVAILABLE: 'SYSTEM_CONTROLLER_CENTER chưa bật hoặc không có đúng một phiên bản ACTIVE.',
+  ACCOUNT_DATA_PROTECTED: 'Dữ liệu xác thực / tài khoản được bảo vệ: không hiển thị dữ liệu thô của bảng này.',
+  CONTROLLED_READ_UNAVAILABLE: 'Cơ chế đọc có kiểm soát cho bảng này chưa sẵn sàng trên database (cần Database Access Gate đã duyệt).',
   UNEXPECTED_RESPONSE: 'Phản hồi từ máy chủ không đúng định dạng mong đợi.',
 };
 

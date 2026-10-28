@@ -26,7 +26,7 @@ import type { FoundationDb } from '../../../src/modules/foundation/foundation.re
 import { parseDeployments, releaseDir, syncModules, writeDeployments } from '../../../scripts/modules-sync.mjs';
 import { hashPackage, walkPackage } from '../../../scripts/module-package.mjs';
 import {
-  ACCOUNT_A, FakeAuth, FakeDb, PERM_ACTIVATE_ID, PERM_APPROVE_ID, PERM_CREATE_ID, PERM_ENABLE_ID, PERM_NAV_ID, PERM_READ_ID, PERM_RETIRE_ID, PERM_VCREATE_ID,
+  ACCOUNT_A, FakeAuth, FakeDb, PERM_ACTIVATE_ID, PERM_APPROVE_ID, PERM_CREATE_ID, PERM_ENABLE_ID, PERM_DISABLE_ID, PERM_NAV_ID, PERM_READ_ID, PERM_RETIRE_ID, PERM_VCREATE_ID,
   PERM_VSUBMIT_ID, PERM_VUPDATE_ID, TEST_ORIGIN, VALID_ROLE, defaultIam, token,
 } from './fakes.js';
 import { validMic } from './mic.fixture.js';
@@ -52,7 +52,8 @@ function micOf(key: string, version: string) {
     ...mic,
     mic04Navigation: [{ menuLabel: 'Nhóm' }, { menuLabel: 'Đơn hàng', routePath: s, screenKey: 'pkg.main', functionKey: 'ORDER' }],
     mic05Api: [
-      { method: 'GET', path: `/api${s}/orders`, functionKey: 'ORDER', actionKey: 'READ', errors: [] },
+      { method: 'GET', path: `/api${s}/orders`, functionKey: 'ORDER', actionKey: 'READ', errors: [],
+        readProbe: { query: { moduleKey: '$moduleKey', accountId: '$actorAccountId' }, assertions: [{ path: ['ready'], equals: true }] } },
       { method: 'POST', path: `/api${s}/orders`, functionKey: 'ORDER', actionKey: 'CREATE', errors: ['VALIDATION_ERROR'] },
     ],
     mic06DataResources: [mic.mic06DataResources[0]],
@@ -199,7 +200,7 @@ function build(o: { grants?: readonly string[]; registered?: RegisteredVersion[]
         return { version: { versionId: restore.versionId }, retired: { versionId: failed.versionId } } as never;
       },
       enable: async (_a: unknown, moduleId: unknown) => { const m = model.modules.find((x) => x.moduleId === id(moduleId)); if (m) m.enabled = true; model.calls.push('ENABLE'); return {} as never; },
-      disable: async (_a: unknown, moduleId: unknown) => { const m = model.modules.find((x) => x.moduleId === id(moduleId)); if (m) m.enabled = false; model.calls.push('DISABLE'); return {} as never; },
+      disable: async (_a: unknown, moduleId: unknown) => { if (fakeFail.has('disable')) throw Object.assign(new Error('disable'), { code: fakeFail.get('disable') }); const m = model.modules.find((x) => x.moduleId === id(moduleId)); if (m) m.enabled = false; model.calls.push('DISABLE'); return {} as never; },
     },
     // The Navigation Builder service contract: the stored layout (real readLayout) and one apply of a whole draft with
     // the revision check — every inserted row is placed under its draft parent (AREA → MENU → FUNCTION, nothing else).
@@ -290,9 +291,12 @@ function sessionRouter(key: string, allowed: () => boolean = () => false): Route
   const handle = (status: number, body: unknown) => (req: express.Request, res: express.Response) => {
     if (!String(req.headers.cookie ?? '').includes(TOKEN)) { res.status(401).json({ error: { code: 'SESSION_INVALID', message: 'x', requestId: 'r' } }); return; }
     if (!allowed()) { res.status(403).json({ error: { code: 'FORBIDDEN', message: 'x', requestId: 'r' } }); return; }
+    if (req.method === 'GET' && (req.query['moduleKey'] !== key || req.query['accountId'] !== ACCOUNT_A)) {
+      res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'missing probe query', requestId: 'r' } }); return;
+    }
     res.status(status).json(body);
   };
-  router.get(`${slug(key)}/orders`, handle(200, { orders: [] }));
+  router.get(`${slug(key)}/orders`, handle(200, { orders: [], ready: true }));
   router.post(`${slug(key)}/orders`, handle(201, { order: {} }));
   return router;
 }
@@ -710,6 +714,27 @@ describe('FOUNDATION-REV-01 REV-A installer', () => {
     expect(r.state).toBe('RECOVERY_REQUIRED');
     expect(r.postcheck.find((x: { key: string }) => x.key === 'ACCESS_VERIFIED')).toMatchObject({ status: 'FAIL', detail: 'GET /api/fbet-rev-ct/orders → 200' });
   });
+  it('A08 / E2E-05: HTTP 200 with a failed declared response assertion → ACCESS_VERIFIED FAIL', async () => {
+    const h = build({ moduleAllowed: true });
+    writePackage(h.modules, 'FBET_REV_CT');
+    const { c } = await ready(h, 'FBET_REV_CT');
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
+    h.restart();
+    h.model.assignments = 1;
+    const incomplete = express.Router();
+    incomplete.get('/fbet-rev-ct/orders', (req, res) => {
+      if (!String(req.headers.cookie ?? '').includes(TOKEN)) { res.status(401).json({ error: { code: 'SESSION_INVALID' } }); return; }
+      res.status(200).json({ orders: [], ready: false });
+    });
+    incomplete.post('/fbet-rev-ct/orders', (_req, res) => { res.status(401).json({ error: { code: 'SESSION_INVALID' } }); });
+    h.runtime.routers.set('FBET_REV_CT', incomplete);
+    const r = (await h.post(`/foundation/module-installations/${done.installId}/continue`)).body.installation;
+    expect(r.state).toBe('RECOVERY_REQUIRED');
+    expect(r.postcheck.find((x: { key: string }) => x.key === 'ACCESS_VERIFIED')).toMatchObject({
+      status: 'FAIL', detail: 'GET /api/fbet-rev-ct/orders → 200 (sai hợp đồng tại ready)',
+    });
+  });
 });
 
 // REV01-D1 — upgrade of a module with an ACTIVE version: recovery point, journalled activation, controlled rollback and
@@ -960,5 +985,136 @@ describe('REV01-D1 upgrade recovery', { timeout: 30_000 }, () => {
     const r2 = await ready(h2, 'FBET_UPG_NL');
     const p2 = (await h2.post(`/foundation/module-candidates/${r2.c.candidateId}/install/prepare`)).body.installation;
     expect(p2.blockers.find((b: { code: string }) => b.code === 'UPGRADE_RECOVERY_UNAVAILABLE').message).toContain('kho release không có');
+  });
+});
+
+// SCC handoff WP3 — close a FAILED NEW_MODULE installation as FAILED_SAFE (Foundation-native, no journal / B01 / B02 edit).
+describe('Installer close-failed (RECOVERY_REQUIRED NEW_MODULE → FAILED_SAFE)', { timeout: 30_000 }, () => {
+  const CLOSE = [...ALL, PERM_DISABLE_ID];
+  const close = (h: H, id: string, body: unknown = { acknowledge: true }) => h.post(`/foundation/module-installations/${id}/close-failed`, body);
+  const journal = (h: H, id: string) => JSON.parse(readFileSync(join(h.base, 'var', 'installer', 'installs', `${id}.json`), 'utf8')) as { state: string; updatedAt: string; recovery: string[]; after: { enabled: boolean | null; versionStatus: string | null } };
+  // A NEW_MODULE whose postcheck failed: RECOVERY_REQUIRED, module DISABLED by recover(), version ACTIVE (like SCC 0.1.0).
+  async function failed(h: H, key: string) {
+    writePackage(h.modules, key);
+    const { c } = await ready(h, key);
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
+    h.restart();
+    h.model.assignments = 1;
+    h.runtime.routers.delete(key);
+    const r = (await h.post(`/foundation/module-installations/${done.installId}/continue`)).body.installation;
+    expect(r.state).toBe('RECOVERY_REQUIRED');
+    return { c, id: String(done.installId) };
+  }
+  const snapshot = (h: H) => JSON.stringify({ versions: h.model.versions.map((v) => [v.moduleVersion, v.status]), nav: h.model.nav, iam: h.model.iam, lock: readFileSync(h.lockFile, 'utf8') });
+
+  it('CF-1 already disabled: FAILED_SAFE, no DISABLE call, B02 / B09 / IAM / lock unchanged; continue refused; a new plan is no longer INSTALL_IN_PROGRESS', async () => {
+    const h = build({ moduleAllowed: true, grants: CLOSE });
+    const { c, id } = await failed(h, 'FBET_CF_A');
+    const before = snapshot(h);
+    const calls = h.model.calls.length;
+    const res = await close(h, id);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.installation).toMatchObject({ state: 'FAILED_SAFE', after: { enabled: false, versionStatus: 'ACTIVE' } });
+    expect(h.model.calls.slice(calls)).toEqual([]);
+    expect(snapshot(h)).toBe(before);
+    expect(journal(h, id).recovery.join(' ')).toContain('Giữ nguyên: B02 1.0.0 ACTIVE');
+    expect((await h.post(`/foundation/module-installations/${id}/continue`)).status).toBe(409);
+    const again = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    expect(again.blockers.map((b: { code: string }) => b.code)).not.toContain('INSTALL_IN_PROGRESS');
+  });
+
+  it('CF-2 stale journal (module re-enabled outside the installer): DISABLE once through Lifecycle, read back, then FAILED_SAFE', async () => {
+    const h = build({ moduleAllowed: true, grants: CLOSE });
+    const { id } = await failed(h, 'FBET_CF_B');
+    const m = h.model.modules.find((x) => x.moduleKey === 'FBET_CF_B');
+    if (m) m.enabled = true; // DB enabled=true while the journal says false (the SCC 0.1.0 situation)
+    const calls = h.model.calls.length;
+    const res = await close(h, id);
+    expect(res.body.installation.state).toBe('FAILED_SAFE');
+    expect(h.model.calls.slice(calls)).toEqual(['DISABLE']);
+    expect(m?.enabled).toBe(false);
+    expect(res.body.installation.recovery.join(' ')).toContain('đã TẮT qua Lifecycle');
+  });
+
+  it('CF-3 not applicable: AWAITING_RESTART, INSTALLED_ACTIVE, an UPGRADE journal with a recovery point → 409 CLOSE_NOT_APPLICABLE, nothing changed', async () => {
+    const h = build({ moduleAllowed: true, grants: [...CLOSE, PERM_RETIRE_ID] });
+    writePackage(h.modules, 'FBET_CF_C');
+    const { c } = await ready(h, 'FBET_CF_C');
+    const plan = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/prepare`)).body.installation;
+    const done = (await h.post(`/foundation/module-candidates/${c.candidateId}/install/commit`, { planId: plan.installId, acknowledge: true })).body.installation;
+    expect([(await close(h, done.installId)).status, (await close(h, done.installId)).body.error.code]).toEqual([409, 'CLOSE_NOT_APPLICABLE']); // AWAITING_RESTART
+    h.restart();
+    h.model.assignments = 1;
+    expect((await h.post(`/foundation/module-installations/${done.installId}/continue`)).body.installation.state).toBe('INSTALLED_ACTIVE');
+    expect((await close(h, done.installId)).body.error.code).toBe('CLOSE_NOT_APPLICABLE');
+    // upgrade that failed before cutover is RECOVERY_REQUIRED only on an unproven rollback; its journal has a recovery point
+    const r = journal(h, done.installId) as unknown as Record<string, unknown>;
+    writeFileSync(join(h.base, 'var', 'installer', 'installs', `${done.installId}.json`), JSON.stringify({ ...r, state: 'RECOVERY_REQUIRED', classification: 'UPGRADE', recoveryPoint: { activeVersionId: 'x' } }));
+    expect((await close(h, done.installId)).body.error.code).toBe('CLOSE_NOT_APPLICABLE');
+    expect(h.model.calls).not.toContain('DISABLE');
+  });
+
+  it('CF-4 acknowledgement and permission: no body / acknowledge:false / extra field → 400; without MODULE_REGISTRY.DISABLE → 403 + B08 DENIED; journal unchanged', async () => {
+    const h = build({ moduleAllowed: true, grants: CLOSE });
+    const { id } = await failed(h, 'FBET_CF_D');
+    const j0 = journal(h, id);
+    for (const body of [{}, { acknowledge: false }, { acknowledge: true, state: 'FAILED_SAFE' }]) expect((await close(h, id, body)).status).toBe(400);
+    const h2 = build({ moduleAllowed: true, grants: ALL }); // no DISABLE permission
+    const f2 = await failed(h2, 'FBET_CF_E');
+    const denied = await close(h2, f2.id);
+    expect([denied.status, denied.body.error.code]).toEqual([403, 'FORBIDDEN']);
+    expect(h2.fakeDb.state.audits.some((a) => a[3] === 'MODULE_INSTALL.CLOSE_FAILED' && a[6] === 'DENIED')).toBe(true);
+    expect(journal(h2, f2.id).state).toBe('RECOVERY_REQUIRED');
+    expect(journal(h, id)).toEqual(j0);
+  });
+
+  it('CF-5 failure-atomic: DISABLE fails → error, journal untouched (still RECOVERY_REQUIRED, same updatedAt); retry after the fix succeeds once', async () => {
+    const h = build({ moduleAllowed: true, grants: CLOSE });
+    const { id } = await failed(h, 'FBET_CF_F');
+    const m = h.model.modules.find((x) => x.moduleKey === 'FBET_CF_F');
+    if (m) m.enabled = true;
+    const j0 = journal(h, id);
+    h.fakeFail.set('disable', 'SERVICE_BUSY');
+    const res = await close(h, id);
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(journal(h, id)).toEqual(j0);
+    expect(m?.enabled).toBe(true);
+    h.fakeFail.clear();
+    expect((await close(h, id)).body.installation.state).toBe('FAILED_SAFE');
+    expect((await close(h, id)).body.error.code).toBe('CLOSE_NOT_APPLICABLE'); // terminal: no second close / disable
+    expect(h.model.calls.filter((x) => x === 'DISABLE')).toHaveLength(2); // recover() + this close
+  });
+
+  it('CF-6 B01 / B02 do not match the journal (module re-registered / version missing) → 409 JOURNAL_STATE_MISMATCH, no DISABLE, journal untouched', async () => {
+    const h = build({ moduleAllowed: true, grants: CLOSE });
+    const { id } = await failed(h, 'FBET_CF_G');
+    const j0 = journal(h, id);
+    const v = h.model.versions.find((x) => h.model.modules.find((m) => m.moduleId === x.moduleId)?.moduleKey === 'FBET_CF_G');
+    const saved = v?.versionId ?? '';
+    if (v) v.versionId = randomUUID(); // the journal's version no longer exists in B02
+    const res = await close(h, id);
+    expect([res.status, res.body.error.code]).toEqual([409, 'JOURNAL_STATE_MISMATCH']);
+    expect(journal(h, id)).toEqual(j0);
+    if (v) v.versionId = saved;
+    const m = h.model.modules.find((x) => x.moduleKey === 'FBET_CF_G');
+    const original = m?.moduleId ?? '';
+    if (m) m.moduleId = randomUUID(); // a different B01 row under the same key
+    expect((await close(h, id)).body.error.code).toBe('JOURNAL_STATE_MISMATCH');
+    if (m) m.moduleId = original;
+    expect(h.model.calls.filter((x) => x === 'DISABLE')).toHaveLength(1); // only recover()
+  });
+
+  it('CF-7 two closes at once: one FAILED_SAFE, the other 409 (module lock + journal re-read); DISABLE at most once', async () => {
+    const h = build({ moduleAllowed: true, grants: CLOSE });
+    const { id } = await failed(h, 'FBET_CF_H');
+    const m = h.model.modules.find((x) => x.moduleKey === 'FBET_CF_H');
+    if (m) m.enabled = true;
+    const calls = h.model.calls.length;
+    const [a, b] = await Promise.all([close(h, id), close(h, id)]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    expect([a, b].find((x) => x.status === 409)?.body.error.code).toMatch(/^(INSTALL_IN_PROGRESS|INSTALL_STATE_CONFLICT|CLOSE_NOT_APPLICABLE)$/);
+    expect(h.model.calls.slice(calls)).toEqual(['DISABLE']);
+    expect(journal(h, id).state).toBe('FAILED_SAFE');
   });
 });

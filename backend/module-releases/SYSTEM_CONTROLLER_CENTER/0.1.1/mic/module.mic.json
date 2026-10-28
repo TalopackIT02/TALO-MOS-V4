@@ -1,0 +1,593 @@
+{
+  "mic01Identity": {
+    "moduleKey": "SYSTEM_CONTROLLER_CENTER",
+    "moduleName": "System Controller Center",
+    "moduleVersion": "0.1.1",
+    "micStandard": "MIC-1.0"
+  },
+  "mic02Functions": [
+    {
+      "functionKey": "DIAGNOSTICS",
+      "name": "Sức khỏe hệ thống",
+      "description": "Xem và chạy phép kiểm sức khỏe chỉ đọc"
+    },
+    {
+      "functionKey": "TEST_RUNNER",
+      "name": "Báo cáo kiểm thử",
+      "description": "Xem kết quả runner và xuất báo cáo; không thực thi CLI"
+    },
+    {
+      "functionKey": "CATALOG",
+      "name": "Danh mục dữ liệu",
+      "description": "Xem metadata bảng hệ thống"
+    },
+    {
+      "functionKey": "ROWS",
+      "name": "Dữ liệu bảng",
+      "description": "Xem nội dung bảng theo trang không sửa dữ liệu, loại trừ dữ liệu tài khoản"
+    },
+    {
+      "functionKey": "ARCHITECTURE",
+      "name": "Kiến trúc và phiên bản",
+      "description": "Toàn bộ phiên bản Foundation/Module/Function/Action"
+    },
+    {
+      "functionKey": "ACCESS_MATRIX",
+      "name": "Ma trận IAM",
+      "description": "Nguồn quyền theo vai trò và gán trực tiếp cho từng tài khoản"
+    },
+    {
+      "functionKey": "AUDIT_LOG",
+      "name": "Nhật ký Foundation/IAM",
+      "description": "Xem sự kiện audit đã ghi"
+    }
+  ],
+  "mic03Actions": [
+    {
+      "functionKey": "DIAGNOSTICS",
+      "actionKey": "READ",
+      "name": "Sức khỏe hệ thống",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "TEST_RUNNER",
+      "actionKey": "EXECUTE",
+      "name": "Báo cáo kiểm thử",
+      "nature": "EXECUTE"
+    },
+    {
+      "functionKey": "CATALOG",
+      "actionKey": "READ",
+      "name": "Danh mục dữ liệu",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "ROWS",
+      "actionKey": "READ",
+      "name": "Dữ liệu bảng",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "ARCHITECTURE",
+      "actionKey": "READ",
+      "name": "Kiến trúc và phiên bản",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "ACCESS_MATRIX",
+      "actionKey": "READ",
+      "name": "Ma trận IAM",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "AUDIT_LOG",
+      "actionKey": "READ",
+      "name": "Nhật ký Foundation/IAM",
+      "nature": "READ"
+    }
+  ],
+  "mic04Navigation": [
+    {
+      "menuLabel": "System Controller Center"
+    },
+    {
+      "menuLabel": "Sức khỏe hệ thống",
+      "routePath": "/system-controller-center",
+      "screenKey": "system.controller.center",
+      "functionKey": "DIAGNOSTICS"
+    },
+    {
+      "menuLabel": "Báo cáo kiểm thử",
+      "routePath": "/system-controller-center/tests",
+      "screenKey": "system.controller.center",
+      "functionKey": "TEST_RUNNER"
+    },
+    {
+      "menuLabel": "Dữ liệu hệ thống",
+      "routePath": "/system-controller-center/data",
+      "screenKey": "system.controller.center",
+      "functionKey": "CATALOG"
+    },
+    {
+      "menuLabel": "Foundation & Module",
+      "routePath": "/system-controller-center/architecture",
+      "screenKey": "system.controller.center",
+      "functionKey": "ARCHITECTURE"
+    },
+    {
+      "menuLabel": "Ma trận phân quyền",
+      "routePath": "/system-controller-center/access",
+      "screenKey": "system.controller.center",
+      "functionKey": "ACCESS_MATRIX"
+    },
+    {
+      "menuLabel": "Nhật ký hệ thống",
+      "routePath": "/system-controller-center/logs",
+      "screenKey": "system.controller.center",
+      "functionKey": "AUDIT_LOG"
+    }
+  ],
+  "mic05Api": [
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/health",
+      "functionKey": "DIAGNOSTICS",
+      "actionKey": "READ",
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/system-controller-center/checks/run",
+      "functionKey": "DIAGNOSTICS",
+      "actionKey": "READ",
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/results",
+      "functionKey": "TEST_RUNNER",
+      "actionKey": "EXECUTE",
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/data/tables",
+      "functionKey": "CATALOG",
+      "actionKey": "READ",
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/data/tables/{tableKey}/columns",
+      "functionKey": "CATALOG",
+      "actionKey": "READ",
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/data/tables/{tableKey}/rows",
+      "functionKey": "ROWS",
+      "actionKey": "READ",
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/architecture/modules",
+      "functionKey": "ARCHITECTURE",
+      "actionKey": "READ",
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/architecture/functions",
+      "functionKey": "ARCHITECTURE",
+      "actionKey": "READ",
+      "readProbe": {
+        "query": {
+          "moduleKey": "$moduleKey"
+        }
+      },
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/access/accounts",
+      "functionKey": "ACCESS_MATRIX",
+      "actionKey": "READ",
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/access/matrix",
+      "functionKey": "ACCESS_MATRIX",
+      "actionKey": "READ",
+      "readProbe": {
+        "query": {
+          "accountId": "$actorAccountId"
+        }
+      },
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-controller-center/audit/logs",
+      "functionKey": "AUDIT_LOG",
+      "actionKey": "READ",
+      "readProbe": {
+        "query": {},
+        "assertions": [
+          { "path": ["logs", "complete"], "equals": true },
+          { "path": ["logs", "sources", "FOUNDATION", "state"], "equals": "AVAILABLE" },
+          { "path": ["logs", "sources", "IAM", "state"], "equals": "AVAILABLE" }
+        ]
+      },
+      "errors": [
+        "ADMIN_ROLE_REQUIRED",
+        "ADMIN_ROLE_CHECK_UNAVAILABLE",
+        "FORBIDDEN",
+        "MODULE_UNAVAILABLE",
+        "VALIDATION_ERROR",
+        "DATA_UNAVAILABLE",
+        "SERVICE_BUSY"
+      ]
+    }
+  ],
+  "mic06DataResources": [
+    {
+      "resourceKey": "SYSTEM_HEALTH",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "check_key",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "details",
+          "type": "text"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "DIAGNOSTICS",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "TEST_RESULTS",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "run_id",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "TEST_RUNNER",
+          "actionKey": "EXECUTE",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "SYSTEM_TABLE_CATALOG",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "table_key",
+          "type": "text"
+        },
+        {
+          "name": "schema_name",
+          "type": "text"
+        },
+        {
+          "name": "table_name",
+          "type": "text"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "CATALOG",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "SYSTEM_TABLE_ROWS",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "table_key",
+          "type": "text"
+        },
+        {
+          "name": "rows",
+          "type": "jsonb"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ROWS",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "FOUNDATION_VERSIONS",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "module_key",
+          "type": "text"
+        },
+        {
+          "name": "module_version",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ARCHITECTURE",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "IAM_GRANT_MATRIX",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "permission_code",
+          "type": "text"
+        },
+        {
+          "name": "via_role",
+          "type": "boolean"
+        },
+        {
+          "name": "direct_allow",
+          "type": "boolean"
+        },
+        {
+          "name": "direct_deny",
+          "type": "boolean"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ACCESS_MATRIX",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "SYSTEM_AUDIT",
+      "interfaceKind": "API",
+      "columns": [
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "outcome",
+          "type": "text"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "AUDIT_LOG",
+          "actionKey": "READ",
+          "operation": "SELECT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    }
+  ],
+  "mic07IamMapping": [
+    {
+      "functionKey": "DIAGNOSTICS",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_CONTROLLER_CENTER",
+      "resourceCode": "DIAGNOSTICS",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "TEST_RUNNER",
+      "actionKey": "EXECUTE",
+      "moduleCode": "SYSTEM_CONTROLLER_CENTER",
+      "resourceCode": "TEST_RUNNER",
+      "operation": "EXECUTE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CATALOG",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_CONTROLLER_CENTER",
+      "resourceCode": "CATALOG",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ROWS",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_CONTROLLER_CENTER",
+      "resourceCode": "ROWS",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ARCHITECTURE",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_CONTROLLER_CENTER",
+      "resourceCode": "ARCHITECTURE",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ACCESS_MATRIX",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_CONTROLLER_CENTER",
+      "resourceCode": "ACCESS_MATRIX",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "AUDIT_LOG",
+      "actionKey": "READ",
+      "moduleCode": "SYSTEM_CONTROLLER_CENTER",
+      "resourceCode": "AUDIT_LOG",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    }
+  ],
+  "mic08EventsAudit": {
+    "eventCodes": [],
+    "auditActionCodes": [
+      "SYSTEM_CONTROLLER_CENTER.DIAGNOSTICS.READ",
+      "SYSTEM_CONTROLLER_CENTER.TEST_RUNNER.EXECUTE",
+      "SYSTEM_CONTROLLER_CENTER.CATALOG.READ",
+      "SYSTEM_CONTROLLER_CENTER.ROWS.READ",
+      "SYSTEM_CONTROLLER_CENTER.ARCHITECTURE.READ",
+      "SYSTEM_CONTROLLER_CENTER.ACCESS_MATRIX.READ",
+      "SYSTEM_CONTROLLER_CENTER.AUDIT_LOG.READ",
+      "SYSTEM_CONTROLLER_CENTER.ACCESS_DENIED"
+    ]
+  },
+  "mic09Compatibility": {
+    "kind": "CHANGE",
+    "fromVersion": "0.1.0",
+    "changes": [
+      "Sửa quyền Audit Logs, probe hậu kiểm có tham số và truy cập audit tối thiểu đặc quyền",
+      "Chỉ role TALO_SYSTEM_ADMIN với quyền IAM K05 được truy cập",
+      "Data Explorer chỉ đọc; chặn dữ liệu tài khoản; dữ liệu khác tuân thủ PostgreSQL SELECT/RLS"
+    ]
+  },
+  "mic10Manifest": {
+    "manifestVersion": "MIC-1.0",
+    "hashAlgorithm": "SHA-256",
+    "testEvidence": [
+      {
+        "name": "Foundation FMI-02 preflight SYSTEM_CONTROLLER_CENTER 0.1.1",
+        "result": "NOT_TESTED",
+        "reference": "PENDING_FMI02_RUN_AND_HASH"
+      }
+    ]
+  }
+}

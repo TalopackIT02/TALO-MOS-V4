@@ -6,7 +6,7 @@ const ACCESS_PERMISSION:ModulePermission={permissionCode:'system_controller_cent
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class OverviewError extends Error {
-  constructor(readonly status:number,readonly code:string, message:string){super(message);this.name='OverviewError';}
+  constructor(readonly status:number,readonly code:string, message:string, readonly sqlstate?:string){super(message);this.name='OverviewError';}
 }
 const page=(v:unknown):number=>{
   const n=v===undefined?1:Number(v);
@@ -14,6 +14,14 @@ const page=(v:unknown):number=>{
   if(!Number.isSafeInteger(n)||n<1||n>100000)throw new OverviewError(400,'VALIDATION_ERROR','Trang không hợp lệ.');
   return n;
 };
+// A PostgreSQL refusal is not an IAM refusal: 42501 = the DB role lacks a privilege (fix in PostgreSQL, not in IAM);
+// a missing object (3F000 schema / 42P01 relation / 42883 function) = database contract not installed; anything else
+// (timeout 57014, connection, ...) = data temporarily unavailable. The SQLSTATE is returned, never the SQL or the message.
+export function dataUnavailable(sqlstate:string|undefined):OverviewError{
+  if(sqlstate==='42501')return new OverviewError(503,'DB_PRIVILEGE_MISSING','PostgreSQL từ chối truy vấn (SQLSTATE 42501): DB role của Backend thiếu quyền. Đây không phải lỗi phân quyền IAM.',sqlstate);
+  if(sqlstate==='3F000'||sqlstate==='42P01'||sqlstate==='42883')return new OverviewError(503,'DB_OBJECT_MISSING',`Đối tượng database chưa được cài đặt (SQLSTATE ${sqlstate}).`,sqlstate);
+  return new OverviewError(503,'DATA_UNAVAILABLE',`Không đọc được dữ liệu PostgreSQL${sqlstate?` (SQLSTATE ${sqlstate})`:''}.`,sqlstate);
+}
 const queryValue=(query:unknown,key:string):unknown=>query!==null&&typeof query==='object'?Reflect.get(query,key):undefined;
 function uniqueQuery(query:unknown, keys:readonly string[]) {
   if(query===null||typeof query!=='object'||Array.isArray(query)||Object.keys(query).some(k=>!keys.includes(k)))
@@ -39,15 +47,25 @@ const ACCOUNTS_SQL=`SELECT a.user_account_id::text AS "accountId",a.username AS 
  LEFT JOIN iam.iam_user_roles ur ON ur.user_account_id=a.user_account_id AND ur.revoked_at IS NULL
  LEFT JOIN iam.iam_roles r ON r.role_id=ur.role_id AND r.is_active=TRUE
  GROUP BY a.user_account_id,a.username,a.account_status ORDER BY a.username,a.user_account_id LIMIT $1 OFFSET $2`;
+// Grant sources with the IAM evaluator's own validity rules (Foundation accountFacts / grantFacts): role active, assignment
+// not revoked and started; direct grant not revoked, started, not expired. "viaAdministrator" = the account holds an
+// effective TALO_SYSTEM_ADMIN role, which inherits EVERY defined permission dynamically (no static ALLOW row exists for
+// it). Direct DENY still wins; assurance level and account state are applied by the runtime evaluator, not here.
 const MATRIX_SQL=`SELECT p.permission_code AS "permissionCode",p.module_code AS "moduleCode",
  p.resource_code AS "resourceCode",p.operation AS "operation",p.minimum_assurance_level::int AS "minimumAssuranceLevel",
  EXISTS(SELECT 1 FROM iam.iam_user_roles ur JOIN iam.iam_roles r ON r.role_id=ur.role_id
    JOIN iam.iam_role_permissions rp ON rp.role_id=r.role_id
-   WHERE ur.user_account_id=$1::uuid AND ur.revoked_at IS NULL AND r.is_active=TRUE AND rp.permission_id=p.permission_id) AS "viaRole",
+   WHERE ur.user_account_id=$1::uuid AND ur.revoked_at IS NULL AND ur.assigned_at<=statement_timestamp()
+     AND r.is_active=TRUE AND rp.permission_id=p.permission_id) AS "viaRole",
+ EXISTS(SELECT 1 FROM iam.iam_user_roles ur JOIN iam.iam_roles r ON r.role_id=ur.role_id
+   WHERE ur.user_account_id=$1::uuid AND ur.revoked_at IS NULL AND ur.assigned_at<=statement_timestamp()
+     AND r.is_active=TRUE AND r.role_code='TALO_SYSTEM_ADMIN') AS "viaAdministrator",
  EXISTS(SELECT 1 FROM iam.iam_user_permissions up WHERE up.user_account_id=$1::uuid AND up.permission_id=p.permission_id
-   AND up.effect='ALLOW' AND up.revoked_at IS NULL AND (up.expires_at IS NULL OR up.expires_at>statement_timestamp())) AS "directAllow",
+   AND up.effect='ALLOW' AND up.revoked_at IS NULL AND up.assigned_at<=statement_timestamp()
+   AND (up.expires_at IS NULL OR up.expires_at>statement_timestamp())) AS "directAllow",
  EXISTS(SELECT 1 FROM iam.iam_user_permissions up WHERE up.user_account_id=$1::uuid AND up.permission_id=p.permission_id
-   AND up.effect='DENY' AND up.revoked_at IS NULL AND (up.expires_at IS NULL OR up.expires_at>statement_timestamp())) AS "directDeny"
+   AND up.effect='DENY' AND up.revoked_at IS NULL AND up.assigned_at<=statement_timestamp()
+   AND (up.expires_at IS NULL OR up.expires_at>statement_timestamp())) AS "directDeny"
  FROM iam.iam_permissions p ORDER BY p.module_code,p.resource_code,p.operation,p.permission_code LIMIT $2 OFFSET $3`;
 
 export class ControllerOverviewService {
@@ -60,8 +78,9 @@ export class ControllerOverviewService {
   private async read<R>(actor:ModuleActor,permission:ModulePermission,query:(tx:ReadOnlyQuery)=>Promise<R>):Promise<R>{
     await this.enter(actor,permission);
     try{return await this.host.readOnly(query);}
-    catch(e){if(e instanceof OverviewError)throw e;this.host.logger.error('SCC overview read unavailable',{requestId:actor.requestId,sqlstate:this.host.sqlstate(e)});
-      throw new OverviewError(503,'DATA_UNAVAILABLE','Không đọc được dữ liệu với quyền PostgreSQL hiện tại.');}
+    catch(e){if(e instanceof OverviewError)throw e;const sqlstate=this.host.sqlstate(e);
+      this.host.logger.error('SCC overview read unavailable',{requestId:actor.requestId,sqlstate});
+      throw dataUnavailable(sqlstate);}
   }
   async modules(actor:ModuleActor,query:unknown){
     uniqueQuery(query,['page']);const p=page(queryValue(query,'page'));
@@ -90,6 +109,6 @@ export class ControllerOverviewService {
       return tx.query(MATRIX_SQL,[id,101,(p-1)*100]);
     });
     return {scope:'IAM_GRANT_SOURCES_NOT_SESSION_EFFECTIVE',accountId:id,page:p,pageSize:100,hasNext:rows.length>100,
-      assumption:'Nguồn quyền được liệt kê từ role/direct grants; runtime còn xét assurance, trạng thái tài khoản và IAM evaluator. Quyền System Controller Center chỉ hợp lệ khi có TALO_SYSTEM_ADMIN.',rows:rows.slice(0,100)};
+      assumption:'Nguồn quyền: role, TALO_SYSTEM_ADMIN kế thừa động mọi permission đã định nghĩa, Direct ALLOW; Direct DENY luôn thắng. Runtime còn xét assurance, trạng thái tài khoản và lifecycle module. Quyền System Controller Center chỉ hợp lệ khi có TALO_SYSTEM_ADMIN.',rows:rows.slice(0,100)};
   }
 }

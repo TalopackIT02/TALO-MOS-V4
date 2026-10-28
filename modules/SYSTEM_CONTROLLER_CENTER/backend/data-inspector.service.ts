@@ -5,6 +5,8 @@ import type { DataInspectorBinding } from './data-inspector.permissions.js';
 import * as repo from './data-inspector.repository.js';
 import type { CatalogRow, ColumnRow } from './data-inspector.repository.js';
 import { maskModeOf, isProtectedAccountTable } from './data-inspector.masking.js';
+import { categoryOf, controlledProjectionOf } from './data-inspector.controlled.js';
+import type { ControlledProjection, ProjectionSource, TableCategory } from './data-inspector.controlled.js';
 import type { MaskMode } from './data-inspector.masking.js';
 import {
   CELL_MAX_CHARS, PAGE_MAX, PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX, ROW_COLUMNS_MAX, TABLE_KINDS, isTableKind, parseTableKey, tableDigest, tableKeyOf,
@@ -23,6 +25,8 @@ export const DATA_INSPECTOR_MESSAGES = {
   CATALOG_CHANGED: 'Danh mục bảng đã thay đổi (bảng bị đổi tên, chuyển schema hoặc xóa). Vui lòng làm mới danh sách.',
   QUERY_TIMEOUT: 'Truy vấn vượt quá giới hạn thời gian cho phép.',
   SERVICE_BUSY: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
+  MODULE_UNAVAILABLE: 'Module chưa ACTIVE hoặc chưa bật.',
+  CONTROLLED_READ_UNAVAILABLE: 'Cơ chế đọc có kiểm soát cho bảng này chưa sẵn sàng trên database (cần Database Access Gate đã duyệt).',
 } as const;
 
 export type DataInspectorErrorCode = keyof typeof DATA_INSPECTOR_MESSAGES;
@@ -44,6 +48,11 @@ export class DataInspectorError extends Error {
 export type ReadStatus = 'READABLE' | 'PARTIAL' | 'NOT_READABLE' | 'UNKNOWN';
 export type TableKind = (typeof TABLE_KINDS)[keyof typeof TABLE_KINDS];
 
+// SCC 0.1.2: how the rows of a table can be seen. DIRECT = generic page (PostgreSQL SELECT); CONTROLLED = an approved
+// projection (DB function or fixed backend column list); PROTECTED = account / credential data, never shown;
+// NOT_READABLE = PostgreSQL grants no SELECT and no approved projection exists.
+export type AccessPath = 'DIRECT' | 'CONTROLLED' | 'PROTECTED' | 'NOT_READABLE';
+
 export interface TableEntry {
   readonly tableKey: string;
   readonly schema: string;
@@ -51,6 +60,17 @@ export interface TableEntry {
   readonly kind: TableKind;
   readonly readStatus: ReadStatus;
   readonly rowSecurity: boolean;
+  readonly category: TableCategory;
+  readonly access: AccessPath;
+}
+
+export interface ProjectionInfo {
+  readonly key: ControlledProjection['key'];
+  readonly source: ProjectionSource;
+  readonly reader: string;
+  readonly columns: readonly string[];
+  readonly withheldColumns: readonly string[];
+  readonly note: string;
 }
 
 export interface TablesView {
@@ -71,6 +91,7 @@ export interface ColumnEntry {
 
 export interface ColumnsView extends TableEntry {
   readonly columns: readonly ColumnEntry[];
+  readonly projection?: ProjectionInfo;
 }
 
 export interface RowsView {
@@ -89,8 +110,10 @@ export interface RowsView {
   readonly cellMaxChars: number;
   readonly rowVisibility: 'DB_ROLE_AND_RLS';
   readonly rowSecurity: boolean;
-  readonly ordering: 'PRIMARY_KEY' | 'UNSTABLE_NO_KEY';
+  readonly ordering: 'PRIMARY_KEY' | 'UNSTABLE_NO_KEY' | 'PROJECTION_ORDER';
   readonly orderBy: readonly string[];
+  readonly access: 'DIRECT' | 'CONTROLLED';
+  readonly projection?: ProjectionInfo;
 }
 
 export interface DataInspectorServiceDeps {
@@ -119,6 +142,9 @@ export function sqlstateOf(error: unknown): string | undefined {
 }
 
 const INSUFFICIENT_PRIVILEGE = '42501';
+// Missing approved reader (schema / function not installed by the Database Access Gate) or no EXECUTE.
+const CONTROLLED_UNAVAILABLE = new Set(['42501', '42883', '3F000', '42P01']);
+const INVALID_PARAMETER = '22023';
 const QUERY_CANCELED = '57014'; // statement_timeout of the Host's READ ONLY transaction
 
 const intParam = (min: number, max: number, fallback: number) =>
@@ -133,8 +159,19 @@ export function readStatusOf(r: CatalogRow): ReadStatus {
   return r.anyColumnSelect ? 'PARTIAL' : 'NOT_READABLE';
 }
 
+export function accessOf(schema: string, table: string, readStatus: ReadStatus): AccessPath {
+  if (controlledProjectionOf(schema, table)) return 'CONTROLLED';
+  if (isProtectedAccountTable(schema, table)) return 'PROTECTED';
+  return readStatus === 'READABLE' || readStatus === 'PARTIAL' ? 'DIRECT' : 'NOT_READABLE';
+}
+
 function entryOf(r: CatalogRow & { readonly relkind: 'r' | 'p' }, readStatus: ReadStatus): TableEntry {
-  return { tableKey: tableKeyOf(r), schema: r.schema, table: r.table, kind: TABLE_KINDS[r.relkind], readStatus, rowSecurity: r.rowSecurity };
+  return { tableKey: tableKeyOf(r), schema: r.schema, table: r.table, kind: TABLE_KINDS[r.relkind], readStatus, rowSecurity: r.rowSecurity,
+    category: categoryOf(r.schema), access: accessOf(r.schema, r.table, readStatus) };
+}
+
+function projectionInfo(p: ControlledProjection): ProjectionInfo {
+  return { key: p.key, source: p.source, reader: p.reader, columns: p.columns.map((c) => c.name), withheldColumns: p.withheld, note: p.note };
 }
 
 function toColumn(c: ColumnRow): ColumnEntry {
@@ -170,7 +207,8 @@ export class DataInspectorService {
   async columns(actor: Actor, tableKeyParam: unknown): Promise<ColumnsView> {
     return this.run(actor, this.binding.catalogRead, DATA_INSPECTOR_ACTION.CATALOG_READ, 'columns', 'SERVICE_BUSY', async (tx) => {
       const { entry, oid } = await this.resolve(tx, tableKeyParam);
-      return { ...entry, columns: (await repo.columns(tx, oid)).map(toColumn) };
+      const projection = controlledProjectionOf(entry.schema, entry.table);
+      return { ...entry, columns: (await repo.columns(tx, oid)).map(toColumn), ...(projection ? { projection: projectionInfo(projection) } : {}) };
     });
   }
 
@@ -183,6 +221,8 @@ export class DataInspectorService {
       if (!paging.success) throw new DataInspectorError(400, 'VALIDATION_ERROR', [...new Set(paging.error.issues.map((i) => String(i.path[0] ?? 'query')))]);
       const { page, pageSize } = paging.data;
       const { entry, oid } = await this.resolve(tx, tableKeyParam);
+      const projection = controlledProjectionOf(entry.schema, entry.table);
+      if (projection) return this.controlledPage(tx, entry, projection, page, pageSize);
       if (isProtectedAccountTable(entry.schema, entry.table)) throw new DataInspectorError(403, 'ACCOUNT_DATA_PROTECTED');
       if (entry.readStatus !== 'READABLE' && entry.readStatus !== 'PARTIAL') throw new DataInspectorError(403, 'TABLE_NOT_READABLE');
       const cols = await repo.columns(tx, oid);
@@ -205,9 +245,48 @@ export class DataInspectorService {
         page, pageSize, hasNext: data.cells.length > pageSize,
         columns: shown.map((c) => c.name), columnTypes: shown.map((c) => c.dataType), columnMasking: modes, columnsLimited: readable.length > shown.length,
         rows, cellMaxChars: CELL_MAX_CHARS, rowVisibility: 'DB_ROLE_AND_RLS', rowSecurity: entry.rowSecurity,
-        ordering: orderBy.length > 0 ? 'PRIMARY_KEY' : 'UNSTABLE_NO_KEY', orderBy,
+        ordering: orderBy.length > 0 ? 'PRIMARY_KEY' : 'UNSTABLE_NO_KEY', orderBy, access: 'DIRECT',
       };
     });
+  }
+
+  // SCC 0.1.2: one bounded page of an approved projection. Its failures are told apart from a missing table SELECT:
+  // a reader that is not installed / not executable is CONTROLLED_READ_UNAVAILABLE (503), never a fallback to raw rows.
+  private async controlledPage(tx: SqlExecutor, entry: TableEntry, p: ControlledProjection, page: number, pageSize: number): Promise<RowsView> {
+    const offset = (page - 1) * pageSize;
+    if (offset > p.maxOffset) throw new DataInspectorError(400, 'VALIDATION_ERROR', ['page']);
+    const { sql, params } = p.statement(pageSize + 1, offset, new Date());
+    let raw: unknown[];
+    try {
+      raw = await tx.query(sql, params);
+    } catch (error) {
+      const sqlstate = sqlstateOf(error);
+      if (sqlstate !== undefined && CONTROLLED_UNAVAILABLE.has(sqlstate)) {
+        this.host.logger.warn('data-inspector controlled read unavailable', { projection: p.key, sqlstate });
+        throw new DataInspectorError(503, 'CONTROLLED_READ_UNAVAILABLE');
+      }
+      if (sqlstate === INVALID_PARAMETER) throw new DataInspectorError(400, 'VALIDATION_ERROR', ['page']);
+      throw error;
+    }
+    const names = p.columns.map((c) => c.name);
+    const rows = raw.slice(0, pageSize).map((row) => {
+      const record = z.record(z.string(), z.union([z.string(), z.null()])).parse(row);
+      const cells = names.map((n) => {
+        const v = record[n];
+        if (v === undefined) throw new Error('projection column missing');
+        if (v !== null && Array.from(v).length > CELL_MAX_CHARS) throw new Error('CELL_LIMIT_EXCEEDED');
+        return v;
+      });
+      return { cells };
+    });
+    return {
+      tableKey: entry.tableKey, schema: entry.schema, table: entry.table,
+      readStatus: p.withheld.length > 0 ? 'PARTIAL' : 'READABLE',
+      page, pageSize, hasNext: raw.length > pageSize,
+      columns: names, columnTypes: p.columns.map((c) => c.type), columnMasking: names.map((): MaskMode => 'NONE'), columnsLimited: false,
+      rows, cellMaxChars: CELL_MAX_CHARS, rowVisibility: 'DB_ROLE_AND_RLS', rowSecurity: entry.rowSecurity,
+      ordering: 'PROJECTION_ORDER', orderBy: p.orderBy, access: 'CONTROLLED', projection: projectionInfo(p),
+    };
   }
 
   // (1) IAM → (2) lifecycle → (3) READ ONLY transaction: admin gate, then `read`. Database failures of the read are
@@ -226,7 +305,7 @@ export class DataInspectorService {
     }
     if (state === null || !state.isEnabled || state.activeVersions !== 1) {
       this.host.logger.warn('data-inspector module not available', { requestId: actor.requestId, route, outcome: 'DENIED', reason: 'LIFECYCLE' });
-      throw new DataInspectorError(503, 'SERVICE_BUSY');
+      throw new DataInspectorError(503, 'MODULE_UNAVAILABLE');
     }
     try {
       const result = await this.host.readOnly(async (tx) => {

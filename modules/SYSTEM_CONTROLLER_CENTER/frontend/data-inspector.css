@@ -44,3 +44,4 @@
   .app-shell .di-list{max-height:34vh}
   .app-shell .di-grid{max-height:55vh}
 }
+.app-shell .di-system-toggle{display:flex;align-items:center;gap:6px;margin:6px 0;font-size:12px}

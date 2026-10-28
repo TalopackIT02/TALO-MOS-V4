@@ -5,7 +5,7 @@ import {ControllerOverviewService,OverviewError} from './controller-overview.ser
 async function answer(res:Response,fn:()=>Promise<object>) {
   try{res.status(200).json({data:await fn()});}
   catch(e){if(!(e instanceof OverviewError))throw e;
-    res.status(e.status).json({error:{code:e.code,message:e.message,requestId:res.locals.requestId}});}
+    res.status(e.status).json({error:{code:e.code,message:e.message,requestId:res.locals.requestId,...(e.sqlstate?{details:{sqlstate:e.sqlstate}}:{})}});}
 }
 export function controllerOverviewRouter({host,service}:{host:ModuleHost;service:ControllerOverviewService}):Router {
  const r=express.Router();
