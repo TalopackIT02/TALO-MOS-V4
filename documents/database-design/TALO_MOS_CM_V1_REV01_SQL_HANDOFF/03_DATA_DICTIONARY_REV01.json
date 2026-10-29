@@ -1,0 +1,945 @@
+{
+  "schema": "cm",
+  "version": "REV01-SQL-CANDIDATE",
+  "as_of": "2026-10-29",
+  "status": "AUTHOR_SQL_ALLOWED_EXECUTE_FORBIDDEN",
+  "baseline": "7 tables/76 columns, not applied to PostgreSQL",
+  "tables": {
+    "cm_customers": [
+      {
+        "column": "customer_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "gen_random_uuid()",
+        "rule": "PK",
+        "meaning": "Khóa khách hàng, cố định suốt vòng đời"
+      },
+      {
+        "column": "customer_code",
+        "type": "varchar(6)",
+        "nullable": "NO",
+        "default": "lpad(nextval('cm.customer_code_seq')::text, 6, '0')",
+        "rule": "UNIQUE;CHECK_6_DIGIT",
+        "meaning": "DB sequence cấp 000001..999999 NO CYCLE, Backend nhận qua RETURNING; không nhập tay"
+      },
+      {
+        "column": "display_name",
+        "type": "varchar(200)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Tên thường gọi"
+      },
+      {
+        "column": "legal_name",
+        "type": "varchar(255)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Tên đăng ký pháp lý/thuế"
+      },
+      {
+        "column": "registered_address",
+        "type": "text",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Snapshot địa chỉ pháp lý đầy đủ do Backend dựng từ cột cấu trúc; không được edit độc lập"
+      },
+      {
+        "column": "representative_name",
+        "type": "varchar(150)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Người đại diện pháp luật"
+      },
+      {
+        "column": "representative_phone",
+        "type": "varchar(30)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Điện thoại đại diện"
+      },
+      {
+        "column": "customer_type_code",
+        "type": "varchar(30)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "CODE_CONTRACT",
+        "meaning": "COMPANY/BRANCH/HOUSEHOLD/PERSON/FOREIGN_NO_VN_REG; bắt buộc khai báo"
+      },
+      {
+        "column": "customer_status_code",
+        "type": "varchar(30)",
+        "nullable": "NO",
+        "default": "'PROSPECT'",
+        "rule": "CODE_CONTRACT",
+        "meaning": "PROSPECT, NEW, ACTIVE, PAUSED, CLOSED"
+      },
+      {
+        "column": "internal_note",
+        "type": "text",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Ghi chú nội bộ"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamptz",
+        "nullable": "NO",
+        "default": "now()",
+        "rule": "",
+        "meaning": "Ngày tạo"
+      },
+      {
+        "column": "created_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Actor IAM, không FK vật lý sang iam"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamptz",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Lần cập nhật sau cùng"
+      },
+      {
+        "column": "updated_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Actor sửa, không FK vật lý"
+      },
+      {
+        "column": "is_hidden",
+        "type": "boolean",
+        "nullable": "NO",
+        "default": "false",
+        "rule": "",
+        "meaning": "Ẩn khỏi danh sách mặc định; không xóa vật lý"
+      },
+      {
+        "column": "legal_identifier_type_code",
+        "type": "varchar(30)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "CODE_CONTRACT",
+        "meaning": "VN_TAX_ID / VN_PERSONAL_ID / FOREIGN_REG; có điều kiện bắt buộc khi hồ sơ chính thức"
+      },
+      {
+        "column": "legal_identifier_normalized",
+        "type": "varchar(128)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "PARTIAL_UNIQUE",
+        "meaning": "Định danh chuẩn hóa duy nhất theo (country_code, type, value), kể cả khách ẩn; không duplicate tax_number"
+      },
+      {
+        "column": "address_line",
+        "type": "text",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Số nhà, tên đường trong nước; đường/địa chỉ chi tiết ở nước ngoài"
+      },
+      {
+        "column": "province_code",
+        "type": "char(2)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "FK_PROVINCE",
+        "meaning": "Mã tỉnh chính thức; NULL cho nước ngoài"
+      },
+      {
+        "column": "ward_code",
+        "type": "char(5)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "COMPOSITE_FK_WARD_PROVINCE",
+        "meaning": "Mã phường/xã/đặc khu chính thức; NULL cho nước ngoài"
+      },
+      {
+        "column": "country_code",
+        "type": "char(2)",
+        "nullable": "NO",
+        "default": "'VN'",
+        "rule": "COUNTRY_CODE_CONTRACT",
+        "meaning": "ISO 3166-1 alpha-2, quốc gia địa chỉ và đăng ký ở phạm vi V1"
+      },
+      {
+        "column": "foreign_locality",
+        "type": "varchar(150)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Địa phương/thành phố tại nước ngoài"
+      },
+      {
+        "column": "foreign_state_province",
+        "type": "varchar(150)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Bang/tỉnh tại nước ngoài"
+      }
+    ],
+    "cm_customer_contacts": [
+      {
+        "column": "contact_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "gen_random_uuid()",
+        "rule": "PK",
+        "meaning": "Khóa người liên hệ"
+      },
+      {
+        "column": "customer_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "",
+        "rule": "FK:cm_customers.customer_id",
+        "meaning": "Khách hàng sở hữu"
+      },
+      {
+        "column": "full_name",
+        "type": "varchar(150)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Tên người liên hệ"
+      },
+      {
+        "column": "position_title",
+        "type": "varchar(100)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Chức vụ"
+      },
+      {
+        "column": "phone",
+        "type": "varchar(30)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "CHECK_PHONE_ZALO",
+        "meaning": "Ít nhất phone hoặc zalo_phone phải có"
+      },
+      {
+        "column": "zalo_phone",
+        "type": "varchar(30)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "CHECK_PHONE_ZALO",
+        "meaning": "Số Zalo"
+      },
+      {
+        "column": "email",
+        "type": "varchar(254)",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Email"
+      },
+      {
+        "column": "is_primary",
+        "type": "boolean",
+        "nullable": "NO",
+        "default": "false",
+        "rule": "PARTIAL_UNIQUE_PRIMARY",
+        "meaning": "Tối đa 1 liên hệ chính đang hoạt động/khách"
+      },
+      {
+        "column": "is_active",
+        "type": "boolean",
+        "nullable": "NO",
+        "default": "true",
+        "rule": "",
+        "meaning": "Liên hệ còn sử dụng"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamptz",
+        "nullable": "NO",
+        "default": "now()",
+        "rule": "",
+        "meaning": "Ngày tạo"
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamptz",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Lần chỉnh sửa"
+      },
+      {
+        "column": "created_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Người tạo; không FK IAM"
+      }
+    ],
+    "cm_customer_groups": [
+      {
+        "column": "group_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "gen_random_uuid()",
+        "rule": "PK",
+        "meaning": "Khóa nhóm khách hàng"
+      },
+      {
+        "column": "group_code",
+        "type": "varchar(30)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "UNIQUE",
+        "meaning": "Mã nhóm"
+      },
+      {
+        "column": "group_name",
+        "type": "varchar(150)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Tên nhóm"
+      },
+      {
+        "column": "parent_group_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "FK:cm_customer_groups.group_id;CHECK_NOT_SELF",
+        "meaning": "Nhóm cha, không được trỏ chính mình"
+      },
+      {
+        "column": "description",
+        "type": "text",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Mô tả nhóm"
+      },
+      {
+        "column": "is_active",
+        "type": "boolean",
+        "nullable": "NO",
+        "default": "true",
+        "rule": "",
+        "meaning": "Trạng thái sử dụng"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamptz",
+        "nullable": "NO",
+        "default": "now()",
+        "rule": "",
+        "meaning": "Ngày tạo"
+      },
+      {
+        "column": "created_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Người tạo"
+      }
+    ],
+    "cm_customer_group_members": [
+      {
+        "column": "customer_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "",
+        "rule": "PK_COMPONENT;FK:cm_customers.customer_id",
+        "meaning": "Khách hàng"
+      },
+      {
+        "column": "group_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "",
+        "rule": "PK_COMPONENT;FK:cm_customer_groups.group_id",
+        "meaning": "Nhóm"
+      },
+      {
+        "column": "assigned_at",
+        "type": "timestamptz",
+        "nullable": "NO",
+        "default": "now()",
+        "rule": "",
+        "meaning": "Thời điểm gán"
+      },
+      {
+        "column": "assigned_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Người gán; không FK IAM"
+      }
+    ],
+    "cm_customer_assignments": [
+      {
+        "column": "assignment_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "gen_random_uuid()",
+        "rule": "PK",
+        "meaning": "Mã lượt phân công"
+      },
+      {
+        "column": "customer_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "",
+        "rule": "FK:cm_customers.customer_id",
+        "meaning": "Khách hàng"
+      },
+      {
+        "column": "sale_account_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF;PARTIAL_UNIQUE_ACTIVE",
+        "meaning": "Sale phụ trách của lượt phân công; không FK IAM"
+      },
+      {
+        "column": "assigned_by_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Người giao việc hoặc admin"
+      },
+      {
+        "column": "assigned_at",
+        "type": "timestamptz",
+        "nullable": "NO",
+        "default": "now()",
+        "rule": "",
+        "meaning": "Thời điểm bắt đầu phụ trách"
+      },
+      {
+        "column": "ended_at",
+        "type": "timestamptz",
+        "nullable": "YES",
+        "default": "",
+        "rule": "CHECK_TIME_ORDER",
+        "meaning": "NULL=đang phụ trách, hết hiệu lực khi kết thúc"
+      },
+      {
+        "column": "ended_by_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Người kết thúc phân công"
+      },
+      {
+        "column": "handover_to_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Sale được bàn giao (nếu có)"
+      },
+      {
+        "column": "handover_note",
+        "type": "text",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Ghi chú bàn giao"
+      },
+      {
+        "column": "handover_accepted_at",
+        "type": "timestamptz",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Thời điểm người nhận xác nhận (nếu có)"
+      },
+      {
+        "column": "handover_accepted_by_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Người xác nhận nhận bàn giao"
+      }
+    ],
+    "cm_customer_activities": [
+      {
+        "column": "activity_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "gen_random_uuid()",
+        "rule": "PK",
+        "meaning": "Mã hoạt động/công việc"
+      },
+      {
+        "column": "customer_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "",
+        "rule": "FK:cm_customers.customer_id",
+        "meaning": "Khách hàng"
+      },
+      {
+        "column": "activity_type_code",
+        "type": "varchar(30)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "CODE_CONTRACT",
+        "meaning": "NOTE/CALL/MEETING/TASK/FOLLOW_UP/HANDOVER"
+      },
+      {
+        "column": "activity_status_code",
+        "type": "varchar(30)",
+        "nullable": "NO",
+        "default": "'OPEN'",
+        "rule": "CODE_CONTRACT",
+        "meaning": "OPEN/DONE/CANCELLED; lịch sử ghi chú có thể DONE"
+      },
+      {
+        "column": "title",
+        "type": "varchar(255)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Tiêu đề"
+      },
+      {
+        "column": "description",
+        "type": "text",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Nội dung làm việc"
+      },
+      {
+        "column": "occurred_at",
+        "type": "timestamptz",
+        "nullable": "NO",
+        "default": "now()",
+        "rule": "",
+        "meaning": "Thời điểm sự kiện/công việc"
+      },
+      {
+        "column": "due_at",
+        "type": "timestamptz",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Thời hạn công việc (nếu có)"
+      },
+      {
+        "column": "assigned_to_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Người được giao xử lý công việc"
+      },
+      {
+        "column": "created_by_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Người tạo hoạt động"
+      },
+      {
+        "column": "created_at",
+        "type": "timestamptz",
+        "nullable": "NO",
+        "default": "now()",
+        "rule": "",
+        "meaning": "Thời gian hệ thống ghi nhận"
+      },
+      {
+        "column": "completed_at",
+        "type": "timestamptz",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Thời gian hoàn thành"
+      }
+    ],
+    "cm_customer_documents": [
+      {
+        "column": "document_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "gen_random_uuid()",
+        "rule": "PK",
+        "meaning": "ID tài liệu, file mới = bản ghi mới"
+      },
+      {
+        "column": "customer_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": "",
+        "rule": "FK:cm_customers.customer_id",
+        "meaning": "Khách hàng"
+      },
+      {
+        "column": "document_name",
+        "type": "varchar(255)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Tên hiển thị tài liệu"
+      },
+      {
+        "column": "document_type_code",
+        "type": "varchar(30)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "CODE_CONTRACT",
+        "meaning": "LEGAL/CONTRACT/AUTHORIZATION/OTHER"
+      },
+      {
+        "column": "file_name",
+        "type": "varchar(255)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Tên file gốc"
+      },
+      {
+        "column": "storage_path",
+        "type": "varchar(500)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Khóa/đường dẫn tương đối trên storage, không phải absolute public URL"
+      },
+      {
+        "column": "file_type",
+        "type": "varchar(100)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "MIME type, ví dụ application/pdf"
+      },
+      {
+        "column": "file_size",
+        "type": "bigint",
+        "nullable": "NO",
+        "default": "",
+        "rule": "CHECK_NONNEGATIVE",
+        "meaning": "Kích thước byte >= 0"
+      },
+      {
+        "column": "uploaded_by_account_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": "",
+        "rule": "IAM_LOGICAL_REF",
+        "meaning": "Người upload"
+      },
+      {
+        "column": "uploaded_at",
+        "type": "timestamptz",
+        "nullable": "NO",
+        "default": "now()",
+        "rule": "",
+        "meaning": "Thời gian upload"
+      },
+      {
+        "column": "note",
+        "type": "text",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Ghi chú"
+      },
+      {
+        "column": "signed_date",
+        "type": "date",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Ngày ký tài liệu, có thể NULL"
+      },
+      {
+        "column": "effective_date",
+        "type": "date",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Ngày bắt đầu hiệu lực, có thể NULL"
+      },
+      {
+        "column": "expiry_date",
+        "type": "date",
+        "nullable": "YES",
+        "default": "",
+        "rule": "CHECK_EFFECTIVE_EXPIRY",
+        "meaning": "Ngày hết hạn, có thể NULL"
+      }
+    ],
+    "cm_ref_provinces": [
+      {
+        "column": "province_code",
+        "type": "char(2)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "PK",
+        "meaning": "Mã 2 chữ số theo Quyết định 19/2025/QĐ-TTg"
+      },
+      {
+        "column": "province_name",
+        "type": "varchar(150)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Tên tỉnh/thành chuẩn"
+      },
+      {
+        "column": "unit_type_code",
+        "type": "varchar(20)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "CODE_CONTRACT",
+        "meaning": "TINH/THANH_PHO"
+      },
+      {
+        "column": "valid_from",
+        "type": "date",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Ngày hiệu lực nguồn"
+      },
+      {
+        "column": "valid_to",
+        "type": "date",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Ngày hết hiệu lực nếu có"
+      },
+      {
+        "column": "is_active",
+        "type": "boolean",
+        "nullable": "NO",
+        "default": "true",
+        "rule": "",
+        "meaning": "Trạng thái danh mục"
+      },
+      {
+        "column": "source_ref",
+        "type": "varchar(255)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Văn bản chính thức"
+      },
+      {
+        "column": "source_version",
+        "type": "varchar(60)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Phiên bản import"
+      }
+    ],
+    "cm_ref_wards": [
+      {
+        "column": "ward_code",
+        "type": "char(5)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "PK",
+        "meaning": "Mã 5 chữ số theo QĐ 19"
+      },
+      {
+        "column": "province_code",
+        "type": "char(2)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "FK_PROVINCE",
+        "meaning": "Tỉnh trực thuộc"
+      },
+      {
+        "column": "ward_name",
+        "type": "varchar(150)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Tên phường/xã/đặc khu"
+      },
+      {
+        "column": "unit_type_code",
+        "type": "varchar(20)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "CODE_CONTRACT",
+        "meaning": "PHUONG/XA/DAC_KHU"
+      },
+      {
+        "column": "valid_from",
+        "type": "date",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Ngày hiệu lực"
+      },
+      {
+        "column": "valid_to",
+        "type": "date",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Ngày hết hiệu lực"
+      },
+      {
+        "column": "is_active",
+        "type": "boolean",
+        "nullable": "NO",
+        "default": "true",
+        "rule": "",
+        "meaning": "Trạng thái"
+      },
+      {
+        "column": "source_ref",
+        "type": "varchar(255)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Nguồn chính thức"
+      },
+      {
+        "column": "source_version",
+        "type": "varchar(60)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Phiên bản import"
+      }
+    ],
+    "cm_ref_economic_regions": [
+      {
+        "column": "region_code",
+        "type": "varchar(20)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "PK",
+        "meaning": "Mã vùng kinh tế nội bộ ổn định"
+      },
+      {
+        "column": "region_name",
+        "type": "varchar(150)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Tên một trong sáu vùng kinh tế"
+      },
+      {
+        "column": "valid_from",
+        "type": "date",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Hiệu lực văn bản/phiên bản"
+      },
+      {
+        "column": "valid_to",
+        "type": "date",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Hết hiệu lực nếu thay đổi"
+      },
+      {
+        "column": "is_active",
+        "type": "boolean",
+        "nullable": "NO",
+        "default": "true",
+        "rule": "",
+        "meaning": "Đang sử dụng"
+      },
+      {
+        "column": "source_ref",
+        "type": "varchar(255)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Nguồn pháp lý"
+      }
+    ],
+    "cm_ref_province_region_map": [
+      {
+        "column": "province_code",
+        "type": "char(2)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "PK_COMPONENT;FK_PROVINCE",
+        "meaning": "Tỉnh được ánh xạ"
+      },
+      {
+        "column": "region_code",
+        "type": "varchar(20)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "FK_REGION",
+        "meaning": "Vùng kinh tế"
+      },
+      {
+        "column": "macro_region_code",
+        "type": "varchar(15)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "CODE_CONTRACT",
+        "meaning": "NORTH/CENTRAL/SOUTH (quy ước kinh doanh, chưa là luật)"
+      },
+      {
+        "column": "valid_from",
+        "type": "date",
+        "nullable": "NO",
+        "default": "",
+        "rule": "PK_COMPONENT",
+        "meaning": "Ngày bắt đầu dùng ánh xạ"
+      },
+      {
+        "column": "valid_to",
+        "type": "date",
+        "nullable": "YES",
+        "default": "",
+        "rule": "",
+        "meaning": "Ngày kết thúc ánh xạ, NULL = hiện hành"
+      },
+      {
+        "column": "source_ref",
+        "type": "varchar(255)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Nguồn phân vùng pháp lý"
+      },
+      {
+        "column": "mapping_version",
+        "type": "varchar(60)",
+        "nullable": "NO",
+        "default": "",
+        "rule": "",
+        "meaning": "Phiên bản ánh xạ"
+      }
+    ]
+  },
+  "column_count": 114,
+  "table_count": 11
+}

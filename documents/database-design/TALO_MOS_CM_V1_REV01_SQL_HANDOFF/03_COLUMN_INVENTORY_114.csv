@@ -1,0 +1,115 @@
+﻿table,ordinal,column,postgresql_type,nullable,default,rule,meaning
+cm_customers,1,customer_id,uuid,NO,gen_random_uuid(),PK,"Khóa khách hàng, cố định suốt vòng đời"
+cm_customers,2,customer_code,varchar(6),NO,"lpad(nextval('cm.customer_code_seq')::text, 6, '0')",UNIQUE;CHECK_6_DIGIT,"DB sequence cấp 000001..999999 NO CYCLE, Backend nhận qua RETURNING; không nhập tay"
+cm_customers,3,display_name,varchar(200),NO,,,Tên thường gọi
+cm_customers,4,legal_name,varchar(255),YES,,,Tên đăng ký pháp lý/thuế
+cm_customers,5,registered_address,text,YES,,,Snapshot địa chỉ pháp lý đầy đủ do Backend dựng từ cột cấu trúc; không được edit độc lập
+cm_customers,6,representative_name,varchar(150),YES,,,Người đại diện pháp luật
+cm_customers,7,representative_phone,varchar(30),YES,,,Điện thoại đại diện
+cm_customers,8,customer_type_code,varchar(30),NO,,CODE_CONTRACT,COMPANY/BRANCH/HOUSEHOLD/PERSON/FOREIGN_NO_VN_REG; bắt buộc khai báo
+cm_customers,9,customer_status_code,varchar(30),NO,'PROSPECT',CODE_CONTRACT,"PROSPECT, NEW, ACTIVE, PAUSED, CLOSED"
+cm_customers,10,internal_note,text,YES,,,Ghi chú nội bộ
+cm_customers,11,created_at,timestamptz,NO,now(),,Ngày tạo
+cm_customers,12,created_account_id,uuid,YES,,IAM_LOGICAL_REF,"Actor IAM, không FK vật lý sang iam"
+cm_customers,13,updated_at,timestamptz,YES,,,Lần cập nhật sau cùng
+cm_customers,14,updated_account_id,uuid,YES,,IAM_LOGICAL_REF,"Actor sửa, không FK vật lý"
+cm_customers,15,is_hidden,boolean,NO,false,,Ẩn khỏi danh sách mặc định; không xóa vật lý
+cm_customers,16,legal_identifier_type_code,varchar(30),YES,,CODE_CONTRACT,VN_TAX_ID / VN_PERSONAL_ID / FOREIGN_REG; có điều kiện bắt buộc khi hồ sơ chính thức
+cm_customers,17,legal_identifier_normalized,varchar(128),YES,,PARTIAL_UNIQUE,"Định danh chuẩn hóa duy nhất theo (country_code, type, value), kể cả khách ẩn; không duplicate tax_number"
+cm_customers,18,address_line,text,YES,,,"Số nhà, tên đường trong nước; đường/địa chỉ chi tiết ở nước ngoài"
+cm_customers,19,province_code,char(2),YES,,FK_PROVINCE,Mã tỉnh chính thức; NULL cho nước ngoài
+cm_customers,20,ward_code,char(5),YES,,COMPOSITE_FK_WARD_PROVINCE,Mã phường/xã/đặc khu chính thức; NULL cho nước ngoài
+cm_customers,21,country_code,char(2),NO,'VN',COUNTRY_CODE_CONTRACT,"ISO 3166-1 alpha-2, quốc gia địa chỉ và đăng ký ở phạm vi V1"
+cm_customers,22,foreign_locality,varchar(150),YES,,,Địa phương/thành phố tại nước ngoài
+cm_customers,23,foreign_state_province,varchar(150),YES,,,Bang/tỉnh tại nước ngoài
+cm_customer_contacts,1,contact_id,uuid,NO,gen_random_uuid(),PK,Khóa người liên hệ
+cm_customer_contacts,2,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng sở hữu
+cm_customer_contacts,3,full_name,varchar(150),NO,,,Tên người liên hệ
+cm_customer_contacts,4,position_title,varchar(100),YES,,,Chức vụ
+cm_customer_contacts,5,phone,varchar(30),YES,,CHECK_PHONE_ZALO,Ít nhất phone hoặc zalo_phone phải có
+cm_customer_contacts,6,zalo_phone,varchar(30),YES,,CHECK_PHONE_ZALO,Số Zalo
+cm_customer_contacts,7,email,varchar(254),YES,,,Email
+cm_customer_contacts,8,is_primary,boolean,NO,false,PARTIAL_UNIQUE_PRIMARY,Tối đa 1 liên hệ chính đang hoạt động/khách
+cm_customer_contacts,9,is_active,boolean,NO,true,,Liên hệ còn sử dụng
+cm_customer_contacts,10,created_at,timestamptz,NO,now(),,Ngày tạo
+cm_customer_contacts,11,updated_at,timestamptz,YES,,,Lần chỉnh sửa
+cm_customer_contacts,12,created_account_id,uuid,YES,,IAM_LOGICAL_REF,Người tạo; không FK IAM
+cm_customer_groups,1,group_id,uuid,NO,gen_random_uuid(),PK,Khóa nhóm khách hàng
+cm_customer_groups,2,group_code,varchar(30),NO,,UNIQUE,Mã nhóm
+cm_customer_groups,3,group_name,varchar(150),NO,,,Tên nhóm
+cm_customer_groups,4,parent_group_id,uuid,YES,,FK:cm_customer_groups.group_id;CHECK_NOT_SELF,"Nhóm cha, không được trỏ chính mình"
+cm_customer_groups,5,description,text,YES,,,Mô tả nhóm
+cm_customer_groups,6,is_active,boolean,NO,true,,Trạng thái sử dụng
+cm_customer_groups,7,created_at,timestamptz,NO,now(),,Ngày tạo
+cm_customer_groups,8,created_account_id,uuid,YES,,IAM_LOGICAL_REF,Người tạo
+cm_customer_group_members,1,customer_id,uuid,NO,,PK_COMPONENT;FK:cm_customers.customer_id,Khách hàng
+cm_customer_group_members,2,group_id,uuid,NO,,PK_COMPONENT;FK:cm_customer_groups.group_id,Nhóm
+cm_customer_group_members,3,assigned_at,timestamptz,NO,now(),,Thời điểm gán
+cm_customer_group_members,4,assigned_account_id,uuid,YES,,IAM_LOGICAL_REF,Người gán; không FK IAM
+cm_customer_assignments,1,assignment_id,uuid,NO,gen_random_uuid(),PK,Mã lượt phân công
+cm_customer_assignments,2,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng
+cm_customer_assignments,3,sale_account_id,uuid,NO,,IAM_LOGICAL_REF;PARTIAL_UNIQUE_ACTIVE,Sale phụ trách của lượt phân công; không FK IAM
+cm_customer_assignments,4,assigned_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người giao việc hoặc admin
+cm_customer_assignments,5,assigned_at,timestamptz,NO,now(),,Thời điểm bắt đầu phụ trách
+cm_customer_assignments,6,ended_at,timestamptz,YES,,CHECK_TIME_ORDER,"NULL=đang phụ trách, hết hiệu lực khi kết thúc"
+cm_customer_assignments,7,ended_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người kết thúc phân công
+cm_customer_assignments,8,handover_to_account_id,uuid,YES,,IAM_LOGICAL_REF,Sale được bàn giao (nếu có)
+cm_customer_assignments,9,handover_note,text,YES,,,Ghi chú bàn giao
+cm_customer_assignments,10,handover_accepted_at,timestamptz,YES,,,Thời điểm người nhận xác nhận (nếu có)
+cm_customer_assignments,11,handover_accepted_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người xác nhận nhận bàn giao
+cm_customer_activities,1,activity_id,uuid,NO,gen_random_uuid(),PK,Mã hoạt động/công việc
+cm_customer_activities,2,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng
+cm_customer_activities,3,activity_type_code,varchar(30),NO,,CODE_CONTRACT,NOTE/CALL/MEETING/TASK/FOLLOW_UP/HANDOVER
+cm_customer_activities,4,activity_status_code,varchar(30),NO,'OPEN',CODE_CONTRACT,OPEN/DONE/CANCELLED; lịch sử ghi chú có thể DONE
+cm_customer_activities,5,title,varchar(255),NO,,,Tiêu đề
+cm_customer_activities,6,description,text,YES,,,Nội dung làm việc
+cm_customer_activities,7,occurred_at,timestamptz,NO,now(),,Thời điểm sự kiện/công việc
+cm_customer_activities,8,due_at,timestamptz,YES,,,Thời hạn công việc (nếu có)
+cm_customer_activities,9,assigned_to_account_id,uuid,YES,,IAM_LOGICAL_REF,Người được giao xử lý công việc
+cm_customer_activities,10,created_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người tạo hoạt động
+cm_customer_activities,11,created_at,timestamptz,NO,now(),,Thời gian hệ thống ghi nhận
+cm_customer_activities,12,completed_at,timestamptz,YES,,,Thời gian hoàn thành
+cm_customer_documents,1,document_id,uuid,NO,gen_random_uuid(),PK,"ID tài liệu, file mới = bản ghi mới"
+cm_customer_documents,2,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng
+cm_customer_documents,3,document_name,varchar(255),NO,,,Tên hiển thị tài liệu
+cm_customer_documents,4,document_type_code,varchar(30),NO,,CODE_CONTRACT,LEGAL/CONTRACT/AUTHORIZATION/OTHER
+cm_customer_documents,5,file_name,varchar(255),NO,,,Tên file gốc
+cm_customer_documents,6,storage_path,varchar(500),NO,,,"Khóa/đường dẫn tương đối trên storage, không phải absolute public URL"
+cm_customer_documents,7,file_type,varchar(100),NO,,,"MIME type, ví dụ application/pdf"
+cm_customer_documents,8,file_size,bigint,NO,,CHECK_NONNEGATIVE,Kích thước byte >= 0
+cm_customer_documents,9,uploaded_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người upload
+cm_customer_documents,10,uploaded_at,timestamptz,NO,now(),,Thời gian upload
+cm_customer_documents,11,note,text,YES,,,Ghi chú
+cm_customer_documents,12,signed_date,date,YES,,,"Ngày ký tài liệu, có thể NULL"
+cm_customer_documents,13,effective_date,date,YES,,,"Ngày bắt đầu hiệu lực, có thể NULL"
+cm_customer_documents,14,expiry_date,date,YES,,CHECK_EFFECTIVE_EXPIRY,"Ngày hết hạn, có thể NULL"
+cm_ref_provinces,1,province_code,char(2),NO,,PK,Mã 2 chữ số theo Quyết định 19/2025/QĐ-TTg
+cm_ref_provinces,2,province_name,varchar(150),NO,,,Tên tỉnh/thành chuẩn
+cm_ref_provinces,3,unit_type_code,varchar(20),NO,,CODE_CONTRACT,TINH/THANH_PHO
+cm_ref_provinces,4,valid_from,date,NO,,,Ngày hiệu lực nguồn
+cm_ref_provinces,5,valid_to,date,YES,,,Ngày hết hiệu lực nếu có
+cm_ref_provinces,6,is_active,boolean,NO,true,,Trạng thái danh mục
+cm_ref_provinces,7,source_ref,varchar(255),NO,,,Văn bản chính thức
+cm_ref_provinces,8,source_version,varchar(60),NO,,,Phiên bản import
+cm_ref_wards,1,ward_code,char(5),NO,,PK,Mã 5 chữ số theo QĐ 19
+cm_ref_wards,2,province_code,char(2),NO,,FK_PROVINCE,Tỉnh trực thuộc
+cm_ref_wards,3,ward_name,varchar(150),NO,,,Tên phường/xã/đặc khu
+cm_ref_wards,4,unit_type_code,varchar(20),NO,,CODE_CONTRACT,PHUONG/XA/DAC_KHU
+cm_ref_wards,5,valid_from,date,NO,,,Ngày hiệu lực
+cm_ref_wards,6,valid_to,date,YES,,,Ngày hết hiệu lực
+cm_ref_wards,7,is_active,boolean,NO,true,,Trạng thái
+cm_ref_wards,8,source_ref,varchar(255),NO,,,Nguồn chính thức
+cm_ref_wards,9,source_version,varchar(60),NO,,,Phiên bản import
+cm_ref_economic_regions,1,region_code,varchar(20),NO,,PK,Mã vùng kinh tế nội bộ ổn định
+cm_ref_economic_regions,2,region_name,varchar(150),NO,,,Tên một trong sáu vùng kinh tế
+cm_ref_economic_regions,3,valid_from,date,NO,,,Hiệu lực văn bản/phiên bản
+cm_ref_economic_regions,4,valid_to,date,YES,,,Hết hiệu lực nếu thay đổi
+cm_ref_economic_regions,5,is_active,boolean,NO,true,,Đang sử dụng
+cm_ref_economic_regions,6,source_ref,varchar(255),NO,,,Nguồn pháp lý
+cm_ref_province_region_map,1,province_code,char(2),NO,,PK_COMPONENT;FK_PROVINCE,Tỉnh được ánh xạ
+cm_ref_province_region_map,2,region_code,varchar(20),NO,,FK_REGION,Vùng kinh tế
+cm_ref_province_region_map,3,macro_region_code,varchar(15),NO,,CODE_CONTRACT,"NORTH/CENTRAL/SOUTH (quy ước kinh doanh, chưa là luật)"
+cm_ref_province_region_map,4,valid_from,date,NO,,PK_COMPONENT,Ngày bắt đầu dùng ánh xạ
+cm_ref_province_region_map,5,valid_to,date,YES,,,"Ngày kết thúc ánh xạ, NULL = hiện hành"
+cm_ref_province_region_map,6,source_ref,varchar(255),NO,,,Nguồn phân vùng pháp lý
+cm_ref_province_region_map,7,mapping_version,varchar(60),NO,,,Phiên bản ánh xạ
