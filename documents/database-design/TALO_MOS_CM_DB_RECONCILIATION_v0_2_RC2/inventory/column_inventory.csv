@@ -1,0 +1,196 @@
+﻿table_name,proposed_column,type,nullable,key_reference,note,category,v0_1_column
+cm_customers,customer_id,uuid,Không,PK,—; [PENDING] Đổi tên khóa PK theo báo cáo preflight,Business,id
+cm_customers,customer_code,varchar(30),Không,UNIQUE,Mã nghiệp vụ ổn định,Business,customer_code
+cm_customers,display_name,varchar(200),Không,—,Tên thường gọi,Business,display_name
+cm_customers,entity_type_code,varchar(30),Không,FK → cm_ref_entity_types.code,—,Business,entity_type_code
+cm_customers,status_code,varchar(30),Không,FK → cm_ref_customer_status.code,Mặc định PROSPECT ở tầng nghiệp vụ,Business,status_code
+cm_customers,source_code,varchar(30),Có,FK → cm_customer_sources.code,—,Business,source_code
+cm_customers,industry_code,varchar(30),Có,FK → cm_customer_industries.code,—,Business,industry_code
+cm_customers,sales_region_id,uuid,Có,FK → ref_business_regions.region_id,—,Business,sales_region_id
+cm_customers,internal_note,text,Có,—,—,Business,internal_note
+cm_customers,is_hidden,boolean,Không,—,DEFAULT FALSE,Business,is_hidden
+cm_customer_legal,customer_id,uuid,Không,"PK, FK → cm_customers.customer_id",—,Business,customer_id
+cm_customer_legal,registered_name,varchar(255),Có,—,—,Business,registered_name
+cm_customer_legal,tax_country_code,char(2),Có,FK → ref_countries.country_code,—,Business,tax_country_code
+cm_customer_legal,tax_number,varchar(32),Có,—,—,Business,tax_number
+cm_customer_legal,registered_address,text,Có,—,—,Business,registered_address
+cm_customer_legal,registered_admin_unit_id,uuid,Có,FK → ref_admin_units.admin_unit_id,—,Business,registered_admin_unit_id
+cm_customer_legal,representative_name,varchar(150),Có,—,—,Business,representative_name
+cm_customer_legal,representative_phone,varchar(30),Có,—,—,Business,representative_phone
+cm_customer_legal,representative_title,varchar(100),Có,—,—,Business,representative_title
+cm_customer_legal,business_sector_text,text,Có,—,—,Business,business_sector_text
+cm_customer_contacts,contact_id,uuid,Không,PK,—; [PENDING] Đổi tên khóa PK theo báo cáo preflight,Business,id
+cm_customer_contacts,customer_id,uuid,Không,FK → cm_customers.customer_id,—,Business,customer_id
+cm_customer_contacts,full_name,varchar(150),Không,—,—,Business,full_name
+cm_customer_contacts,position_title,varchar(100),Có,—,—,Business,position_title
+cm_customer_contacts,phone,varchar(30),Có,—,—,Business,phone
+cm_customer_contacts,zalo_phone,varchar(30),Có,—,—,Business,zalo_phone
+cm_customer_contacts,email,varchar(254),Có,—,—,Business,email
+cm_customer_contacts,role_code,varchar(30),Có,FK → cm_ref_contact_roles.code,—,Business,role_code
+cm_customer_contacts,is_primary,boolean,Không,—,DEFAULT FALSE,Business,is_primary
+cm_customer_contacts,is_active,boolean,Không,—,DEFAULT TRUE,Business,is_active
+cm_customer_addresses,address_id,uuid,Không,PK,—; [PENDING] Đổi tên khóa PK theo báo cáo preflight,Business,id
+cm_customer_addresses,customer_id,uuid,Không,FK → cm_customers.customer_id,—,Business,customer_id
+cm_customer_addresses,address_type_code,varchar(30),Không,FK → cm_ref_address_types.code,—,Business,address_type_code
+cm_customer_addresses,country_code,char(2),Không,FK → ref_countries.country_code,—,Business,country_code
+cm_customer_addresses,admin_unit_id,uuid,Có,FK → ref_admin_units.admin_unit_id,—,Business,admin_unit_id
+cm_customer_addresses,address_line,text,Không,—,—,Business,address_line
+cm_customer_addresses,full_address_snapshot,text,Không,—,—,Business,full_address_snapshot
+cm_customer_addresses,postal_code,varchar(20),Có,—,—,Business,postal_code
+cm_customer_addresses,recipient_name,varchar(150),Có,—,—,Business,recipient_name
+cm_customer_addresses,recipient_phone,varchar(30),Có,—,—,Business,recipient_phone
+cm_customer_addresses,is_default,boolean,Không,—,DEFAULT FALSE,Business,is_default
+cm_customer_addresses,is_active,boolean,Không,—,DEFAULT TRUE,Business,is_active
+cm_customer_payments,payment_id,uuid,Không,PK,—; [PENDING] Đổi tên khóa PK theo báo cáo preflight,Business,id
+cm_customer_payments,customer_id,uuid,Không,FK → cm_customers.customer_id,—,Business,customer_id
+cm_customer_payments,profile_name,varchar(150),Không,—,—,Business,profile_name
+cm_customer_payments,payment_method_code,varchar(30),Không,FK → cm_ref_payment_methods.code,—,Business,payment_method_code
+cm_customer_payments,currency_code,char(3),Không,FK → ref_currencies.currency_code,DEFAULT 'VND' (đề xuất),Business,currency_code
+cm_customer_payments,payment_term_days,integer,Có,—,CHECK >= 0,Business,payment_term_days
+cm_customer_payments,payment_terms_text,text,Có,—,—,Business,payment_terms_text
+cm_customer_payments,is_default,boolean,Không,—,DEFAULT FALSE,Business,is_default
+cm_customer_payments,is_active,boolean,Không,—,DEFAULT TRUE,Business,is_active
+cm_customer_banks,bank_account_id,uuid,Không,PK,—; [PENDING] Đổi tên khóa PK theo báo cáo preflight,Business,id
+cm_customer_banks,payment_id,uuid,Không,FK → cm_customer_payments.payment_id,—,Business,payment_id
+cm_customer_banks,bank_code,varchar(30),Không,FK → ref_banks.bank_code,—,Business,bank_code
+cm_customer_banks,account_number,varchar(64),Không,—,—,Business,account_number
+cm_customer_banks,account_holder,varchar(255),Không,—,—,Business,account_holder
+cm_customer_banks,branch_name,varchar(150),Có,—,—,Business,branch_name
+cm_customer_banks,is_default,boolean,Không,—,DEFAULT FALSE,Business,is_default
+cm_customer_banks,is_active,boolean,Không,—,DEFAULT TRUE,Business,is_active
+cm_customer_status_history,status_history_id,uuid,Không,PK,—; [PENDING] Đổi tên khóa PK theo báo cáo preflight,Business,id
+cm_customer_status_history,customer_id,uuid,Không,FK → cm_customers.customer_id,—,Business,customer_id
+cm_customer_status_history,old_status_code,varchar(30),Có,FK → cm_ref_customer_status.code,—,Business,old_status_code
+cm_customer_status_history,new_status_code,varchar(30),Không,FK → cm_ref_customer_status.code,—,Business,new_status_code
+cm_customer_status_history,change_reason,text,Có,—,—,Business,change_reason
+cm_customer_status_history,effective_at,timestamptz,Không,—,—,Business,effective_at
+cm_customer_status_history,changed_account_id,uuid [PENDING: actor type],Có,—,IAM mapping chưa xác nhận; [PENDING] Xác nhận kiểu actor IAM và policy không FK,Business,changed_by
+cm_customer_status_history,source_module_code,varchar(50),Có,—,—,Business,source_module_code
+cm_customer_status_history,source_record_key,varchar(100),Có,—,—,Business,source_record_key
+cm_customer_activities,activity_id,uuid,Không,PK,—; [PENDING] Đổi tên khóa PK theo báo cáo preflight,Business,id
+cm_customer_activities,customer_id,uuid,Không,FK → cm_customers.customer_id,—,Business,customer_id
+cm_customer_activities,activity_type_code,varchar(30),Không,FK → cm_ref_activity_types.code,—,Business,activity_type_code
+cm_customer_activities,activity_status_code,varchar(30),Không,FK → cm_ref_activity_statuses.code,—,Business,activity_status_code
+cm_customer_activities,title,varchar(255),Không,—,—,Business,title
+cm_customer_activities,description,text,Có,—,—,Business,description
+cm_customer_activities,activity_at,timestamptz,Không,—,—,Business,activity_at
+cm_customer_activities,due_at,timestamptz,Có,—,—,Business,due_at
+cm_customer_activities,source_module_code,varchar(50),Có,—,—,Business,source_module_code
+cm_customer_activities,source_record_key,varchar(100),Có,—,—,Business,source_record_key
+cm_customer_activities,source_event_key,varchar(150),Có,—,—,Business,source_event_key
+cm_customer_documents,document_id,uuid,Không,PK,—; [PENDING] Đổi tên khóa PK theo báo cáo preflight,Business,id
+cm_customer_documents,customer_id,uuid,Không,FK → cm_customers.customer_id,—,Business,customer_id
+cm_customer_documents,document_type_code,varchar(30),Không,FK → cm_ref_document_types.code,—,Business,document_type_code
+cm_customer_documents,file_name,varchar(255),Không,—,—,Business,file_name
+cm_customer_documents,storage_key,varchar(500),Không,—,—,Business,storage_key
+cm_customer_documents,mime_type,varchar(100),Không,—,—,Business,mime_type
+cm_customer_documents,file_size,bigint,Không,—,CHECK >= 0,Business,file_size
+cm_customer_documents,sha256,char(64),Có,—,—,Business,sha256
+cm_customer_documents,document_note,text,Có,—,—,Business,document_note
+cm_customer_groups,group_id,uuid,Không,PK,—; [PENDING] Đổi tên khóa PK theo báo cáo preflight,Business,id
+cm_customer_groups,group_code,varchar(30),Không,UNIQUE,—,Business,group_code
+cm_customer_groups,group_name,varchar(150),Không,—,—,Business,group_name
+cm_customer_groups,parent_group_id,uuid,Có,FK → cm_customer_groups.group_id,—,Business,parent_group_id
+cm_customer_groups,description,text,Có,—,—,Business,description
+cm_customer_groups,is_active,boolean,Không,—,DEFAULT TRUE,Business,is_active
+cm_customer_group_members,customer_id,uuid,Không,"PK(composite), FK → cm_customers.customer_id",—,Business,customer_id
+cm_customer_group_members,group_id,uuid,Không,"PK(composite), FK → cm_customer_groups.group_id",—,Business,group_id
+cm_customer_group_members,assigned_account_id,uuid [PENDING: actor type],Có,—,IAM mapping chưa xác nhận; [PENDING] Xác nhận kiểu actor IAM và policy không FK,Business,assigned_by
+cm_ref_customer_status,code,varchar(30),Không,PK,,CM Catalog,code
+cm_ref_customer_status,name,varchar(150),Không,,,CM Catalog,name
+cm_ref_customer_status,description,text,Có,,,CM Catalog,description
+cm_ref_customer_status,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_ref_customer_status,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_ref_customer_status,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_ref_customer_status,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+cm_ref_entity_types,code,varchar(30),Không,PK,,CM Catalog,code
+cm_ref_entity_types,name,varchar(150),Không,,,CM Catalog,name
+cm_ref_entity_types,description,text,Có,,,CM Catalog,description
+cm_ref_entity_types,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_ref_entity_types,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_ref_entity_types,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_ref_entity_types,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+cm_ref_contact_roles,code,varchar(30),Không,PK,,CM Catalog,code
+cm_ref_contact_roles,name,varchar(150),Không,,,CM Catalog,name
+cm_ref_contact_roles,description,text,Có,,,CM Catalog,description
+cm_ref_contact_roles,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_ref_contact_roles,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_ref_contact_roles,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_ref_contact_roles,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+cm_ref_address_types,code,varchar(30),Không,PK,,CM Catalog,code
+cm_ref_address_types,name,varchar(150),Không,,,CM Catalog,name
+cm_ref_address_types,description,text,Có,,,CM Catalog,description
+cm_ref_address_types,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_ref_address_types,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_ref_address_types,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_ref_address_types,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+cm_ref_payment_methods,code,varchar(30),Không,PK,,CM Catalog,code
+cm_ref_payment_methods,name,varchar(150),Không,,,CM Catalog,name
+cm_ref_payment_methods,description,text,Có,,,CM Catalog,description
+cm_ref_payment_methods,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_ref_payment_methods,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_ref_payment_methods,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_ref_payment_methods,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+cm_ref_activity_types,code,varchar(30),Không,PK,,CM Catalog,code
+cm_ref_activity_types,name,varchar(150),Không,,,CM Catalog,name
+cm_ref_activity_types,description,text,Có,,,CM Catalog,description
+cm_ref_activity_types,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_ref_activity_types,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_ref_activity_types,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_ref_activity_types,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+cm_ref_activity_statuses,code,varchar(30),Không,PK,,CM Catalog,code
+cm_ref_activity_statuses,name,varchar(150),Không,,,CM Catalog,name
+cm_ref_activity_statuses,description,text,Có,,,CM Catalog,description
+cm_ref_activity_statuses,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_ref_activity_statuses,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_ref_activity_statuses,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_ref_activity_statuses,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+cm_ref_document_types,code,varchar(30),Không,PK,,CM Catalog,code
+cm_ref_document_types,name,varchar(150),Không,,,CM Catalog,name
+cm_ref_document_types,description,text,Có,,,CM Catalog,description
+cm_ref_document_types,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_ref_document_types,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_ref_document_types,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_ref_document_types,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+cm_customer_sources,code,varchar(30),Không,PK,,CM Catalog,code
+cm_customer_sources,name,varchar(150),Không,,,CM Catalog,name
+cm_customer_sources,description,text,Có,,,CM Catalog,description
+cm_customer_sources,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_customer_sources,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_customer_sources,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_customer_sources,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+cm_customer_industries,code,varchar(30),Không,PK,,CM Catalog,code
+cm_customer_industries,name,varchar(150),Không,,,CM Catalog,name
+cm_customer_industries,description,text,Có,,,CM Catalog,description
+cm_customer_industries,sort_order,integer,Không,DEFAULT 0,,CM Catalog,sort_order
+cm_customer_industries,is_active,boolean,Không,DEFAULT TRUE,,CM Catalog,is_active
+cm_customer_industries,created_at,timestamptz,Không,DEFAULT CURRENT_TIMESTAMP,,CM Catalog,created_at
+cm_customer_industries,retired_at,timestamptz,Có,,,CM Catalog,retired_at
+ref_countries,country_code,char(2),Không,PK,,Master Data,country_code
+ref_countries,country_name,varchar(150),Không,Tên,,Master Data,country_name
+ref_countries,is_active,boolean,Không,DEFAULT TRUE,,Master Data,is_active
+ref_admin_units,admin_unit_id,uuid,Không,PK,[PENDING] rename id,Master Data,id
+ref_admin_units,country_code,char(2),Không,FK → ref_countries.country_code,,Master Data,country_code
+ref_admin_units,admin_code,varchar(30),Không,Mã hành chính,,Master Data,admin_code
+ref_admin_units,admin_name,varchar(200),Không,Tên,,Master Data,admin_name
+ref_admin_units,admin_level,varchar(30),Không,Cấp hành chính,,Master Data,admin_level
+ref_admin_units,parent_id,uuid,Có,FK → ref_admin_units.admin_unit_id,,Master Data,parent_id
+ref_admin_units,valid_from,date,Có,Hiệu lực từ,,Master Data,valid_from
+ref_admin_units,valid_to,date,Có,Hiệu lực đến,,Master Data,valid_to
+ref_admin_units,is_active,boolean,Không,DEFAULT TRUE,,Master Data,is_active
+ref_business_regions,region_id,uuid,Không,PK,[PENDING] rename id,Master Data,id
+ref_business_regions,region_code,varchar(30),Không,UNIQUE,,Master Data,region_code
+ref_business_regions,region_name,varchar(150),Không,Tên,,Master Data,region_name
+ref_business_regions,parent_region_id,uuid,Có,FK → ref_business_regions.region_id,,Master Data,parent_region_id
+ref_business_regions,description,text,Có,Mô tả,,Master Data,description
+ref_business_regions,is_active,boolean,Không,DEFAULT TRUE,,Master Data,is_active
+ref_region_members,region_id,uuid,Không,"PK(composite), FK → ref_business_regions.region_id",,Master Data,region_id
+ref_region_members,admin_unit_id,uuid,Không,"PK(composite), FK → ref_admin_units.admin_unit_id",,Master Data,admin_unit_id
+ref_banks,bank_code,varchar(30),Không,PK,,Master Data,bank_code
+ref_banks,bank_name,varchar(255),Không,Tên ngân hàng,,Master Data,bank_name
+ref_banks,short_name,varchar(100),Có,Tên ngắn,,Master Data,short_name
+ref_banks,is_active,boolean,Không,DEFAULT TRUE,,Master Data,is_active
+ref_currencies,currency_code,char(3),Không,PK,,Master Data,currency_code
+ref_currencies,currency_name,varchar(100),Không,Tên tiền tệ,,Master Data,currency_name
+ref_currencies,decimal_places,smallint,Không,CHECK >= 0,,Master Data,decimal_places
+ref_currencies,is_active,boolean,Không,DEFAULT TRUE,,Master Data,is_active

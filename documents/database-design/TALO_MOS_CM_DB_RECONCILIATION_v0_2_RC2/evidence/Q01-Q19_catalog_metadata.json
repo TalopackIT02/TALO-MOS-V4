@@ -1,0 +1,4636 @@
+{
+ "ranAt": "2026-10-29T03:57:20.347Z",
+ "results": {
+  "Q01": [
+   {
+    "db_name": "talo_mos_v4_test",
+    "role": "talo_app",
+    "active_schema": null,
+    "server_version": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "search_path": "\"$user\", public",
+    "tx_read_only": "on",
+    "default_ro": "on"
+   }
+  ],
+  "Q02": [
+   {
+    "schema_name": "audit_api",
+    "owner": "admin",
+    "acl": "{admin=UC/admin,talo_audit_reader=U/admin,talo_app=U/admin}"
+   },
+   {
+    "schema_name": "foundation",
+    "owner": "talo_foundation_owner",
+    "acl": "{talo_foundation_owner=UC/talo_foundation_owner,talo_app=U/talo_foundation_owner,talo_test_harness=U/talo_foundation_owner,talo_iam_admin=U/talo_foundation_owner,talo_audit_reader=U/talo_foundation_owner,talo_foundation_reader=U/talo_foundation_owner}"
+   },
+   {
+    "schema_name": "foundation_read_api",
+    "owner": "admin",
+    "acl": "{admin=UC/admin,talo_foundation_reader=U/admin,talo_app=U/admin}"
+   },
+   {
+    "schema_name": "iam",
+    "owner": "admin",
+    "acl": "{admin=UC/admin,talo_app=U/admin,talo_provisioner=U/admin,talo_test_harness=U/admin,talo_credential_recovery=U/admin,talo_iam_admin=U/admin,talo_iam_account_owner=U/admin,talo_iam_lifecycle_owner=U/admin,talo_audit_reader=U/admin}"
+   },
+   {
+    "schema_name": "public",
+    "owner": "pg_database_owner",
+    "acl": "{pg_database_owner=UC/pg_database_owner}"
+   }
+  ],
+  "Q03": [
+   {
+    "schema": "foundation",
+    "name": "fnd_actions",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_audit_logs",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_compatibility_changes",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_compatibility_checks",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_data_access_rules",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_data_contracts",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_data_fields",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_functions",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_module_events",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_module_versions",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_modules",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_navigation_items",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_version_actions",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "foundation",
+    "name": "fnd_version_functions",
+    "kind": "r",
+    "owner": "talo_foundation_owner"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_account_verifications",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_audit_logs",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_credentials",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_memberships",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_permissions",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_role_permissions",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_roles",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_sessions",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_user_accounts",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_user_permissions",
+    "kind": "r",
+    "owner": "admin"
+   },
+   {
+    "schema": "iam",
+    "name": "iam_user_roles",
+    "kind": "r",
+    "owner": "admin"
+   }
+  ],
+  "Q04": [
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "pos": 1,
+    "col": "action_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "pos": 2,
+    "col": "function_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "pos": 3,
+    "col": "action_key",
+    "type": "character varying(30)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "pos": 4,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "pos": 5,
+    "col": "retired_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 1,
+    "col": "audit_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 2,
+    "col": "event_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 3,
+    "col": "module_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 4,
+    "col": "version_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 5,
+    "col": "actor_account_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 6,
+    "col": "session_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 7,
+    "col": "action_code",
+    "type": "character varying(120)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 8,
+    "col": "target_type",
+    "type": "character varying(100)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 9,
+    "col": "target_id",
+    "type": "character varying(160)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 10,
+    "col": "outcome",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 11,
+    "col": "occurred_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 12,
+    "col": "recorded_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 13,
+    "col": "correlation_id",
+    "type": "character varying(100)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 14,
+    "col": "source_service",
+    "type": "character varying(120)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "pos": 15,
+    "col": "metadata",
+    "type": "jsonb",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 1,
+    "col": "change_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 2,
+    "col": "check_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 3,
+    "col": "change_area",
+    "type": "character varying(30)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 4,
+    "col": "object_key",
+    "type": "character varying(250)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 5,
+    "col": "change_type",
+    "type": "character varying(30)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 6,
+    "col": "severity",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 7,
+    "col": "previous_value",
+    "type": "jsonb",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 8,
+    "col": "proposed_value",
+    "type": "jsonb",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 9,
+    "col": "resolution_status",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": "'OPEN'::character varying"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "pos": 10,
+    "col": "details",
+    "type": "text",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "pos": 1,
+    "col": "check_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "pos": 2,
+    "col": "module_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "pos": 3,
+    "col": "from_version_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "pos": 4,
+    "col": "to_version_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "pos": 5,
+    "col": "environment",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "pos": 6,
+    "col": "check_result",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": "'PENDING'::character varying"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "pos": 7,
+    "col": "database_fingerprint",
+    "type": "character(64)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "pos": 8,
+    "col": "started_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "pos": 9,
+    "col": "completed_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "pos": 1,
+    "col": "access_rule_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "pos": 2,
+    "col": "data_contract_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "pos": 3,
+    "col": "version_action_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "pos": 4,
+    "col": "data_operation",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "pos": 5,
+    "col": "approval_mode",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": "'UNSPECIFIED'::character varying"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "pos": 6,
+    "col": "workflow_key",
+    "type": "character varying(120)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "pos": 7,
+    "col": "is_enabled",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "false"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "pos": 8,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 1,
+    "col": "data_contract_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 2,
+    "col": "version_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 3,
+    "col": "resource_key",
+    "type": "character varying(120)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 4,
+    "col": "data_owner_key",
+    "type": "character varying(80)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 5,
+    "col": "interface_kind",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 6,
+    "col": "schema_name",
+    "type": "character varying(100)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 7,
+    "col": "table_name",
+    "type": "character varying(100)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 8,
+    "col": "schema_version",
+    "type": "character varying(40)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 9,
+    "col": "contract_spec",
+    "type": "jsonb",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 10,
+    "col": "contract_hash",
+    "type": "character(64)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "pos": 11,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "pos": 1,
+    "col": "field_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "pos": 2,
+    "col": "data_contract_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "pos": 3,
+    "col": "field_name",
+    "type": "character varying(100)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "pos": 4,
+    "col": "field_type",
+    "type": "character varying(100)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "pos": 5,
+    "col": "is_required",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "false"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "pos": 6,
+    "col": "default_expression",
+    "type": "text",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "pos": 7,
+    "col": "is_primary_key",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "false"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "pos": 8,
+    "col": "references_target",
+    "type": "character varying(250)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "pos": 9,
+    "col": "description",
+    "type": "text",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "pos": 1,
+    "col": "function_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "pos": 2,
+    "col": "module_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "pos": 3,
+    "col": "function_key",
+    "type": "character varying(100)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "pos": 4,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "pos": 5,
+    "col": "retired_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "pos": 6,
+    "col": "replaces_function_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "pos": 1,
+    "col": "event_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "pos": 2,
+    "col": "module_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "pos": 3,
+    "col": "version_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "pos": 4,
+    "col": "event_type",
+    "type": "character varying(40)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "pos": 5,
+    "col": "actor_account_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "pos": 6,
+    "col": "before_state",
+    "type": "jsonb",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "pos": 7,
+    "col": "after_state",
+    "type": "jsonb",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "pos": 8,
+    "col": "occurred_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "pos": 9,
+    "col": "correlation_id",
+    "type": "character varying(100)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 1,
+    "col": "version_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 2,
+    "col": "module_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 3,
+    "col": "module_version",
+    "type": "character varying(40)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 4,
+    "col": "contract_version",
+    "type": "character varying(40)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 5,
+    "col": "status",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": "'DRAFT'::character varying"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 6,
+    "col": "manifest_json",
+    "type": "jsonb",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 7,
+    "col": "manifest_hash",
+    "type": "character(64)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 8,
+    "col": "submitted_by_account_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 9,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 10,
+    "col": "reviewed_by_account_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 11,
+    "col": "reviewed_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "pos": 12,
+    "col": "activated_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "pos": 1,
+    "col": "module_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "pos": 2,
+    "col": "module_key",
+    "type": "character varying(80)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "pos": 3,
+    "col": "module_name",
+    "type": "character varying(150)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "pos": 4,
+    "col": "description",
+    "type": "text",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "pos": 5,
+    "col": "module_type",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "pos": 6,
+    "col": "is_enabled",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "false"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "pos": 7,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "pos": 8,
+    "col": "updated_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "pos": 9,
+    "col": "created_by_account_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "pos": 1,
+    "col": "navigation_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "pos": 2,
+    "col": "parent_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "pos": 3,
+    "col": "module_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "pos": 4,
+    "col": "function_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "pos": 5,
+    "col": "menu_title",
+    "type": "character varying(150)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "pos": 6,
+    "col": "sort_order",
+    "type": "integer",
+    "nullable": false,
+    "dflt": "0"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "pos": 7,
+    "col": "is_visible",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "true"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "pos": 8,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "pos": 1,
+    "col": "version_action_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "pos": 2,
+    "col": "version_function_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "pos": 3,
+    "col": "action_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "pos": 4,
+    "col": "description",
+    "type": "text",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "pos": 5,
+    "col": "action_spec",
+    "type": "jsonb",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "pos": 6,
+    "col": "definition_hash",
+    "type": "character(64)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "pos": 7,
+    "col": "is_deprecated",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "false"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "pos": 1,
+    "col": "version_function_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "pos": 2,
+    "col": "version_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "pos": 3,
+    "col": "function_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "pos": 4,
+    "col": "display_name",
+    "type": "character varying(150)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "pos": 5,
+    "col": "route_key",
+    "type": "character varying(200)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "pos": 6,
+    "col": "definition_hash",
+    "type": "character(64)",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "pos": 7,
+    "col": "is_deprecated",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "false"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "pos": 1,
+    "col": "verification_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "pos": 2,
+    "col": "user_account_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "pos": 3,
+    "col": "email",
+    "type": "character varying(320)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "pos": 4,
+    "col": "email_verified_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "pos": 5,
+    "col": "verification_token_hash",
+    "type": "text",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "pos": 6,
+    "col": "sent_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "pos": 7,
+    "col": "expires_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "pos": 8,
+    "col": "consumed_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "pos": 9,
+    "col": "status",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": "'PENDING'::character varying"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 1,
+    "col": "audit_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 2,
+    "col": "actor_account_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 3,
+    "col": "membership_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 4,
+    "col": "session_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 5,
+    "col": "action_code",
+    "type": "character varying(120)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 6,
+    "col": "target_type",
+    "type": "character varying(80)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 7,
+    "col": "target_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 8,
+    "col": "outcome",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 9,
+    "col": "occurred_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "pos": 10,
+    "col": "metadata",
+    "type": "jsonb",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "pos": 1,
+    "col": "credential_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "pos": 2,
+    "col": "user_account_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "pos": 3,
+    "col": "password_hash",
+    "type": "text",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "pos": 4,
+    "col": "password_changed_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "pos": 5,
+    "col": "must_change_password",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "true"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "pos": 6,
+    "col": "failed_attempt_count",
+    "type": "integer",
+    "nullable": false,
+    "dflt": "0"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "pos": 7,
+    "col": "locked_until",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "pos": 8,
+    "col": "updated_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "pos": 1,
+    "col": "membership_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "pos": 2,
+    "col": "employee_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "pos": 3,
+    "col": "employee_code",
+    "type": "character varying(50)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "pos": 4,
+    "col": "full_name",
+    "type": "character varying(200)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "pos": 5,
+    "col": "membership_status",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "pos": 6,
+    "col": "joined_at",
+    "type": "date",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "pos": 7,
+    "col": "left_at",
+    "type": "date",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "pos": 8,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "pos": 1,
+    "col": "permission_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "pos": 2,
+    "col": "permission_code",
+    "type": "character varying(160)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "pos": 3,
+    "col": "module_code",
+    "type": "character varying(80)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "pos": 4,
+    "col": "resource_code",
+    "type": "character varying(100)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "pos": 5,
+    "col": "operation",
+    "type": "character varying(30)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "pos": 6,
+    "col": "minimum_assurance_level",
+    "type": "smallint",
+    "nullable": false,
+    "dflt": "1"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "pos": 7,
+    "col": "permission_description",
+    "type": "text",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "pos": 1,
+    "col": "role_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "pos": 2,
+    "col": "permission_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "pos": 3,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "pos": 1,
+    "col": "role_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "pos": 2,
+    "col": "role_code",
+    "type": "character varying(80)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "pos": 3,
+    "col": "role_name",
+    "type": "character varying(150)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "pos": 4,
+    "col": "role_description",
+    "type": "text",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "pos": 5,
+    "col": "is_active",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "true"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "pos": 6,
+    "col": "is_system",
+    "type": "boolean",
+    "nullable": false,
+    "dflt": "false"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "pos": 1,
+    "col": "session_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "pos": 2,
+    "col": "user_account_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "pos": 3,
+    "col": "session_token_hash",
+    "type": "text",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "pos": 4,
+    "col": "assurance_level_snapshot",
+    "type": "smallint",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "pos": 5,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "pos": 6,
+    "col": "expires_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "pos": 7,
+    "col": "revoked_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "pos": 8,
+    "col": "last_seen_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "pos": 1,
+    "col": "user_account_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "pos": 2,
+    "col": "membership_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "pos": 3,
+    "col": "username",
+    "type": "character varying(80)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "pos": 4,
+    "col": "account_status",
+    "type": "character varying(20)",
+    "nullable": false,
+    "dflt": "'PROVISIONED'::character varying"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "pos": 5,
+    "col": "created_by_account_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "pos": 6,
+    "col": "created_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "pos": 7,
+    "col": "activated_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "pos": 8,
+    "col": "disabled_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "pos": 1,
+    "col": "user_permission_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "pos": 2,
+    "col": "user_account_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "pos": 3,
+    "col": "permission_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "pos": 4,
+    "col": "effect",
+    "type": "character varying(10)",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "pos": 5,
+    "col": "reason",
+    "type": "text",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "pos": 6,
+    "col": "assigned_by_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "pos": 7,
+    "col": "assigned_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "pos": 8,
+    "col": "expires_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "pos": 9,
+    "col": "revoked_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "pos": 1,
+    "col": "user_role_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": "gen_random_uuid()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "pos": 2,
+    "col": "user_account_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "pos": 3,
+    "col": "role_id",
+    "type": "uuid",
+    "nullable": false,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "pos": 4,
+    "col": "assigned_by_id",
+    "type": "uuid",
+    "nullable": true,
+    "dflt": null
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "pos": 5,
+    "col": "assigned_at",
+    "type": "timestamp with time zone",
+    "nullable": false,
+    "dflt": "now()"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "pos": 6,
+    "col": "revoked_at",
+    "type": "timestamp with time zone",
+    "nullable": true,
+    "dflt": null
+   }
+  ],
+  "Q05": [
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "ck_fnd_actions_action_key_format",
+    "type": "c",
+    "def": "CHECK (((action_key)::text ~ '^[A-Z][A-Z0-9_]*$'::text))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "fk_fnd_actions_function_id",
+    "type": "f",
+    "def": "FOREIGN KEY (function_id) REFERENCES foundation.fnd_functions(function_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "fnd_actions_action_id_not_null",
+    "type": "n",
+    "def": "NOT NULL action_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "fnd_actions_action_key_not_null",
+    "type": "n",
+    "def": "NOT NULL action_key"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "fnd_actions_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "fnd_actions_function_id_not_null",
+    "type": "n",
+    "def": "NOT NULL function_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "pk_fnd_actions",
+    "type": "p",
+    "def": "PRIMARY KEY (action_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "uq_fnd_actions_function_action_key",
+    "type": "u",
+    "def": "UNIQUE (function_id, action_key)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "ck_fnd_audit_logs_outcome",
+    "type": "c",
+    "def": "CHECK (((outcome)::text = ANY ((ARRAY['SUCCESS'::character varying, 'FAILURE'::character varying, 'DENIED'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "ck_fnd_audit_logs_version_requires_module",
+    "type": "c",
+    "def": "CHECK (((version_id IS NULL) OR (module_id IS NOT NULL)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fk_fnd_audit_logs_module_id",
+    "type": "f",
+    "def": "FOREIGN KEY (module_id) REFERENCES foundation.fnd_modules(module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fk_fnd_audit_logs_version_id",
+    "type": "f",
+    "def": "FOREIGN KEY (version_id) REFERENCES foundation.fnd_module_versions(version_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fk_fnd_audit_logs_version_same_module",
+    "type": "f",
+    "def": "FOREIGN KEY (version_id, module_id) REFERENCES foundation.fnd_module_versions(version_id, module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fnd_audit_logs_action_code_not_null",
+    "type": "n",
+    "def": "NOT NULL action_code"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fnd_audit_logs_audit_id_not_null",
+    "type": "n",
+    "def": "NOT NULL audit_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fnd_audit_logs_event_id_not_null",
+    "type": "n",
+    "def": "NOT NULL event_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fnd_audit_logs_occurred_at_not_null",
+    "type": "n",
+    "def": "NOT NULL occurred_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fnd_audit_logs_outcome_not_null",
+    "type": "n",
+    "def": "NOT NULL outcome"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fnd_audit_logs_recorded_at_not_null",
+    "type": "n",
+    "def": "NOT NULL recorded_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fnd_audit_logs_source_service_not_null",
+    "type": "n",
+    "def": "NOT NULL source_service"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "fnd_audit_logs_target_type_not_null",
+    "type": "n",
+    "def": "NOT NULL target_type"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "pk_fnd_audit_logs",
+    "type": "p",
+    "def": "PRIMARY KEY (audit_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "uq_fnd_audit_logs_event_id",
+    "type": "u",
+    "def": "UNIQUE (event_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "ck_fnd_compatibility_changes_area",
+    "type": "c",
+    "def": "CHECK (((change_area)::text = ANY ((ARRAY['FUNCTION'::character varying, 'ACTION'::character varying, 'DATA'::character varying, 'API'::character varying, 'MODULE'::character varying, 'UI'::character varying, 'IAM'::character varying, 'AUDIT'::character varying, 'COMPATIBILITY'::character varying, 'INTEGRITY'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "ck_fnd_compatibility_changes_resolution_status",
+    "type": "c",
+    "def": "CHECK (((resolution_status)::text = ANY ((ARRAY['OPEN'::character varying, 'RESOLVED'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "ck_fnd_compatibility_changes_severity",
+    "type": "c",
+    "def": "CHECK (((severity)::text = ANY ((ARRAY['INFO'::character varying, 'WARNING'::character varying, 'BLOCKING'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "ck_fnd_compatibility_changes_type",
+    "type": "c",
+    "def": "CHECK (((change_type)::text = ANY ((ARRAY['ADDED'::character varying, 'REMOVED'::character varying, 'MODIFIED'::character varying, 'MISSING'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "fk_fnd_compatibility_changes_check_id",
+    "type": "f",
+    "def": "FOREIGN KEY (check_id) REFERENCES foundation.fnd_compatibility_checks(check_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "fnd_compatibility_changes_change_area_not_null",
+    "type": "n",
+    "def": "NOT NULL change_area"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "fnd_compatibility_changes_change_id_not_null",
+    "type": "n",
+    "def": "NOT NULL change_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "fnd_compatibility_changes_change_type_not_null",
+    "type": "n",
+    "def": "NOT NULL change_type"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "fnd_compatibility_changes_check_id_not_null",
+    "type": "n",
+    "def": "NOT NULL check_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "fnd_compatibility_changes_object_key_not_null",
+    "type": "n",
+    "def": "NOT NULL object_key"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "fnd_compatibility_changes_resolution_status_not_null",
+    "type": "n",
+    "def": "NOT NULL resolution_status"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "fnd_compatibility_changes_severity_not_null",
+    "type": "n",
+    "def": "NOT NULL severity"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "pk_fnd_compatibility_changes",
+    "type": "p",
+    "def": "PRIMARY KEY (change_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "ck_fnd_compatibility_checks_completed_after_start",
+    "type": "c",
+    "def": "CHECK (((completed_at IS NULL) OR (completed_at >= started_at)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "ck_fnd_compatibility_checks_distinct_versions",
+    "type": "c",
+    "def": "CHECK (((from_version_id IS NULL) OR (from_version_id <> to_version_id)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "ck_fnd_compatibility_checks_environment",
+    "type": "c",
+    "def": "CHECK (((environment)::text = ANY ((ARRAY['DEV'::character varying, 'TEST'::character varying, 'PROD'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "ck_fnd_compatibility_checks_result",
+    "type": "c",
+    "def": "CHECK (((check_result)::text = ANY ((ARRAY['PASS'::character varying, 'WARN'::character varying, 'BLOCK'::character varying, 'FAILED'::character varying, 'PENDING'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fk_fnd_compatibility_checks_from_same_module",
+    "type": "f",
+    "def": "FOREIGN KEY (from_version_id, module_id) REFERENCES foundation.fnd_module_versions(version_id, module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fk_fnd_compatibility_checks_from_version_id",
+    "type": "f",
+    "def": "FOREIGN KEY (from_version_id) REFERENCES foundation.fnd_module_versions(version_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fk_fnd_compatibility_checks_module_id",
+    "type": "f",
+    "def": "FOREIGN KEY (module_id) REFERENCES foundation.fnd_modules(module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fk_fnd_compatibility_checks_to_same_module",
+    "type": "f",
+    "def": "FOREIGN KEY (to_version_id, module_id) REFERENCES foundation.fnd_module_versions(version_id, module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fk_fnd_compatibility_checks_to_version_id",
+    "type": "f",
+    "def": "FOREIGN KEY (to_version_id) REFERENCES foundation.fnd_module_versions(version_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fnd_compatibility_checks_check_id_not_null",
+    "type": "n",
+    "def": "NOT NULL check_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fnd_compatibility_checks_check_result_not_null",
+    "type": "n",
+    "def": "NOT NULL check_result"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fnd_compatibility_checks_environment_not_null",
+    "type": "n",
+    "def": "NOT NULL environment"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fnd_compatibility_checks_module_id_not_null",
+    "type": "n",
+    "def": "NOT NULL module_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fnd_compatibility_checks_started_at_not_null",
+    "type": "n",
+    "def": "NOT NULL started_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "fnd_compatibility_checks_to_version_id_not_null",
+    "type": "n",
+    "def": "NOT NULL to_version_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "pk_fnd_compatibility_checks",
+    "type": "p",
+    "def": "PRIMARY KEY (check_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "ck_fnd_data_access_rules_approval_mode",
+    "type": "c",
+    "def": "CHECK (((approval_mode)::text = ANY ((ARRAY['REQUIRED'::character varying, 'NOT_REQUIRED'::character varying, 'UNSPECIFIED'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "ck_fnd_data_access_rules_data_operation",
+    "type": "c",
+    "def": "CHECK (((data_operation)::text = ANY ((ARRAY['SELECT'::character varying, 'INSERT'::character varying, 'UPDATE'::character varying, 'DELETE'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "ck_fnd_data_access_rules_enabled_needs_mode",
+    "type": "c",
+    "def": "CHECK ((NOT (is_enabled AND ((approval_mode)::text = 'UNSPECIFIED'::text))))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "ck_fnd_data_access_rules_workflow_when_required",
+    "type": "c",
+    "def": "CHECK ((((approval_mode)::text <> 'REQUIRED'::text) OR ((workflow_key IS NOT NULL) AND (btrim((workflow_key)::text) <> ''::text))))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "fk_fnd_data_access_rules_data_contract_id",
+    "type": "f",
+    "def": "FOREIGN KEY (data_contract_id) REFERENCES foundation.fnd_data_contracts(data_contract_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "fk_fnd_data_access_rules_version_action_id",
+    "type": "f",
+    "def": "FOREIGN KEY (version_action_id) REFERENCES foundation.fnd_version_actions(version_action_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "fnd_data_access_rules_access_rule_id_not_null",
+    "type": "n",
+    "def": "NOT NULL access_rule_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "fnd_data_access_rules_approval_mode_not_null",
+    "type": "n",
+    "def": "NOT NULL approval_mode"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "fnd_data_access_rules_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "fnd_data_access_rules_data_contract_id_not_null",
+    "type": "n",
+    "def": "NOT NULL data_contract_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "fnd_data_access_rules_data_operation_not_null",
+    "type": "n",
+    "def": "NOT NULL data_operation"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "fnd_data_access_rules_is_enabled_not_null",
+    "type": "n",
+    "def": "NOT NULL is_enabled"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "fnd_data_access_rules_version_action_id_not_null",
+    "type": "n",
+    "def": "NOT NULL version_action_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "pk_fnd_data_access_rules",
+    "type": "p",
+    "def": "PRIMARY KEY (access_rule_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "uq_fnd_data_access_rules_contract_action_operation",
+    "type": "u",
+    "def": "UNIQUE (data_contract_id, version_action_id, data_operation)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "ck_fnd_data_contracts_contract_hash_format",
+    "type": "c",
+    "def": "CHECK ((contract_hash ~ '^[0-9a-f]{64}$'::text))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "ck_fnd_data_contracts_direct_db_target",
+    "type": "c",
+    "def": "CHECK ((((interface_kind)::text <> 'DIRECT_DB'::text) OR ((NULLIF(btrim((schema_name)::text), ''::text) IS NOT NULL) AND (NULLIF(btrim((table_name)::text), ''::text) IS NOT NULL))))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "ck_fnd_data_contracts_interface_kind",
+    "type": "c",
+    "def": "CHECK (((interface_kind)::text = ANY ((ARRAY['API'::character varying, 'VIEW'::character varying, 'EVENT'::character varying, 'DIRECT_DB'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fk_fnd_data_contracts_version_id",
+    "type": "f",
+    "def": "FOREIGN KEY (version_id) REFERENCES foundation.fnd_module_versions(version_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fnd_data_contracts_contract_hash_not_null",
+    "type": "n",
+    "def": "NOT NULL contract_hash"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fnd_data_contracts_contract_spec_not_null",
+    "type": "n",
+    "def": "NOT NULL contract_spec"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fnd_data_contracts_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fnd_data_contracts_data_contract_id_not_null",
+    "type": "n",
+    "def": "NOT NULL data_contract_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fnd_data_contracts_data_owner_key_not_null",
+    "type": "n",
+    "def": "NOT NULL data_owner_key"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fnd_data_contracts_interface_kind_not_null",
+    "type": "n",
+    "def": "NOT NULL interface_kind"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fnd_data_contracts_resource_key_not_null",
+    "type": "n",
+    "def": "NOT NULL resource_key"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fnd_data_contracts_schema_version_not_null",
+    "type": "n",
+    "def": "NOT NULL schema_version"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "fnd_data_contracts_version_id_not_null",
+    "type": "n",
+    "def": "NOT NULL version_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "pk_fnd_data_contracts",
+    "type": "p",
+    "def": "PRIMARY KEY (data_contract_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "uq_fnd_data_contracts_version_resource",
+    "type": "u",
+    "def": "UNIQUE (version_id, resource_key)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "fk_fnd_data_fields_data_contract_id",
+    "type": "f",
+    "def": "FOREIGN KEY (data_contract_id) REFERENCES foundation.fnd_data_contracts(data_contract_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "fnd_data_fields_data_contract_id_not_null",
+    "type": "n",
+    "def": "NOT NULL data_contract_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "fnd_data_fields_field_id_not_null",
+    "type": "n",
+    "def": "NOT NULL field_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "fnd_data_fields_field_name_not_null",
+    "type": "n",
+    "def": "NOT NULL field_name"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "fnd_data_fields_field_type_not_null",
+    "type": "n",
+    "def": "NOT NULL field_type"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "fnd_data_fields_is_primary_key_not_null",
+    "type": "n",
+    "def": "NOT NULL is_primary_key"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "fnd_data_fields_is_required_not_null",
+    "type": "n",
+    "def": "NOT NULL is_required"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "pk_fnd_data_fields",
+    "type": "p",
+    "def": "PRIMARY KEY (field_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "uq_fnd_data_fields_contract_field",
+    "type": "u",
+    "def": "UNIQUE (data_contract_id, field_name)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "ck_fnd_functions_function_key_format",
+    "type": "c",
+    "def": "CHECK (((function_key)::text ~ '^[A-Z][A-Z0-9_]*$'::text))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "ck_fnd_functions_not_self_replacing",
+    "type": "c",
+    "def": "CHECK (((replaces_function_id IS NULL) OR (replaces_function_id <> function_id)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "fk_fnd_functions_module_id",
+    "type": "f",
+    "def": "FOREIGN KEY (module_id) REFERENCES foundation.fnd_modules(module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "fk_fnd_functions_replaces_function_id",
+    "type": "f",
+    "def": "FOREIGN KEY (replaces_function_id) REFERENCES foundation.fnd_functions(function_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "fk_fnd_functions_replaces_same_module",
+    "type": "f",
+    "def": "FOREIGN KEY (replaces_function_id, module_id) REFERENCES foundation.fnd_functions(function_id, module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "fnd_functions_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "fnd_functions_function_id_not_null",
+    "type": "n",
+    "def": "NOT NULL function_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "fnd_functions_function_key_not_null",
+    "type": "n",
+    "def": "NOT NULL function_key"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "fnd_functions_module_id_not_null",
+    "type": "n",
+    "def": "NOT NULL module_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "pk_fnd_functions",
+    "type": "p",
+    "def": "PRIMARY KEY (function_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "uq_fnd_functions_function_module",
+    "type": "u",
+    "def": "UNIQUE (function_id, module_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "uq_fnd_functions_module_function_key",
+    "type": "u",
+    "def": "UNIQUE (module_id, function_key)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "ck_fnd_module_events_event_type",
+    "type": "c",
+    "def": "CHECK (((event_type)::text = ANY ((ARRAY['REGISTER'::character varying, 'SUBMIT'::character varying, 'APPROVE'::character varying, 'REJECT'::character varying, 'ENABLE'::character varying, 'DISABLE'::character varying, 'ACTIVATE'::character varying, 'RETIRE'::character varying, 'ROLLBACK'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "fk_fnd_module_events_module_id",
+    "type": "f",
+    "def": "FOREIGN KEY (module_id) REFERENCES foundation.fnd_modules(module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "fk_fnd_module_events_version_id",
+    "type": "f",
+    "def": "FOREIGN KEY (version_id) REFERENCES foundation.fnd_module_versions(version_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "fk_fnd_module_events_version_same_module",
+    "type": "f",
+    "def": "FOREIGN KEY (version_id, module_id) REFERENCES foundation.fnd_module_versions(version_id, module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "fnd_module_events_event_id_not_null",
+    "type": "n",
+    "def": "NOT NULL event_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "fnd_module_events_event_type_not_null",
+    "type": "n",
+    "def": "NOT NULL event_type"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "fnd_module_events_module_id_not_null",
+    "type": "n",
+    "def": "NOT NULL module_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "fnd_module_events_occurred_at_not_null",
+    "type": "n",
+    "def": "NOT NULL occurred_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "pk_fnd_module_events",
+    "type": "p",
+    "def": "PRIMARY KEY (event_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "ck_fnd_module_versions_activation",
+    "type": "c",
+    "def": "CHECK ((((status)::text = ANY ((ARRAY['ACTIVE'::character varying, 'RETIRED'::character varying])::text[])) = (activated_at IS NOT NULL)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "ck_fnd_module_versions_manifest_hash_format",
+    "type": "c",
+    "def": "CHECK (((manifest_hash IS NULL) OR (manifest_hash ~ '^[0-9a-f]{64}$'::text)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "ck_fnd_module_versions_manifest_required",
+    "type": "c",
+    "def": "CHECK ((((status)::text = 'DRAFT'::text) OR ((manifest_json IS NOT NULL) AND (manifest_hash IS NOT NULL))))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "ck_fnd_module_versions_review",
+    "type": "c",
+    "def": "CHECK (((((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'IN_REVIEW'::character varying])::text[])) = (reviewed_at IS NULL)) AND (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'IN_REVIEW'::character varying])::text[])) = (reviewed_by_account_id IS NULL))))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "ck_fnd_module_versions_status",
+    "type": "c",
+    "def": "CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'IN_REVIEW'::character varying, 'APPROVED'::character varying, 'ACTIVE'::character varying, 'RETIRED'::character varying, 'REJECTED'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "fk_fnd_module_versions_module_id",
+    "type": "f",
+    "def": "FOREIGN KEY (module_id) REFERENCES foundation.fnd_modules(module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "fnd_module_versions_contract_version_not_null",
+    "type": "n",
+    "def": "NOT NULL contract_version"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "fnd_module_versions_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "fnd_module_versions_module_id_not_null",
+    "type": "n",
+    "def": "NOT NULL module_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "fnd_module_versions_module_version_not_null",
+    "type": "n",
+    "def": "NOT NULL module_version"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "fnd_module_versions_status_not_null",
+    "type": "n",
+    "def": "NOT NULL status"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "fnd_module_versions_version_id_not_null",
+    "type": "n",
+    "def": "NOT NULL version_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "pk_fnd_module_versions",
+    "type": "p",
+    "def": "PRIMARY KEY (version_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "uq_fnd_module_versions_module_version",
+    "type": "u",
+    "def": "UNIQUE (module_id, module_version)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "uq_fnd_module_versions_version_module",
+    "type": "u",
+    "def": "UNIQUE (version_id, module_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "ck_fnd_modules_module_key_format",
+    "type": "c",
+    "def": "CHECK (((module_key)::text ~ '^[A-Z][A-Z0-9_]*$'::text))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "ck_fnd_modules_module_type",
+    "type": "c",
+    "def": "CHECK (((module_type)::text = ANY ((ARRAY['INTERNAL'::character varying, 'EXTERNAL'::character varying])::text[])))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "fnd_modules_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "fnd_modules_is_enabled_not_null",
+    "type": "n",
+    "def": "NOT NULL is_enabled"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "fnd_modules_module_id_not_null",
+    "type": "n",
+    "def": "NOT NULL module_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "fnd_modules_module_key_not_null",
+    "type": "n",
+    "def": "NOT NULL module_key"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "fnd_modules_module_name_not_null",
+    "type": "n",
+    "def": "NOT NULL module_name"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "fnd_modules_module_type_not_null",
+    "type": "n",
+    "def": "NOT NULL module_type"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "fnd_modules_updated_at_not_null",
+    "type": "n",
+    "def": "NOT NULL updated_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "pk_fnd_modules",
+    "type": "p",
+    "def": "PRIMARY KEY (module_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "uq_fnd_modules_module_key",
+    "type": "u",
+    "def": "UNIQUE (module_key)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "ck_fnd_navigation_items_function_requires_module",
+    "type": "c",
+    "def": "CHECK (((function_id IS NULL) OR (module_id IS NOT NULL)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "ck_fnd_navigation_items_not_own_parent",
+    "type": "c",
+    "def": "CHECK (((parent_id IS NULL) OR (parent_id <> navigation_id)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "fk_fnd_navigation_items_function_id",
+    "type": "f",
+    "def": "FOREIGN KEY (function_id) REFERENCES foundation.fnd_functions(function_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "fk_fnd_navigation_items_function_same_module",
+    "type": "f",
+    "def": "FOREIGN KEY (function_id, module_id) REFERENCES foundation.fnd_functions(function_id, module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "fk_fnd_navigation_items_module_id",
+    "type": "f",
+    "def": "FOREIGN KEY (module_id) REFERENCES foundation.fnd_modules(module_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "fk_fnd_navigation_items_parent_id",
+    "type": "f",
+    "def": "FOREIGN KEY (parent_id) REFERENCES foundation.fnd_navigation_items(navigation_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "fnd_navigation_items_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "fnd_navigation_items_is_visible_not_null",
+    "type": "n",
+    "def": "NOT NULL is_visible"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "fnd_navigation_items_menu_title_not_null",
+    "type": "n",
+    "def": "NOT NULL menu_title"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "fnd_navigation_items_navigation_id_not_null",
+    "type": "n",
+    "def": "NOT NULL navigation_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "fnd_navigation_items_sort_order_not_null",
+    "type": "n",
+    "def": "NOT NULL sort_order"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "pk_fnd_navigation_items",
+    "type": "p",
+    "def": "PRIMARY KEY (navigation_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "ck_fnd_version_actions_definition_hash_format",
+    "type": "c",
+    "def": "CHECK (((definition_hash IS NULL) OR (definition_hash ~ '^[0-9a-f]{64}$'::text)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "fk_fnd_version_actions_action_id",
+    "type": "f",
+    "def": "FOREIGN KEY (action_id) REFERENCES foundation.fnd_actions(action_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "fk_fnd_version_actions_version_function_id",
+    "type": "f",
+    "def": "FOREIGN KEY (version_function_id) REFERENCES foundation.fnd_version_functions(version_function_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "fnd_version_actions_action_id_not_null",
+    "type": "n",
+    "def": "NOT NULL action_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "fnd_version_actions_is_deprecated_not_null",
+    "type": "n",
+    "def": "NOT NULL is_deprecated"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "fnd_version_actions_version_action_id_not_null",
+    "type": "n",
+    "def": "NOT NULL version_action_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "fnd_version_actions_version_function_id_not_null",
+    "type": "n",
+    "def": "NOT NULL version_function_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "pk_fnd_version_actions",
+    "type": "p",
+    "def": "PRIMARY KEY (version_action_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "uq_fnd_version_actions_version_function_action",
+    "type": "u",
+    "def": "UNIQUE (version_function_id, action_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "ck_fnd_version_functions_definition_hash_format",
+    "type": "c",
+    "def": "CHECK (((definition_hash IS NULL) OR (definition_hash ~ '^[0-9a-f]{64}$'::text)))"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "fk_fnd_version_functions_function_id",
+    "type": "f",
+    "def": "FOREIGN KEY (function_id) REFERENCES foundation.fnd_functions(function_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "fk_fnd_version_functions_version_id",
+    "type": "f",
+    "def": "FOREIGN KEY (version_id) REFERENCES foundation.fnd_module_versions(version_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "fnd_version_functions_display_name_not_null",
+    "type": "n",
+    "def": "NOT NULL display_name"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "fnd_version_functions_function_id_not_null",
+    "type": "n",
+    "def": "NOT NULL function_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "fnd_version_functions_is_deprecated_not_null",
+    "type": "n",
+    "def": "NOT NULL is_deprecated"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "fnd_version_functions_version_function_id_not_null",
+    "type": "n",
+    "def": "NOT NULL version_function_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "fnd_version_functions_version_id_not_null",
+    "type": "n",
+    "def": "NOT NULL version_id"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "pk_fnd_version_functions",
+    "type": "p",
+    "def": "PRIMARY KEY (version_function_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "uq_fnd_version_functions_version_function",
+    "type": "u",
+    "def": "UNIQUE (version_id, function_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "ck_verification_expiry",
+    "type": "c",
+    "def": "CHECK (((expires_at IS NULL) OR (sent_at IS NULL) OR (expires_at > sent_at)))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "ck_verification_status",
+    "type": "c",
+    "def": "CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'VERIFIED'::character varying, 'EXPIRED'::character varying, 'REVOKED'::character varying])::text[])))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "fk_account_verifications_user_account_id",
+    "type": "f",
+    "def": "FOREIGN KEY (user_account_id) REFERENCES iam.iam_user_accounts(user_account_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "iam_account_verifications_email_not_null",
+    "type": "n",
+    "def": "NOT NULL email"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "iam_account_verifications_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (verification_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "iam_account_verifications_status_not_null",
+    "type": "n",
+    "def": "NOT NULL status"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "iam_account_verifications_user_account_id_not_null",
+    "type": "n",
+    "def": "NOT NULL user_account_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "iam_account_verifications_verification_id_not_null",
+    "type": "n",
+    "def": "NOT NULL verification_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "ck_audit_outcome",
+    "type": "c",
+    "def": "CHECK (((outcome)::text = ANY ((ARRAY['SUCCESS'::character varying, 'FAILURE'::character varying, 'DENIED'::character varying])::text[])))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "fk_audit_logs_actor_account_id",
+    "type": "f",
+    "def": "FOREIGN KEY (actor_account_id) REFERENCES iam.iam_user_accounts(user_account_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "fk_audit_logs_membership_id",
+    "type": "f",
+    "def": "FOREIGN KEY (membership_id) REFERENCES iam.iam_memberships(membership_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "fk_audit_logs_session_id",
+    "type": "f",
+    "def": "FOREIGN KEY (session_id) REFERENCES iam.iam_sessions(session_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "iam_audit_logs_action_code_not_null",
+    "type": "n",
+    "def": "NOT NULL action_code"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "iam_audit_logs_audit_id_not_null",
+    "type": "n",
+    "def": "NOT NULL audit_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "iam_audit_logs_occurred_at_not_null",
+    "type": "n",
+    "def": "NOT NULL occurred_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "iam_audit_logs_outcome_not_null",
+    "type": "n",
+    "def": "NOT NULL outcome"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "iam_audit_logs_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (audit_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "iam_audit_logs_target_type_not_null",
+    "type": "n",
+    "def": "NOT NULL target_type"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "ck_failed_count",
+    "type": "c",
+    "def": "CHECK ((failed_attempt_count >= 0))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "fk_credentials_user_account_id",
+    "type": "f",
+    "def": "FOREIGN KEY (user_account_id) REFERENCES iam.iam_user_accounts(user_account_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "iam_credentials_credential_id_not_null",
+    "type": "n",
+    "def": "NOT NULL credential_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "iam_credentials_failed_attempt_count_not_null",
+    "type": "n",
+    "def": "NOT NULL failed_attempt_count"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "iam_credentials_must_change_password_not_null",
+    "type": "n",
+    "def": "NOT NULL must_change_password"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "iam_credentials_password_hash_not_null",
+    "type": "n",
+    "def": "NOT NULL password_hash"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "iam_credentials_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (credential_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "iam_credentials_updated_at_not_null",
+    "type": "n",
+    "def": "NOT NULL updated_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "iam_credentials_user_account_id_not_null",
+    "type": "n",
+    "def": "NOT NULL user_account_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "ck_membership_dates",
+    "type": "c",
+    "def": "CHECK (((left_at IS NULL) OR (left_at >= joined_at)))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "ck_membership_status",
+    "type": "c",
+    "def": "CHECK (((membership_status)::text = ANY ((ARRAY['ACTIVE'::character varying, 'ON_LEAVE'::character varying, 'EXITED'::character varying])::text[])))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "iam_memberships_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "iam_memberships_employee_code_not_null",
+    "type": "n",
+    "def": "NOT NULL employee_code"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "iam_memberships_employee_id_not_null",
+    "type": "n",
+    "def": "NOT NULL employee_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "iam_memberships_full_name_not_null",
+    "type": "n",
+    "def": "NOT NULL full_name"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "iam_memberships_joined_at_not_null",
+    "type": "n",
+    "def": "NOT NULL joined_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "iam_memberships_membership_id_not_null",
+    "type": "n",
+    "def": "NOT NULL membership_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "iam_memberships_membership_status_not_null",
+    "type": "n",
+    "def": "NOT NULL membership_status"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "iam_memberships_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (membership_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "ck_min_assurance",
+    "type": "c",
+    "def": "CHECK (((minimum_assurance_level >= 1) AND (minimum_assurance_level <= 2)))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "iam_permissions_minimum_assurance_level_not_null",
+    "type": "n",
+    "def": "NOT NULL minimum_assurance_level"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "iam_permissions_module_code_not_null",
+    "type": "n",
+    "def": "NOT NULL module_code"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "iam_permissions_operation_not_null",
+    "type": "n",
+    "def": "NOT NULL operation"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "iam_permissions_permission_code_not_null",
+    "type": "n",
+    "def": "NOT NULL permission_code"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "iam_permissions_permission_id_not_null",
+    "type": "n",
+    "def": "NOT NULL permission_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "iam_permissions_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (permission_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "iam_permissions_resource_code_not_null",
+    "type": "n",
+    "def": "NOT NULL resource_code"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "name": "fk_role_permissions_permission_id",
+    "type": "f",
+    "def": "FOREIGN KEY (permission_id) REFERENCES iam.iam_permissions(permission_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "name": "fk_role_permissions_role_id",
+    "type": "f",
+    "def": "FOREIGN KEY (role_id) REFERENCES iam.iam_roles(role_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "name": "iam_role_permissions_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "name": "iam_role_permissions_permission_id_not_null",
+    "type": "n",
+    "def": "NOT NULL permission_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "name": "iam_role_permissions_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (role_id, permission_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "name": "iam_role_permissions_role_id_not_null",
+    "type": "n",
+    "def": "NOT NULL role_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "name": "iam_roles_is_active_not_null",
+    "type": "n",
+    "def": "NOT NULL is_active"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "name": "iam_roles_is_system_not_null",
+    "type": "n",
+    "def": "NOT NULL is_system"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "name": "iam_roles_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (role_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "name": "iam_roles_role_code_not_null",
+    "type": "n",
+    "def": "NOT NULL role_code"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "name": "iam_roles_role_id_not_null",
+    "type": "n",
+    "def": "NOT NULL role_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "name": "iam_roles_role_name_not_null",
+    "type": "n",
+    "def": "NOT NULL role_name"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "ck_session_assurance",
+    "type": "c",
+    "def": "CHECK (((assurance_level_snapshot >= 0) AND (assurance_level_snapshot <= 2)))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "ck_session_expiry",
+    "type": "c",
+    "def": "CHECK ((expires_at > created_at))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "fk_sessions_user_account_id",
+    "type": "f",
+    "def": "FOREIGN KEY (user_account_id) REFERENCES iam.iam_user_accounts(user_account_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "iam_sessions_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "iam_sessions_expires_at_not_null",
+    "type": "n",
+    "def": "NOT NULL expires_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "iam_sessions_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (session_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "iam_sessions_session_id_not_null",
+    "type": "n",
+    "def": "NOT NULL session_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "iam_sessions_session_token_hash_not_null",
+    "type": "n",
+    "def": "NOT NULL session_token_hash"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "iam_sessions_user_account_id_not_null",
+    "type": "n",
+    "def": "NOT NULL user_account_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "ck_account_membership_state",
+    "type": "c",
+    "def": "CHECK (((((account_status)::text = 'PENDING_MEMBERSHIP'::text) AND (membership_id IS NULL) AND (activated_at IS NULL)) OR (((account_status)::text = 'PROVISIONED'::text) AND (membership_id IS NOT NULL) AND (activated_at IS NULL)) OR (((account_status)::text = 'ACTIVE'::text) AND (membership_id IS NOT NULL) AND (activated_at IS NOT NULL)) OR (((account_status)::text = 'LOCKED'::text) AND (membership_id IS NOT NULL)) OR (((account_status)::text = 'DISABLED'::text) AND ((membership_id IS NOT NULL) OR (activated_at IS NULL)))))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "ck_account_status",
+    "type": "c",
+    "def": "CHECK (((account_status)::text = ANY ((ARRAY['PENDING_MEMBERSHIP'::character varying, 'PROVISIONED'::character varying, 'ACTIVE'::character varying, 'LOCKED'::character varying, 'DISABLED'::character varying])::text[])))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "fk_user_accounts_created_by_account_id",
+    "type": "f",
+    "def": "FOREIGN KEY (created_by_account_id) REFERENCES iam.iam_user_accounts(user_account_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "fk_user_accounts_membership_id",
+    "type": "f",
+    "def": "FOREIGN KEY (membership_id) REFERENCES iam.iam_memberships(membership_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "iam_user_accounts_account_status_not_null",
+    "type": "n",
+    "def": "NOT NULL account_status"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "iam_user_accounts_created_at_not_null",
+    "type": "n",
+    "def": "NOT NULL created_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "iam_user_accounts_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (user_account_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "iam_user_accounts_user_account_id_not_null",
+    "type": "n",
+    "def": "NOT NULL user_account_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "iam_user_accounts_username_not_null",
+    "type": "n",
+    "def": "NOT NULL username"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "ck_grant_effect",
+    "type": "c",
+    "def": "CHECK (((effect)::text = ANY ((ARRAY['ALLOW'::character varying, 'DENY'::character varying])::text[])))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "ck_grant_expiry",
+    "type": "c",
+    "def": "CHECK (((expires_at IS NULL) OR (expires_at > assigned_at)))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "fk_user_permissions_assigned_by_id",
+    "type": "f",
+    "def": "FOREIGN KEY (assigned_by_id) REFERENCES iam.iam_user_accounts(user_account_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "fk_user_permissions_permission_id",
+    "type": "f",
+    "def": "FOREIGN KEY (permission_id) REFERENCES iam.iam_permissions(permission_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "fk_user_permissions_user_account_id",
+    "type": "f",
+    "def": "FOREIGN KEY (user_account_id) REFERENCES iam.iam_user_accounts(user_account_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "iam_user_permissions_assigned_at_not_null",
+    "type": "n",
+    "def": "NOT NULL assigned_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "iam_user_permissions_effect_not_null",
+    "type": "n",
+    "def": "NOT NULL effect"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "iam_user_permissions_permission_id_not_null",
+    "type": "n",
+    "def": "NOT NULL permission_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "iam_user_permissions_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (user_permission_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "iam_user_permissions_user_account_id_not_null",
+    "type": "n",
+    "def": "NOT NULL user_account_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "iam_user_permissions_user_permission_id_not_null",
+    "type": "n",
+    "def": "NOT NULL user_permission_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "fk_user_roles_assigned_by_id",
+    "type": "f",
+    "def": "FOREIGN KEY (assigned_by_id) REFERENCES iam.iam_user_accounts(user_account_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "fk_user_roles_role_id",
+    "type": "f",
+    "def": "FOREIGN KEY (role_id) REFERENCES iam.iam_roles(role_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "fk_user_roles_user_account_id",
+    "type": "f",
+    "def": "FOREIGN KEY (user_account_id) REFERENCES iam.iam_user_accounts(user_account_id) ON DELETE RESTRICT"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "iam_user_roles_assigned_at_not_null",
+    "type": "n",
+    "def": "NOT NULL assigned_at"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "iam_user_roles_pkey",
+    "type": "p",
+    "def": "PRIMARY KEY (user_role_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "iam_user_roles_role_id_not_null",
+    "type": "n",
+    "def": "NOT NULL role_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "iam_user_roles_user_account_id_not_null",
+    "type": "n",
+    "def": "NOT NULL user_account_id"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "iam_user_roles_user_role_id_not_null",
+    "type": "n",
+    "def": "NOT NULL user_role_id"
+   }
+  ],
+  "Q06": [
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "pk_fnd_actions",
+    "def": "CREATE UNIQUE INDEX pk_fnd_actions ON foundation.fnd_actions USING btree (action_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "name": "uq_fnd_actions_function_action_key",
+    "def": "CREATE UNIQUE INDEX uq_fnd_actions_function_action_key ON foundation.fnd_actions USING btree (function_id, action_key)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "pk_fnd_audit_logs",
+    "def": "CREATE UNIQUE INDEX pk_fnd_audit_logs ON foundation.fnd_audit_logs USING btree (audit_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "name": "uq_fnd_audit_logs_event_id",
+    "def": "CREATE UNIQUE INDEX uq_fnd_audit_logs_event_id ON foundation.fnd_audit_logs USING btree (event_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "name": "pk_fnd_compatibility_changes",
+    "def": "CREATE UNIQUE INDEX pk_fnd_compatibility_changes ON foundation.fnd_compatibility_changes USING btree (change_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "name": "pk_fnd_compatibility_checks",
+    "def": "CREATE UNIQUE INDEX pk_fnd_compatibility_checks ON foundation.fnd_compatibility_checks USING btree (check_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "pk_fnd_data_access_rules",
+    "def": "CREATE UNIQUE INDEX pk_fnd_data_access_rules ON foundation.fnd_data_access_rules USING btree (access_rule_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "name": "uq_fnd_data_access_rules_contract_action_operation",
+    "def": "CREATE UNIQUE INDEX uq_fnd_data_access_rules_contract_action_operation ON foundation.fnd_data_access_rules USING btree (data_contract_id, version_action_id, data_operation)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "pk_fnd_data_contracts",
+    "def": "CREATE UNIQUE INDEX pk_fnd_data_contracts ON foundation.fnd_data_contracts USING btree (data_contract_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "name": "uq_fnd_data_contracts_version_resource",
+    "def": "CREATE UNIQUE INDEX uq_fnd_data_contracts_version_resource ON foundation.fnd_data_contracts USING btree (version_id, resource_key)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "pk_fnd_data_fields",
+    "def": "CREATE UNIQUE INDEX pk_fnd_data_fields ON foundation.fnd_data_fields USING btree (field_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "name": "uq_fnd_data_fields_contract_field",
+    "def": "CREATE UNIQUE INDEX uq_fnd_data_fields_contract_field ON foundation.fnd_data_fields USING btree (data_contract_id, field_name)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "pk_fnd_functions",
+    "def": "CREATE UNIQUE INDEX pk_fnd_functions ON foundation.fnd_functions USING btree (function_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "uq_fnd_functions_function_module",
+    "def": "CREATE UNIQUE INDEX uq_fnd_functions_function_module ON foundation.fnd_functions USING btree (function_id, module_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "name": "uq_fnd_functions_module_function_key",
+    "def": "CREATE UNIQUE INDEX uq_fnd_functions_module_function_key ON foundation.fnd_functions USING btree (module_id, function_key)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "name": "pk_fnd_module_events",
+    "def": "CREATE UNIQUE INDEX pk_fnd_module_events ON foundation.fnd_module_events USING btree (event_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "pk_fnd_module_versions",
+    "def": "CREATE UNIQUE INDEX pk_fnd_module_versions ON foundation.fnd_module_versions USING btree (version_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "uq_fnd_module_versions_module_version",
+    "def": "CREATE UNIQUE INDEX uq_fnd_module_versions_module_version ON foundation.fnd_module_versions USING btree (module_id, module_version)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "uq_fnd_module_versions_one_active",
+    "def": "CREATE UNIQUE INDEX uq_fnd_module_versions_one_active ON foundation.fnd_module_versions USING btree (module_id) WHERE ((status)::text = 'ACTIVE'::text)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "name": "uq_fnd_module_versions_version_module",
+    "def": "CREATE UNIQUE INDEX uq_fnd_module_versions_version_module ON foundation.fnd_module_versions USING btree (version_id, module_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "pk_fnd_modules",
+    "def": "CREATE UNIQUE INDEX pk_fnd_modules ON foundation.fnd_modules USING btree (module_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "name": "uq_fnd_modules_module_key",
+    "def": "CREATE UNIQUE INDEX uq_fnd_modules_module_key ON foundation.fnd_modules USING btree (module_key)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "name": "pk_fnd_navigation_items",
+    "def": "CREATE UNIQUE INDEX pk_fnd_navigation_items ON foundation.fnd_navigation_items USING btree (navigation_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "pk_fnd_version_actions",
+    "def": "CREATE UNIQUE INDEX pk_fnd_version_actions ON foundation.fnd_version_actions USING btree (version_action_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "name": "uq_fnd_version_actions_version_function_action",
+    "def": "CREATE UNIQUE INDEX uq_fnd_version_actions_version_function_action ON foundation.fnd_version_actions USING btree (version_function_id, action_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "pk_fnd_version_functions",
+    "def": "CREATE UNIQUE INDEX pk_fnd_version_functions ON foundation.fnd_version_functions USING btree (version_function_id)"
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "name": "uq_fnd_version_functions_version_function",
+    "def": "CREATE UNIQUE INDEX uq_fnd_version_functions_version_function ON foundation.fnd_version_functions USING btree (version_id, function_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "iam_account_verifications_pkey",
+    "def": "CREATE UNIQUE INDEX iam_account_verifications_pkey ON iam.iam_account_verifications USING btree (verification_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "name": "ix_iam_verification_account_status",
+    "def": "CREATE INDEX ix_iam_verification_account_status ON iam.iam_account_verifications USING btree (user_account_id, status)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "iam_audit_logs_pkey",
+    "def": "CREATE UNIQUE INDEX iam_audit_logs_pkey ON iam.iam_audit_logs USING btree (audit_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "ix_iam_audit_account_time",
+    "def": "CREATE INDEX ix_iam_audit_account_time ON iam.iam_audit_logs USING btree (actor_account_id, occurred_at DESC)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "ix_iam_audit_member_time",
+    "def": "CREATE INDEX ix_iam_audit_member_time ON iam.iam_audit_logs USING btree (membership_id, occurred_at DESC)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "name": "ix_iam_audit_time",
+    "def": "CREATE INDEX ix_iam_audit_time ON iam.iam_audit_logs USING btree (occurred_at DESC)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "iam_credentials_pkey",
+    "def": "CREATE UNIQUE INDEX iam_credentials_pkey ON iam.iam_credentials USING btree (credential_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "name": "uq_iam_credential_account",
+    "def": "CREATE UNIQUE INDEX uq_iam_credential_account ON iam.iam_credentials USING btree (user_account_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "iam_memberships_pkey",
+    "def": "CREATE UNIQUE INDEX iam_memberships_pkey ON iam.iam_memberships USING btree (membership_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "uq_iam_membership_code",
+    "def": "CREATE UNIQUE INDEX uq_iam_membership_code ON iam.iam_memberships USING btree (employee_code)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "name": "uq_iam_membership_employee",
+    "def": "CREATE UNIQUE INDEX uq_iam_membership_employee ON iam.iam_memberships USING btree (employee_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "iam_permissions_pkey",
+    "def": "CREATE UNIQUE INDEX iam_permissions_pkey ON iam.iam_permissions USING btree (permission_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "name": "uq_iam_permission_code",
+    "def": "CREATE UNIQUE INDEX uq_iam_permission_code ON iam.iam_permissions USING btree (lower((permission_code)::text))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "name": "iam_role_permissions_pkey",
+    "def": "CREATE UNIQUE INDEX iam_role_permissions_pkey ON iam.iam_role_permissions USING btree (role_id, permission_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "name": "iam_roles_pkey",
+    "def": "CREATE UNIQUE INDEX iam_roles_pkey ON iam.iam_roles USING btree (role_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "name": "uq_iam_role_code",
+    "def": "CREATE UNIQUE INDEX uq_iam_role_code ON iam.iam_roles USING btree (lower((role_code)::text))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "iam_sessions_pkey",
+    "def": "CREATE UNIQUE INDEX iam_sessions_pkey ON iam.iam_sessions USING btree (session_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "ix_iam_sessions_account_expiry",
+    "def": "CREATE INDEX ix_iam_sessions_account_expiry ON iam.iam_sessions USING btree (user_account_id, expires_at DESC)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "name": "uq_iam_session_token_hash",
+    "def": "CREATE UNIQUE INDEX uq_iam_session_token_hash ON iam.iam_sessions USING btree (session_token_hash)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "iam_user_accounts_pkey",
+    "def": "CREATE UNIQUE INDEX iam_user_accounts_pkey ON iam.iam_user_accounts USING btree (user_account_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "ix_iam_account_membership",
+    "def": "CREATE INDEX ix_iam_account_membership ON iam.iam_user_accounts USING btree (membership_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "uq_iam_account_username",
+    "def": "CREATE UNIQUE INDEX uq_iam_account_username ON iam.iam_user_accounts USING btree (lower((username)::text))"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "name": "uq_iam_membership_current_account",
+    "def": "CREATE UNIQUE INDEX uq_iam_membership_current_account ON iam.iam_user_accounts USING btree (membership_id) WHERE (disabled_at IS NULL)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "iam_user_permissions_pkey",
+    "def": "CREATE UNIQUE INDEX iam_user_permissions_pkey ON iam.iam_user_permissions USING btree (user_permission_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "ix_iam_user_permission_account",
+    "def": "CREATE INDEX ix_iam_user_permission_account ON iam.iam_user_permissions USING btree (user_account_id) WHERE (revoked_at IS NULL)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "name": "uq_iam_user_active_direct_permission",
+    "def": "CREATE UNIQUE INDEX uq_iam_user_active_direct_permission ON iam.iam_user_permissions USING btree (user_account_id, permission_id) WHERE (revoked_at IS NULL)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "iam_user_roles_pkey",
+    "def": "CREATE UNIQUE INDEX iam_user_roles_pkey ON iam.iam_user_roles USING btree (user_role_id)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "ix_iam_user_roles_account",
+    "def": "CREATE INDEX ix_iam_user_roles_account ON iam.iam_user_roles USING btree (user_account_id) WHERE (revoked_at IS NULL)"
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "name": "uq_iam_user_active_role",
+    "def": "CREATE UNIQUE INDEX uq_iam_user_active_role ON iam.iam_user_roles USING btree (user_account_id, role_id) WHERE (revoked_at IS NULL)"
+   }
+  ],
+  "Q07": [
+   {
+    "extname": "plpgsql",
+    "extversion": "1.0",
+    "schema": "pg_catalog"
+   }
+  ],
+  "Q08": [
+   {
+    "schema": "foundation",
+    "tbl": "fnd_actions",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner,talo_iam_admin=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_audit_logs",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner}",
+    "app_select": false
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_changes",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner,talo_app=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_compatibility_checks",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_access_rules",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner}",
+    "app_select": false
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_contracts",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_data_fields",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_functions",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner,talo_iam_admin=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_events",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner}",
+    "app_select": false
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_module_versions",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner,talo_iam_admin=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_modules",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner,talo_iam_admin=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_navigation_items",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner,talo_iam_admin=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_actions",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner,talo_iam_admin=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "foundation",
+    "tbl": "fnd_version_functions",
+    "acl": "{talo_foundation_owner=arwdDxtm/talo_foundation_owner,talo_app=r/talo_foundation_owner,talo_test_harness=r/talo_foundation_owner,talo_iam_admin=r/talo_foundation_owner}",
+    "app_select": true
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_account_verifications",
+    "acl": null,
+    "app_select": false
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_audit_logs",
+    "acl": "{admin=arwdDxtm/admin,talo_app=a/admin,talo_provisioner=a/admin,talo_test_harness=rd/admin,talo_credential_recovery=a/admin}",
+    "app_select": false
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_credentials",
+    "acl": "{admin=arwdDxtm/admin,talo_app=r/admin,talo_provisioner=a/admin,talo_test_harness=ard/admin}",
+    "app_select": true
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_memberships",
+    "acl": "{admin=arwdDxtm/admin,talo_app=r/admin,talo_provisioner=ar/admin,talo_test_harness=ard/admin}",
+    "app_select": true
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_permissions",
+    "acl": "{admin=arwdDxtm/admin,talo_app=r/admin,talo_test_harness=rd/admin,talo_iam_admin=r/admin}",
+    "app_select": true
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_role_permissions",
+    "acl": "{admin=arwdDxtm/admin,talo_app=r/admin,talo_test_harness=ard/admin,talo_iam_admin=rd/admin}",
+    "app_select": true
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_roles",
+    "acl": "{admin=arwdDxtm/admin,talo_app=r/admin,talo_test_harness=ard/admin,talo_iam_admin=r/admin}",
+    "app_select": true
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_sessions",
+    "acl": "{admin=arwdDxtm/admin,talo_app=ar/admin,talo_test_harness=rd/admin}",
+    "app_select": true
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_accounts",
+    "acl": "{admin=arwdDxtm/admin,talo_app=r/admin,talo_provisioner=ar/admin,talo_test_harness=ard/admin}",
+    "app_select": true
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_permissions",
+    "acl": "{admin=arwdDxtm/admin,talo_app=r/admin,talo_test_harness=ard/admin,talo_iam_admin=r/admin}",
+    "app_select": true
+   },
+   {
+    "schema": "iam",
+    "tbl": "iam_user_roles",
+    "acl": "{admin=arwdDxtm/admin,talo_app=r/admin,talo_test_harness=ard/admin,talo_iam_admin=r/admin}",
+    "app_select": true
+   }
+  ],
+  "Q09": [
+   {
+    "schema": "audit_api",
+    "usage": true,
+    "create": false
+   },
+   {
+    "schema": "foundation",
+    "usage": true,
+    "create": false
+   },
+   {
+    "schema": "foundation_read_api",
+    "usage": true,
+    "create": false
+   },
+   {
+    "schema": "iam",
+    "usage": true,
+    "create": false
+   },
+   {
+    "schema": "public",
+    "usage": false,
+    "create": false
+   }
+  ],
+  "Q10": [
+   {
+    "rolname": "admin",
+    "rolsuper": true,
+    "rolcreaterole": true,
+    "rolcreatedb": true,
+    "rolcanlogin": true,
+    "rolinherit": true,
+    "rolbypassrls": true
+   },
+   {
+    "rolname": "talo_app",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": true,
+    "rolinherit": false,
+    "rolbypassrls": false
+   },
+   {
+    "rolname": "talo_audit_reader",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": false,
+    "rolinherit": false,
+    "rolbypassrls": false
+   },
+   {
+    "rolname": "talo_credential_recovery",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": false,
+    "rolinherit": false,
+    "rolbypassrls": false
+   },
+   {
+    "rolname": "talo_foundation_owner",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": false,
+    "rolinherit": true,
+    "rolbypassrls": false
+   },
+   {
+    "rolname": "talo_foundation_reader",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": false,
+    "rolinherit": false,
+    "rolbypassrls": false
+   },
+   {
+    "rolname": "talo_iam_account_owner",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": false,
+    "rolinherit": false,
+    "rolbypassrls": false
+   },
+   {
+    "rolname": "talo_iam_admin",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": true,
+    "rolinherit": false,
+    "rolbypassrls": false
+   },
+   {
+    "rolname": "talo_iam_lifecycle_owner",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": false,
+    "rolinherit": false,
+    "rolbypassrls": false
+   },
+   {
+    "rolname": "talo_provisioner",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": true,
+    "rolinherit": false,
+    "rolbypassrls": false
+   },
+   {
+    "rolname": "talo_test_harness",
+    "rolsuper": false,
+    "rolcreaterole": false,
+    "rolcreatedb": false,
+    "rolcanlogin": true,
+    "rolinherit": false,
+    "rolbypassrls": false
+   }
+  ],
+  "Q11": [],
+  "Q12": [
+   {
+    "datname": "talo_mos_v4_test",
+    "app_create_schema": false,
+    "app_temp": false,
+    "acl": "{admin=CTc/admin,talo_app=c/admin,talo_provisioner=c/admin,talo_test_harness=c/admin,talo_iam_admin=c/admin}"
+   }
+  ],
+  "Q13": [],
+  "Q14": [],
+  "Q15": [
+   {
+    "schema": "audit_api",
+    "name": "read_foundation_audit",
+    "args": "p_from timestamp with time zone, p_to timestamp with time zone, p_outcome text, p_action text, p_actor uuid, p_limit integer",
+    "owner": "talo_audit_reader",
+    "security_definer": true
+   },
+   {
+    "schema": "audit_api",
+    "name": "read_foundation_audit_summary",
+    "args": "p_from timestamp with time zone, p_to timestamp with time zone",
+    "owner": "talo_audit_reader",
+    "security_definer": true
+   },
+   {
+    "schema": "audit_api",
+    "name": "read_iam_audit",
+    "args": "p_from timestamp with time zone, p_to timestamp with time zone, p_outcome text, p_action text, p_actor uuid, p_limit integer",
+    "owner": "talo_audit_reader",
+    "security_definer": true
+   },
+   {
+    "schema": "foundation_read_api",
+    "name": "read_data_access_rules",
+    "args": "p_data_contract_id uuid, p_enabled boolean, p_limit integer, p_offset integer",
+    "owner": "talo_foundation_reader",
+    "security_definer": true
+   },
+   {
+    "schema": "foundation_read_api",
+    "name": "read_module_events",
+    "args": "p_from timestamp with time zone, p_to timestamp with time zone, p_module_id uuid, p_event_type text, p_limit integer, p_offset integer",
+    "owner": "talo_foundation_reader",
+    "security_definer": true
+   },
+   {
+    "schema": "iam",
+    "name": "admin_clear_login_lock",
+    "args": "p_actor uuid, p_target uuid, p_reason text, p_request_id uuid",
+    "owner": "talo_iam_account_owner",
+    "security_definer": true
+   },
+   {
+    "schema": "iam",
+    "name": "admin_create_pending_account",
+    "args": "p_actor uuid, p_username text, p_request_id uuid",
+    "owner": "talo_iam_lifecycle_owner",
+    "security_definer": true
+   },
+   {
+    "schema": "iam",
+    "name": "admin_revoke_sessions",
+    "args": "p_actor uuid, p_target uuid, p_session uuid, p_reason text, p_request_id uuid",
+    "owner": "talo_iam_account_owner",
+    "security_definer": true
+   },
+   {
+    "schema": "iam",
+    "name": "admin_set_account_status",
+    "args": "p_actor uuid, p_target uuid, p_action text, p_reason text, p_request_id uuid",
+    "owner": "talo_iam_account_owner",
+    "security_definer": true
+   },
+   {
+    "schema": "iam",
+    "name": "reissue_temporary_credential",
+    "args": "p_username text, p_password_hash text, p_request_id uuid",
+    "owner": "talo_credential_recovery",
+    "security_definer": true
+   }
+  ],
+  "Q16": [],
+  "Q17": [],
+  "Q18": [],
+  "Q19": [
+   {
+    "name": "default_transaction_isolation",
+    "setting": "read committed"
+   },
+   {
+    "name": "server_encoding",
+    "setting": "UTF8"
+   },
+   {
+    "name": "server_version_num",
+    "setting": "180006"
+   },
+   {
+    "name": "statement_timeout",
+    "setting": "0"
+   },
+   {
+    "name": "TimeZone",
+    "setting": "Etc/UTC"
+   }
+  ]
+ }
+}

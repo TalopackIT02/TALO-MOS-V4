@@ -1,0 +1,608 @@
+{
+ "col": [
+  {
+   "schema": "foundation",
+   "tbl": "fnd_actions",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "function_id,action_key"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_audit_logs",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "event_id,module_id,version_id,actor_account_id,session_id,action_code,target_type,target_id,outcome,occurred_at,correlation_id,source_service,metadata"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_audit_logs",
+   "grantee": "talo_audit_reader",
+   "priv": "SELECT",
+   "cols": "event_id,actor_account_id,action_code,target_type,target_id,outcome,occurred_at,correlation_id,metadata"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_compatibility_changes",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "check_id,change_area,object_key,change_type,severity,previous_value,proposed_value"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_compatibility_checks",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "module_id,from_version_id,to_version_id,environment,check_result,completed_at"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_data_access_rules",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "data_contract_id,version_action_id,data_operation,approval_mode,workflow_key"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_data_access_rules",
+   "grantee": "talo_foundation_reader",
+   "priv": "SELECT",
+   "cols": "access_rule_id,data_contract_id,version_action_id,data_operation,approval_mode,workflow_key,is_enabled,created_at"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_data_contracts",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "version_id,resource_key,data_owner_key,interface_kind,schema_name,table_name,schema_version,contract_spec,contract_hash"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_data_fields",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "data_contract_id,field_name,field_type,is_required,is_primary_key,references_target,description"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_functions",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "module_id,function_key"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_module_events",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "module_id,version_id,event_type,actor_account_id,before_state,after_state,correlation_id"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_module_events",
+   "grantee": "talo_foundation_reader",
+   "priv": "SELECT",
+   "cols": "event_id,module_id,version_id,event_type,actor_account_id,before_state,after_state,occurred_at,correlation_id"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_module_versions",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "module_id,module_version,contract_version"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_module_versions",
+   "grantee": "talo_app",
+   "priv": "UPDATE",
+   "cols": "status,manifest_json,manifest_hash,submitted_by_account_id,reviewed_by_account_id,reviewed_at,activated_at"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_modules",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "module_key,module_name,description,module_type,is_enabled,created_by_account_id"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_modules",
+   "grantee": "talo_app",
+   "priv": "UPDATE",
+   "cols": "is_enabled,updated_at"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_navigation_items",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "parent_id,module_id,function_id,menu_title,sort_order,is_visible"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_navigation_items",
+   "grantee": "talo_app",
+   "priv": "UPDATE",
+   "cols": "menu_title,sort_order,is_visible"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_version_actions",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "version_function_id,action_id,description,action_spec,definition_hash"
+  },
+  {
+   "schema": "foundation",
+   "tbl": "fnd_version_functions",
+   "grantee": "talo_app",
+   "priv": "INSERT",
+   "cols": "version_id,function_id,display_name,definition_hash"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_audit_logs",
+   "grantee": "talo_audit_reader",
+   "priv": "SELECT",
+   "cols": "audit_id,actor_account_id,action_code,target_type,target_id,outcome,occurred_at,metadata"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_audit_logs",
+   "grantee": "talo_iam_account_owner",
+   "priv": "INSERT",
+   "cols": "actor_account_id,membership_id,action_code,target_type,target_id,outcome,occurred_at,metadata"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_audit_logs",
+   "grantee": "talo_iam_admin",
+   "priv": "INSERT",
+   "cols": "actor_account_id,action_code,target_type,target_id,outcome,metadata"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_audit_logs",
+   "grantee": "talo_iam_admin",
+   "priv": "SELECT",
+   "cols": "audit_id,actor_account_id,action_code,target_type,target_id,outcome,occurred_at,metadata"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_audit_logs",
+   "grantee": "talo_iam_lifecycle_owner",
+   "priv": "INSERT",
+   "cols": "actor_account_id,membership_id,action_code,target_type,target_id,outcome,occurred_at,metadata"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_credentials",
+   "grantee": "talo_app",
+   "priv": "UPDATE",
+   "cols": "password_hash,password_changed_at,must_change_password,failed_attempt_count,locked_until,updated_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_credentials",
+   "grantee": "talo_credential_recovery",
+   "priv": "SELECT",
+   "cols": "user_account_id,updated_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_credentials",
+   "grantee": "talo_credential_recovery",
+   "priv": "UPDATE",
+   "cols": "password_hash,must_change_password,failed_attempt_count,locked_until,updated_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_credentials",
+   "grantee": "talo_iam_account_owner",
+   "priv": "SELECT",
+   "cols": "user_account_id,failed_attempt_count,locked_until,updated_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_credentials",
+   "grantee": "talo_iam_account_owner",
+   "priv": "UPDATE",
+   "cols": "failed_attempt_count,locked_until,updated_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_credentials",
+   "grantee": "talo_iam_admin",
+   "priv": "SELECT",
+   "cols": "user_account_id,must_change_password,failed_attempt_count,locked_until"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_credentials",
+   "grantee": "talo_test_harness",
+   "priv": "UPDATE",
+   "cols": "password_hash,locked_until,updated_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_memberships",
+   "grantee": "talo_credential_recovery",
+   "priv": "SELECT",
+   "cols": "membership_id,membership_status,left_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_memberships",
+   "grantee": "talo_iam_admin",
+   "priv": "SELECT",
+   "cols": "membership_id,employee_code,full_name,membership_status,joined_at,left_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_memberships",
+   "grantee": "talo_test_harness",
+   "priv": "UPDATE",
+   "cols": "membership_status,left_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_permissions",
+   "grantee": "talo_credential_recovery",
+   "priv": "SELECT",
+   "cols": "permission_id,module_code"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_permissions",
+   "grantee": "talo_iam_admin",
+   "priv": "INSERT",
+   "cols": "permission_code,module_code,resource_code,operation,minimum_assurance_level,permission_description"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_permissions",
+   "grantee": "talo_test_harness",
+   "priv": "INSERT",
+   "cols": "permission_id,permission_code,module_code,resource_code,operation,minimum_assurance_level"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_role_permissions",
+   "grantee": "talo_credential_recovery",
+   "priv": "SELECT",
+   "cols": "role_id,permission_id"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_role_permissions",
+   "grantee": "talo_iam_admin",
+   "priv": "INSERT",
+   "cols": "role_id,permission_id"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_roles",
+   "grantee": "talo_credential_recovery",
+   "priv": "SELECT",
+   "cols": "role_id,is_system"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_roles",
+   "grantee": "talo_iam_admin",
+   "priv": "INSERT",
+   "cols": "role_code,role_name,role_description"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_roles",
+   "grantee": "talo_iam_admin",
+   "priv": "UPDATE",
+   "cols": "role_name,role_description,is_active"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_sessions",
+   "grantee": "talo_app",
+   "priv": "UPDATE",
+   "cols": "revoked_at,last_seen_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_sessions",
+   "grantee": "talo_credential_recovery",
+   "priv": "SELECT",
+   "cols": "user_account_id,revoked_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_sessions",
+   "grantee": "talo_credential_recovery",
+   "priv": "UPDATE",
+   "cols": "revoked_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_sessions",
+   "grantee": "talo_iam_account_owner",
+   "priv": "SELECT",
+   "cols": "session_id,user_account_id,revoked_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_sessions",
+   "grantee": "talo_iam_account_owner",
+   "priv": "UPDATE",
+   "cols": "revoked_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_sessions",
+   "grantee": "talo_iam_admin",
+   "priv": "SELECT",
+   "cols": "session_id,user_account_id,assurance_level_snapshot,created_at,expires_at,revoked_at,last_seen_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_sessions",
+   "grantee": "talo_test_harness",
+   "priv": "UPDATE",
+   "cols": "revoked_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_app",
+   "priv": "UPDATE",
+   "cols": "account_status,activated_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_audit_reader",
+   "priv": "SELECT",
+   "cols": "user_account_id,username"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_credential_recovery",
+   "priv": "SELECT",
+   "cols": "user_account_id,membership_id,username,account_status,disabled_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_credential_recovery",
+   "priv": "UPDATE",
+   "cols": "account_status"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_iam_account_owner",
+   "priv": "SELECT",
+   "cols": "user_account_id,membership_id,account_status,activated_at,disabled_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_iam_account_owner",
+   "priv": "UPDATE",
+   "cols": "account_status"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_iam_admin",
+   "priv": "SELECT",
+   "cols": "user_account_id,membership_id,username,account_status,created_by_account_id,created_at,activated_at,disabled_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_iam_lifecycle_owner",
+   "priv": "INSERT",
+   "cols": "username,account_status,created_by_account_id"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_iam_lifecycle_owner",
+   "priv": "SELECT",
+   "cols": "user_account_id,username,created_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_accounts",
+   "grantee": "talo_test_harness",
+   "priv": "UPDATE",
+   "cols": "account_status,disabled_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_permissions",
+   "grantee": "talo_credential_recovery",
+   "priv": "SELECT",
+   "cols": "user_account_id,permission_id,effect,revoked_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_permissions",
+   "grantee": "talo_iam_admin",
+   "priv": "INSERT",
+   "cols": "user_account_id,permission_id,effect,reason,assigned_by_id,expires_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_permissions",
+   "grantee": "talo_iam_admin",
+   "priv": "UPDATE",
+   "cols": "revoked_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_roles",
+   "grantee": "talo_credential_recovery",
+   "priv": "SELECT",
+   "cols": "user_account_id,role_id,revoked_at"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_roles",
+   "grantee": "talo_iam_admin",
+   "priv": "INSERT",
+   "cols": "user_account_id,role_id,assigned_by_id"
+  },
+  {
+   "schema": "iam",
+   "tbl": "iam_user_roles",
+   "grantee": "talo_iam_admin",
+   "priv": "UPDATE",
+   "cols": "revoked_at"
+  }
+ ],
+ "fn": [
+  {
+   "schema": "audit_api",
+   "proname": "read_foundation_audit",
+   "grantee_oid": 16910,
+   "grantee": "talo_app",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "audit_api",
+   "proname": "read_foundation_audit",
+   "grantee_oid": 26087,
+   "grantee": "talo_audit_reader",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "audit_api",
+   "proname": "read_foundation_audit_summary",
+   "grantee_oid": 16910,
+   "grantee": "talo_app",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "audit_api",
+   "proname": "read_foundation_audit_summary",
+   "grantee_oid": 26087,
+   "grantee": "talo_audit_reader",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "audit_api",
+   "proname": "read_iam_audit",
+   "grantee_oid": 16910,
+   "grantee": "talo_app",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "audit_api",
+   "proname": "read_iam_audit",
+   "grantee_oid": 26087,
+   "grantee": "talo_audit_reader",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "foundation_read_api",
+   "proname": "read_data_access_rules",
+   "grantee_oid": 16910,
+   "grantee": "talo_app",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "foundation_read_api",
+   "proname": "read_data_access_rules",
+   "grantee_oid": 34279,
+   "grantee": "talo_foundation_reader",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "foundation_read_api",
+   "proname": "read_module_events",
+   "grantee_oid": 16910,
+   "grantee": "talo_app",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "foundation_read_api",
+   "proname": "read_module_events",
+   "grantee_oid": 34279,
+   "grantee": "talo_foundation_reader",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "admin_clear_login_lock",
+   "grantee_oid": 25813,
+   "grantee": "talo_iam_account_owner",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "admin_clear_login_lock",
+   "grantee_oid": 25735,
+   "grantee": "talo_iam_admin",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "admin_create_pending_account",
+   "grantee_oid": 25735,
+   "grantee": "talo_iam_admin",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "admin_create_pending_account",
+   "grantee_oid": 25861,
+   "grantee": "talo_iam_lifecycle_owner",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "admin_revoke_sessions",
+   "grantee_oid": 25813,
+   "grantee": "talo_iam_account_owner",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "admin_revoke_sessions",
+   "grantee_oid": 25735,
+   "grantee": "talo_iam_admin",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "admin_set_account_status",
+   "grantee_oid": 25813,
+   "grantee": "talo_iam_account_owner",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "admin_set_account_status",
+   "grantee_oid": 25735,
+   "grantee": "talo_iam_admin",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "reissue_temporary_credential",
+   "grantee_oid": 16915,
+   "grantee": "talo_credential_recovery",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "schema": "iam",
+   "proname": "reissue_temporary_credential",
+   "grantee_oid": 16911,
+   "grantee": "talo_provisioner",
+   "privilege_type": "EXECUTE"
+  }
+ ]
+}

@@ -1,0 +1,77 @@
+﻿table,ordinal,column,postgres_type,nullable,default,constraint_or_rule,purpose
+cm_customers,1,customer_id,uuid,NO,gen_random_uuid(),PK,"Khóa khách hàng, cố định suốt vòng đời"
+cm_customers,2,customer_code,varchar(30),NO,,UNIQUE,Mã nghiệp vụ cấp bởi Backend; DB chống trùng
+cm_customers,3,display_name,varchar(200),NO,,,Tên thường gọi
+cm_customers,4,legal_name,varchar(255),YES,,,Tên đăng ký pháp lý/thuế
+cm_customers,5,tax_number,varchar(32),YES,,INDEX_NON_UNIQUE,MST; không UNIQUE tuyệt đối ở V1
+cm_customers,6,registered_address,text,YES,,,"Địa chỉ đăng ký pháp lý, văn bản gốc"
+cm_customers,7,representative_name,varchar(150),YES,,,Người đại diện pháp luật
+cm_customers,8,representative_phone,varchar(30),YES,,,Điện thoại đại diện
+cm_customers,9,province_name,varchar(150),YES,,,Tỉnh/thành văn bản; chưa cần Master Data
+cm_customers,10,sales_region,varchar(100),YES,,,Khu vực kinh doanh văn bản; sau này chuẩn hóa
+cm_customers,11,customer_type_code,varchar(30),NO,'COMPANY',CODE_CONTRACT,"COMPANY, PERSON; chưa tạo bảng mã"
+cm_customers,12,customer_status_code,varchar(30),NO,'PROSPECT',CODE_CONTRACT,"PROSPECT, NEW, ACTIVE, PAUSED, CLOSED"
+cm_customers,13,internal_note,text,YES,,,Ghi chú nội bộ
+cm_customers,14,created_at,timestamptz,NO,now(),,Ngày tạo
+cm_customers,15,created_account_id,uuid,YES,,IAM_LOGICAL_REF,"Actor IAM, không FK vật lý sang iam"
+cm_customers,16,updated_at,timestamptz,YES,,,Lần cập nhật sau cùng
+cm_customers,17,updated_account_id,uuid,YES,,IAM_LOGICAL_REF,"Actor sửa, không FK vật lý"
+cm_customers,18,is_hidden,boolean,NO,false,,Ẩn khỏi danh sách mặc định; không xóa vật lý
+cm_customer_contacts,1,contact_id,uuid,NO,gen_random_uuid(),PK,Khóa người liên hệ
+cm_customer_contacts,2,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng sở hữu
+cm_customer_contacts,3,full_name,varchar(150),NO,,,Tên người liên hệ
+cm_customer_contacts,4,position_title,varchar(100),YES,,,Chức vụ
+cm_customer_contacts,5,phone,varchar(30),YES,,CHECK_PHONE_ZALO,Ít nhất phone hoặc zalo_phone phải có
+cm_customer_contacts,6,zalo_phone,varchar(30),YES,,CHECK_PHONE_ZALO,Số Zalo
+cm_customer_contacts,7,email,varchar(254),YES,,,Email
+cm_customer_contacts,8,is_primary,boolean,NO,false,PARTIAL_UNIQUE_PRIMARY,Tối đa 1 liên hệ chính đang hoạt động/khách
+cm_customer_contacts,9,is_active,boolean,NO,true,,Liên hệ còn sử dụng
+cm_customer_contacts,10,created_at,timestamptz,NO,now(),,Ngày tạo
+cm_customer_contacts,11,updated_at,timestamptz,YES,,,Lần chỉnh sửa
+cm_customer_contacts,12,created_account_id,uuid,YES,,IAM_LOGICAL_REF,Người tạo; không FK IAM
+cm_customer_groups,1,group_id,uuid,NO,gen_random_uuid(),PK,Khóa nhóm khách hàng
+cm_customer_groups,2,group_code,varchar(30),NO,,UNIQUE,Mã nhóm
+cm_customer_groups,3,group_name,varchar(150),NO,,,Tên nhóm
+cm_customer_groups,4,parent_group_id,uuid,YES,,FK:cm_customer_groups.group_id;CHECK_NOT_SELF,"Nhóm cha, không được trỏ chính mình"
+cm_customer_groups,5,description,text,YES,,,Mô tả nhóm
+cm_customer_groups,6,is_active,boolean,NO,true,,Trạng thái sử dụng
+cm_customer_groups,7,created_at,timestamptz,NO,now(),,Ngày tạo
+cm_customer_groups,8,created_account_id,uuid,YES,,IAM_LOGICAL_REF,Người tạo
+cm_customer_group_members,1,customer_id,uuid,NO,,PK_COMPONENT;FK:cm_customers.customer_id,Khách hàng
+cm_customer_group_members,2,group_id,uuid,NO,,PK_COMPONENT;FK:cm_customer_groups.group_id,Nhóm
+cm_customer_group_members,3,assigned_at,timestamptz,NO,now(),,Thời điểm gán
+cm_customer_group_members,4,assigned_account_id,uuid,YES,,IAM_LOGICAL_REF,Người gán; không FK IAM
+cm_customer_assignments,1,assignment_id,uuid,NO,gen_random_uuid(),PK,Mã lượt phân công
+cm_customer_assignments,2,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng
+cm_customer_assignments,3,sale_account_id,uuid,NO,,IAM_LOGICAL_REF;PARTIAL_UNIQUE_ACTIVE,Sale phụ trách của lượt phân công; không FK IAM
+cm_customer_assignments,4,assigned_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người giao việc hoặc admin
+cm_customer_assignments,5,assigned_at,timestamptz,NO,now(),,Thời điểm bắt đầu phụ trách
+cm_customer_assignments,6,ended_at,timestamptz,YES,,CHECK_TIME_ORDER,"NULL=đang phụ trách, hết hiệu lực khi kết thúc"
+cm_customer_assignments,7,ended_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người kết thúc phân công
+cm_customer_assignments,8,handover_to_account_id,uuid,YES,,IAM_LOGICAL_REF,Sale được bàn giao (nếu có)
+cm_customer_assignments,9,handover_note,text,YES,,,Ghi chú bàn giao
+cm_customer_assignments,10,handover_accepted_at,timestamptz,YES,,,Thời điểm người nhận xác nhận (nếu có)
+cm_customer_assignments,11,handover_accepted_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người xác nhận nhận bàn giao
+cm_customer_activities,1,activity_id,uuid,NO,gen_random_uuid(),PK,Mã hoạt động/công việc
+cm_customer_activities,2,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng
+cm_customer_activities,3,activity_type_code,varchar(30),NO,,CODE_CONTRACT,NOTE/CALL/MEETING/TASK/FOLLOW_UP/HANDOVER
+cm_customer_activities,4,activity_status_code,varchar(30),NO,'OPEN',CODE_CONTRACT,OPEN/DONE/CANCELLED; lịch sử ghi chú có thể DONE
+cm_customer_activities,5,title,varchar(255),NO,,,Tiêu đề
+cm_customer_activities,6,description,text,YES,,,Nội dung làm việc
+cm_customer_activities,7,occurred_at,timestamptz,NO,now(),,Thời điểm sự kiện/công việc
+cm_customer_activities,8,due_at,timestamptz,YES,,,Thời hạn công việc (nếu có)
+cm_customer_activities,9,assigned_to_account_id,uuid,YES,,IAM_LOGICAL_REF,Người được giao xử lý công việc
+cm_customer_activities,10,created_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người tạo hoạt động
+cm_customer_activities,11,created_at,timestamptz,NO,now(),,Thời gian hệ thống ghi nhận
+cm_customer_activities,12,completed_at,timestamptz,YES,,,Thời gian hoàn thành
+cm_customer_documents,1,document_id,uuid,NO,gen_random_uuid(),PK,"ID tài liệu, file mới = bản ghi mới"
+cm_customer_documents,2,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng
+cm_customer_documents,3,document_name,varchar(255),NO,,,Tên hiển thị tài liệu
+cm_customer_documents,4,document_type_code,varchar(30),NO,,CODE_CONTRACT,LEGAL/CONTRACT/AUTHORIZATION/OTHER
+cm_customer_documents,5,file_name,varchar(255),NO,,,Tên file gốc
+cm_customer_documents,6,storage_path,varchar(500),NO,,,"Khóa/đường dẫn tương đối trên storage, không phải absolute public URL"
+cm_customer_documents,7,file_type,varchar(100),NO,,,"MIME type, ví dụ application/pdf"
+cm_customer_documents,8,file_size,bigint,NO,,CHECK_NONNEGATIVE,Kích thước byte >= 0
+cm_customer_documents,9,uploaded_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người upload
+cm_customer_documents,10,uploaded_at,timestamptz,NO,now(),,Thời gian upload
+cm_customer_documents,11,note,text,YES,,,Ghi chú
