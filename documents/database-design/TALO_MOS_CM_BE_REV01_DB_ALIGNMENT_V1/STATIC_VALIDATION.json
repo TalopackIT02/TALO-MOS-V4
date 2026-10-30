@@ -1,0 +1,15 @@
+{
+  "status": "STATIC_STRUCTURAL_CHECK_PASS_SQL_NOT_PARSED_BY_POSTGRESQL",
+  "source": "CM_DB_REV01_SQL_CANDIDATE_20261029-130635_R2.zip",
+  "baseline_expected_tables": 11,
+  "baseline_expected_columns": 114,
+  "migration_new_tables": 4,
+  "migration_new_columns": 56,
+  "migration_added_columns_existing": 3,
+  "target_tables_proposed": 15,
+  "target_columns_proposed": 173,
+  "baseline_index_replaced": "uq_cm_customer_assignments_current",
+  "forbidden_broad_grants": false,
+  "forbidden_cascade": false,
+  "note": "No psql/PostgreSQL engine used in this environment; Claude MUST perform live diff and clone parse/dryrun before proposing TEST execution."
+}

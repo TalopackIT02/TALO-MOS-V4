@@ -1,0 +1,31 @@
+{
+  "//": "CRM Module typecheck with the SAME strict flags as the Host frontend (frontend/tsconfig.app.json); types resolved from the Host's node_modules (no dependency added).",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "typeRoots": ["../../frontend/node_modules/@types", "../../frontend/node_modules"],
+    "types": ["vite/client"],
+    "paths": {
+      "react": ["../../frontend/node_modules/@types/react"],
+      "react/*": ["../../frontend/node_modules/@types/react/*"],
+      "react-dom": ["../../frontend/node_modules/@types/react-dom"],
+      "react-dom/*": ["../../frontend/node_modules/@types/react-dom/*"],
+      "vite/client": ["../../frontend/node_modules/vite/client"]
+    }
+  },
+  "include": ["frontend", "dev/main.tsx"]
+}

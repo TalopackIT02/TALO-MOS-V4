@@ -1,0 +1,46 @@
+{
+  "packageFormat": "TALO-MODULE-PACKAGE-1",
+  "moduleKey": "CRM",
+  "name": "Quản lý khách hàng (CRM)",
+  "packageVersion": "0.1.0",
+  "contractVersion": "MIC-1.0",
+  "hostProtocol": "TALO-MODULE-HOST-1",
+  "backendEntry": "backend/index.ts",
+  "frontendEntry": "frontend/index.tsx",
+  "micEntry": "mic/crm.mic.ts",
+  "frontend": {
+    "screens": [
+      {
+        "screenKey": "crm.workspace",
+        "name": "Tổng quan công việc",
+        "description": "Bảng điều khiển của Sale: khách hàng, lịch hẹn, công việc chưa xong / quá hạn / đã xong và hoạt động gần đây.",
+        "tabs": [{ "label": "Tổng quan công việc", "path": "/crm" }]
+      },
+      {
+        "screenKey": "crm.customers",
+        "name": "Khách hàng",
+        "description": "Danh sách và hồ sơ khách hàng: pháp lý, liên hệ, nhóm ngành, tài liệu, hoạt động, phân công và bàn giao theo quyền.",
+        "tabs": [{ "label": "Khách hàng", "path": "/crm/customers" }]
+      },
+      {
+        "screenKey": "crm.calendar",
+        "name": "Lịch hẹn",
+        "description": "Lịch hẹn ngày / tuần / tháng, tạo / sửa / hủy, lịch gắn khách hàng và nhắc lịch trong ứng dụng.",
+        "tabs": [{ "label": "Lịch hẹn", "path": "/crm/calendar" }]
+      },
+      {
+        "screenKey": "crm.tasks",
+        "name": "Công việc",
+        "description": "Danh sách công việc (To-do) độc lập với lịch hẹn: hạn hoàn thành, trạng thái, tiến độ, gắn khách hàng.",
+        "tabs": [{ "label": "Công việc", "path": "/crm/tasks" }]
+      },
+      {
+        "screenKey": "crm.reports",
+        "name": "Báo cáo",
+        "description": "Báo cáo công việc theo ngày: nội dung thực hiện, kết quả, vấn đề phát sinh và công việc tiếp tục.",
+        "tabs": [{ "label": "Báo cáo", "path": "/crm/reports" }]
+      }
+    ]
+  },
+  "requiredCapabilities": ["session", "authorize", "evaluate", "lifecycle", "readOnly", "logger"]
+}

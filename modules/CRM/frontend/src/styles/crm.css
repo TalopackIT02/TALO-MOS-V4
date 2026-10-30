@@ -1,0 +1,140 @@
+/* CRM — own classes (crm-*) scoped under .app-shell; AppShell values reused (--line, --muted, --green). */
+.app-shell .crm-root{position:relative;font-size:13px;color:#1c2937}
+.app-shell .crm-page{display:flex;flex-direction:column;gap:12px;min-width:0}
+.app-shell .crm-mockbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:7px 10px;margin-bottom:10px;border:1px dashed #e2b94b;border-radius:8px;background:#fffaf0;font-size:12px}
+.app-shell .crm-mockbar select{border:1px solid #d1dbe5;border-radius:6px;padding:3px 6px;font-size:12px;margin-left:6px}
+.app-shell .crm-reminders{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.app-shell .crm-reminder{display:flex;justify-content:space-between;gap:10px;padding:8px 12px;border-radius:8px;background:#eef6ff;border:1px solid #bcd6f5}
+.app-shell .crm-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.app-shell .crm-toolbar select,.app-shell .crm-toolbar input,.app-shell .crm-toolbar label input{border:1px solid #d1dbe5;border-radius:7px;padding:6px 8px;font-size:12px;background:#fff}
+.app-shell .crm-search{min-width:240px;flex:0 1 320px}
+.app-shell .crm-grow{flex:1 1 auto}
+.app-shell .crm-check{display:inline-flex;align-items:center;gap:5px;font-size:12px}
+.app-shell .crm-btn{border:1px solid #cdd8e3;background:#fff;color:#1c2937;border-radius:7px;padding:6px 12px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.app-shell .crm-btn:hover:not(:disabled){background:#f2f7fb}
+.app-shell .crm-btn:disabled{opacity:.5;cursor:not-allowed}
+.app-shell .crm-btn:focus-visible,.app-shell .crm-link:focus-visible,.app-shell .crm-kpi:focus-visible{outline:2px solid #0f766e;outline-offset:2px}
+.app-shell .crm-primary{background:var(--green);border-color:var(--green);color:#fff}
+.app-shell .crm-primary:hover:not(:disabled){background:#066b3a}
+.app-shell .crm-danger{background:#b42318;border-color:#b42318;color:#fff}
+.app-shell .crm-sm{padding:3px 9px;font-size:11.5px}
+.app-shell .crm-link{border:0;background:none;color:#0b5cad;cursor:pointer;padding:0 4px;font-size:12px;text-align:left}
+.app-shell .crm-link:hover{text-decoration:underline}
+.app-shell .crm-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap;vertical-align:middle}
+.app-shell .crm-green{background:#e3f5eb;color:var(--green)}
+.app-shell .crm-amber{background:#fff5e0;color:#8a5a00}
+.app-shell .crm-red{background:#fdecea;color:#9b2c22}
+.app-shell .crm-blue{background:#e7f0fb;color:#1d4f91}
+.app-shell .crm-grey{background:#eef2f5;color:#4b5563}
+.app-shell .crm-violet{background:#efe9fd;color:#5b21b6}
+.app-shell .crm-empty{color:var(--muted);font-style:italic;margin:6px 0}
+.app-shell .crm-guard{padding:10px 12px;border-radius:8px;background:#fdf0ee;color:#9b2c22;border:1px solid #f1c5bf}
+.app-shell .crm-note{margin:0 0 10px;padding:7px 10px;border-radius:7px;background:#f4f8fb;color:#33475b;font-size:12px}
+.app-shell .crm-warn{color:#8a5a00}
+.app-shell .crm-note.crm-warn{background:#fff8e6}
+.app-shell .crm-sub{display:block;color:var(--muted);font-size:11px;font-weight:400}
+.app-shell .crm-mono{font-family:Consolas,'Courier New',monospace}
+.app-shell .crm-muted{opacity:.55}
+.app-shell .crm-tablewrap{overflow:auto;border:1px solid var(--line);border-radius:8px}
+.app-shell .crm-table{width:100%;border-collapse:collapse}
+.app-shell .crm-table th{position:sticky;top:0;background:#f4f7f9;text-align:left;padding:8px 10px;font-size:11.5px;color:#4b5563;white-space:nowrap}
+.app-shell .crm-table td{padding:8px 10px;border-top:1px solid var(--line);vertical-align:top}
+.app-shell .crm-hover tbody tr{cursor:pointer}
+.app-shell .crm-hover tbody tr:hover,.app-shell .crm-hover tbody tr:focus{background:#f2f8f4;outline:none}
+.app-shell .crm-compact td,.app-shell .crm-compact th{padding:4px 6px;font-size:11.5px}
+.app-shell .crm-actions{white-space:nowrap;text-align:right}
+.app-shell .crm-actions .crm-btn{margin-left:4px}
+.app-shell .crm-clip{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-shell .crm-overdue td:first-child{border-left:3px solid #b42318}
+.app-shell .crm-pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;font-size:12px;color:var(--muted)}
+.app-shell .crm-kpis{display:flex;flex-wrap:wrap;gap:10px}
+.app-shell .crm-kpi{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:left;cursor:default}
+.app-shell button.crm-kpi{cursor:pointer}
+.app-shell button.crm-kpi:hover{border-color:#bddecb;background:#f7fbf8}
+.app-shell .crm-kpi b{font-size:22px;color:#10233a}
+.app-shell .crm-kpi span{font-size:11.5px;color:var(--muted)}
+.app-shell .crm-kpi.active{border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}
+.app-shell .crm-kpi-red b{color:#b42318}
+.app-shell .crm-kpi-amber b{color:#8a5a00}
+.app-shell .crm-dash{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.app-shell .crm-span2{grid-column:span 2}
+.app-shell .crm-card{border:1px solid var(--line);border-radius:10px;background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.app-shell .crm-card h3{margin:0 0 4px;font-size:13.5px}
+.app-shell .crm-card p{margin:2px 0}
+.app-shell .crm-row-btn{display:flex;align-items:flex-start;gap:8px;width:100%;border:0;border-bottom:1px dashed var(--line);background:none;padding:6px 2px;text-align:left;cursor:pointer;font-size:12.5px;color:inherit}
+.app-shell .crm-row-btn:hover{background:#f7fbf8}
+.app-shell .crm-when{flex:0 0 112px;color:#33475b;font-variant-numeric:tabular-nums}
+.app-shell .crm-profile{display:grid;grid-template-columns:minmax(280px,1fr) minmax(0,2fr);gap:14px;align-items:start}
+.app-shell .crm-profile-left{display:flex;flex-direction:column;gap:12px;min-width:0}
+.app-shell .crm-profile-right{min-width:0;border:1px solid var(--line);border-radius:10px;background:#fff}
+.app-shell .crm-subtabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:0 8px}
+.app-shell .crm-subtabs button{border:0;background:none;padding:10px 12px;font-size:12.5px;color:#4b5563;cursor:pointer;border-bottom:2px solid transparent}
+.app-shell .crm-subtabs button.active{color:var(--green);border-bottom-color:var(--green);font-weight:700}
+.app-shell .crm-tabbody{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.app-shell .crm-idhead{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.app-shell .crm-name{margin:4px 0;font-size:16px}
+.app-shell .crm-dl{display:grid;grid-template-columns:120px minmax(0,1fr);gap:4px 10px;margin:4px 0}
+.app-shell .crm-dl dt{color:var(--muted);font-size:11.5px}
+.app-shell .crm-dl dd{margin:0;word-break:break-word}
+.app-shell .crm-pre{white-space:pre-wrap}
+.app-shell .crm-btnrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.app-shell .crm-pending{border-color:#e9c46a;background:#fffbf0}
+.app-shell .crm-inner{border:1px solid #e9c46a;border-radius:8px;padding:8px 10px;margin-top:6px}
+.app-shell .crm-history summary{cursor:pointer;color:#0b5cad;font-size:12px}
+.app-shell .crm-history p{font-size:11.5px;color:var(--muted)}
+.app-shell .crm-chips{display:flex;flex-wrap:wrap;gap:6px}
+.app-shell .crm-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;background:#eef6f1;border:1px solid #cfe7d8;font-size:11.5px}
+.app-shell .crm-chip button{border:0;background:none;cursor:pointer;color:#4b5563}
+.app-shell .crm-overview h4{margin:8px 0 2px;font-size:12.5px}
+.app-shell .crm-timeline{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.app-shell .crm-timeline li{border-left:3px solid #cfe7d8;padding:4px 10px}
+.app-shell .crm-timeline p{margin:4px 0;white-space:pre-wrap}
+.app-shell .crm-progress{width:80px;height:7px;border-radius:5px;background:#e8edf2;overflow:hidden}
+.app-shell .crm-progress i{display:block;height:100%;background:var(--green)}
+.app-shell .crm-overlay{position:fixed;inset:0;z-index:1000;background:rgba(16,35,58,.35);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;overflow:auto}
+.app-shell .crm-modal{width:min(560px,100%);background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(16,35,58,.25);display:flex;flex-direction:column;max-height:88vh}
+.app-shell .crm-modal-wide{width:min(820px,100%)}
+.app-shell .crm-modal-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.app-shell .crm-modal-head h3{margin:0;font-size:14.5px}
+.app-shell .crm-x{border:0;background:none;font-size:20px;line-height:1;cursor:pointer;color:#4b5563}
+.app-shell .crm-modal-body{padding:14px 16px;overflow:auto}
+.app-shell .crm-modal-foot{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}
+.app-shell .crm-form{display:flex;flex-direction:column;gap:10px}
+.app-shell .crm-row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.app-shell .crm-row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.app-shell .crm-field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#33475b}
+.app-shell .crm-field>span{font-weight:600}
+.app-shell .crm-field input,.app-shell .crm-field select,.app-shell .crm-field textarea,.app-shell .crm-row3>input,.app-shell .crm-row3>select,.app-shell .crm-links select{border:1px solid #d1dbe5;border-radius:7px;padding:7px 9px;font-size:12.5px;font-family:inherit;background:#fff;width:100%;box-sizing:border-box}
+.app-shell .crm-field small{color:var(--muted);font-size:11px}
+.app-shell .crm-links{display:flex;flex-direction:column;gap:5px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:0}
+.app-shell .crm-links legend{font-size:12px;font-weight:600;color:#33475b;padding:0 4px}
+.app-shell .crm-links label{font-size:12px;display:flex;align-items:center;gap:6px}
+.app-shell .crm-toasts{position:fixed;right:18px;bottom:18px;z-index:1100;display:flex;flex-direction:column;gap:8px;max-width:420px}
+.app-shell .crm-toast{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;padding:10px 12px;border-radius:9px;box-shadow:0 8px 24px rgba(16,35,58,.18);font-size:12.5px;background:#fff;border-left:4px solid #1d4f91}
+.app-shell .crm-toast button{border:0;background:none;cursor:pointer;font-size:16px;line-height:1;color:#4b5563}
+.app-shell .crm-toast-ok{border-left-color:var(--green)}
+.app-shell .crm-toast-error{border-left-color:#b42318;background:#fff7f6}
+.app-shell .crm-seg{display:inline-flex;border:1px solid #cdd8e3;border-radius:7px;overflow:hidden}
+.app-shell .crm-seg button{border:0;background:#fff;padding:5px 12px;font-size:12px;cursor:pointer}
+.app-shell .crm-seg button.active{background:var(--green);color:#fff}
+.app-shell .crm-caltitle{min-width:170px;font-size:13.5px}
+.app-shell .crm-grid{display:grid;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.app-shell .crm-grid-head{padding:7px 6px;text-align:center;font-size:12px;font-weight:700;background:#f4f7f9;border-left:1px solid var(--line)}
+.app-shell .crm-hours div{font-size:10.5px;color:var(--muted);text-align:right;padding-right:6px;border-top:1px solid var(--line);box-sizing:border-box}
+.app-shell .crm-daycol{position:relative;border-left:1px solid var(--line)}
+.app-shell .crm-slot{display:block;width:100%;border:0;border-top:1px solid var(--line);background:none;cursor:copy;box-sizing:border-box}
+.app-shell .crm-slot:hover{background:#f2f8f4}
+.app-shell .crm-event{position:absolute;left:3px;right:3px;border:0;border-left:3px solid #1d4f91;border-radius:5px;background:#e7f0fb;color:#10233a;font-size:11px;text-align:left;padding:2px 5px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.app-shell .crm-event small{color:#33475b}
+.app-shell .crm-ev-done{background:#e3f5eb !important;border-left-color:var(--green) !important}
+.app-shell .crm-ev-cancel{background:#eef2f5 !important;border-left-color:#9aa5b1 !important;text-decoration:line-through;color:#6b7785 !important}
+.app-shell .crm-month{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.app-shell .crm-month-head{padding:6px;text-align:center;font-weight:700;font-size:12px;background:#f4f7f9}
+.app-shell .crm-month-cell{min-height:92px;border-top:1px solid var(--line);border-left:1px solid var(--line);padding:4px;display:flex;flex-direction:column;gap:2px}
+.app-shell .crm-out{background:#fafbfc;color:#9aa5b1}
+.app-shell .crm-today{background:#f0f8f3}
+.app-shell .crm-daynum{border:0;background:none;font-weight:700;font-size:12px;text-align:left;cursor:pointer;padding:0;color:inherit}
+.app-shell .crm-chip-ev{border:0;border-left:3px solid #1d4f91;background:#e7f0fb;border-radius:4px;font-size:10.5px;text-align:left;padding:1px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.app-shell .crm-legend{font-size:11.5px;color:var(--muted)}
+@media (max-width:1100px){.app-shell .crm-profile{grid-template-columns:minmax(0,1fr)}.app-shell .crm-dash{grid-template-columns:minmax(0,1fr)}.app-shell .crm-span2{grid-column:auto}}
+@media (max-width:640px){.app-shell .crm-row2,.app-shell .crm-row3{grid-template-columns:minmax(0,1fr)}.app-shell .crm-search{min-width:0;flex:1 1 100%}}

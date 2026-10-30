@@ -1,0 +1,53 @@
+﻿table,column,declared_type,not_null,has_default,ddl_fragment
+cm_customer_legal_change_requests,change_request_id,uuid,True,True,change_request_id uuid NOT NULL DEFAULT gen_random_uuid()
+cm_customer_legal_change_requests,customer_id,uuid,True,False,customer_id uuid NOT NULL
+cm_customer_legal_change_requests,requested_by_account_id,uuid,True,False,requested_by_account_id uuid NOT NULL
+cm_customer_legal_change_requests,requested_at,timestamptz,True,True,requested_at timestamptz NOT NULL DEFAULT now()
+cm_customer_legal_change_requests,status_code,varchar(24),True,True,status_code varchar(24) NOT NULL DEFAULT 'PENDING_MANAGEMENT'
+cm_customer_legal_change_requests,reason,text,True,False,reason text NOT NULL
+cm_customer_legal_change_requests,evidence_document_id,uuid,True,False,evidence_document_id uuid NOT NULL
+cm_customer_legal_change_requests,old_legal_name,varchar(255),False,False,old_legal_name varchar(255)
+cm_customer_legal_change_requests,new_legal_name,varchar(255),True,False,new_legal_name varchar(255) NOT NULL
+cm_customer_legal_change_requests,old_customer_type_code,varchar(30),False,False,old_customer_type_code varchar(30)
+cm_customer_legal_change_requests,new_customer_type_code,varchar(30),True,False,new_customer_type_code varchar(30) NOT NULL
+cm_customer_legal_change_requests,old_identifier_type_code,varchar(30),False,False,old_identifier_type_code varchar(30)
+cm_customer_legal_change_requests,new_identifier_type_code,varchar(30),True,False,new_identifier_type_code varchar(30) NOT NULL
+cm_customer_legal_change_requests,old_identifier_normalized,varchar(128),False,False,old_identifier_normalized varchar(128)
+cm_customer_legal_change_requests,new_identifier_normalized,varchar(128),True,False,new_identifier_normalized varchar(128) NOT NULL
+cm_customer_legal_change_requests,resolved_at,timestamptz,False,False,resolved_at timestamptz
+cm_customer_legal_change_requests,applied_at,timestamptz,False,False,applied_at timestamptz
+cm_customer_legal_change_requests,applied_by_account_id,uuid,False,False,applied_by_account_id uuid
+cm_customer_legal_change_approvals,approval_id,uuid,True,True,approval_id uuid NOT NULL DEFAULT gen_random_uuid()
+cm_customer_legal_change_approvals,change_request_id,uuid,True,False,change_request_id uuid NOT NULL
+cm_customer_legal_change_approvals,stage_code,varchar(16),True,False,stage_code varchar(16) NOT NULL
+cm_customer_legal_change_approvals,decision_code,varchar(12),True,False,decision_code varchar(12) NOT NULL
+cm_customer_legal_change_approvals,decided_by_account_id,uuid,True,False,decided_by_account_id uuid NOT NULL
+cm_customer_legal_change_approvals,decided_at,timestamptz,True,True,decided_at timestamptz NOT NULL DEFAULT now()
+cm_customer_legal_change_approvals,decision_note,text,False,False,decision_note text
+cm_customer_handovers,handover_id,uuid,True,True,handover_id uuid NOT NULL DEFAULT gen_random_uuid()
+cm_customer_handovers,customer_id,uuid,True,False,customer_id uuid NOT NULL
+cm_customer_handovers,from_assignment_id,uuid,True,False,from_assignment_id uuid NOT NULL
+cm_customer_handovers,to_sale_account_id,uuid,True,False,to_sale_account_id uuid NOT NULL
+cm_customer_handovers,initiated_by_account_id,uuid,True,False,initiated_by_account_id uuid NOT NULL
+cm_customer_handovers,handover_mode_code,varchar(20),True,False,handover_mode_code varchar(20) NOT NULL
+cm_customer_handovers,status_code,varchar(26),True,False,status_code varchar(26) NOT NULL
+cm_customer_handovers,requested_at,timestamptz,True,True,requested_at timestamptz NOT NULL DEFAULT now()
+cm_customer_handovers,manager_approved_by_account_id,uuid,False,False,manager_approved_by_account_id uuid
+cm_customer_handovers,manager_approved_at,timestamptz,False,False,manager_approved_at timestamptz
+cm_customer_handovers,current_ack_by_account_id,uuid,False,False,current_ack_by_account_id uuid
+cm_customer_handovers,current_ack_at,timestamptz,False,False,current_ack_at timestamptz
+cm_customer_handovers,receiver_ack_by_account_id,uuid,False,False,receiver_ack_by_account_id uuid
+cm_customer_handovers,receiver_ack_at,timestamptz,False,False,receiver_ack_at timestamptz
+cm_customer_handovers,rejected_by_account_id,uuid,False,False,rejected_by_account_id uuid
+cm_customer_handovers,rejected_at,timestamptz,False,False,rejected_at timestamptz
+cm_customer_handovers,rejection_reason,text,False,False,rejection_reason text
+cm_customer_handovers,completed_at,timestamptz,False,False,completed_at timestamptz
+cm_customer_handovers,handover_note,text,False,False,handover_note text
+cm_customer_handover_activity_transfers,transfer_id,uuid,True,True,transfer_id uuid NOT NULL DEFAULT gen_random_uuid()
+cm_customer_handover_activity_transfers,handover_id,uuid,True,False,handover_id uuid NOT NULL
+cm_customer_handover_activity_transfers,activity_id,uuid,True,False,activity_id uuid NOT NULL
+cm_customer_handover_activity_transfers,customer_id,uuid,True,False,customer_id uuid NOT NULL
+cm_customer_handover_activity_transfers,previous_assignee_account_id,uuid,True,False,previous_assignee_account_id uuid NOT NULL
+cm_customer_handover_activity_transfers,new_assignee_account_id,uuid,True,False,new_assignee_account_id uuid NOT NULL
+cm_customer_handover_activity_transfers,transferred_by_account_id,uuid,True,False,transferred_by_account_id uuid NOT NULL
+cm_customer_handover_activity_transfers,transferred_at,timestamptz,True,True,transferred_at timestamptz NOT NULL DEFAULT now()
