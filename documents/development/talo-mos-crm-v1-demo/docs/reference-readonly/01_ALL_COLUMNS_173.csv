@@ -1,0 +1,174 @@
+﻿schema,table,column,postgresql_type,nullable,default,rule_or_index,meaning,status,source
+cm,cm_customers,customer_id,uuid,NO,gen_random_uuid(),PK,"Khóa khách hàng, cố định suốt vòng đời",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,customer_code,varchar(6),NO,"lpad(nextval('cm.customer_code_seq')::text, 6, '0')",UNIQUE;CHECK_6_DIGIT,"DB sequence cấp 000001..999999 NO CYCLE, Backend nhận qua RETURNING; không nhập tay",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,display_name,varchar(200),NO,,,Tên thường gọi,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,legal_name,varchar(255),YES,,,Tên đăng ký pháp lý/thuế,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,registered_address,text,YES,,,Snapshot địa chỉ pháp lý đầy đủ do Backend dựng từ cột cấu trúc; không được edit độc lập,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,representative_name,varchar(150),YES,,,Người đại diện pháp luật,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,representative_phone,varchar(30),YES,,,Điện thoại đại diện,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,customer_type_code,varchar(30),NO,,CODE_CONTRACT,COMPANY/BRANCH/HOUSEHOLD/PERSON/FOREIGN_NO_VN_REG; bắt buộc khai báo,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,customer_status_code,varchar(30),NO,'PROSPECT',CODE_CONTRACT,"PROSPECT, NEW, ACTIVE, PAUSED, CLOSED",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,internal_note,text,YES,,,Ghi chú nội bộ,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,created_at,timestamptz,NO,now(),,Ngày tạo,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,created_account_id,uuid,YES,,IAM_LOGICAL_REF,"Actor IAM, không FK vật lý sang iam",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,updated_at,timestamptz,YES,,,Lần cập nhật sau cùng,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,updated_account_id,uuid,YES,,IAM_LOGICAL_REF,"Actor sửa, không FK vật lý",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,is_hidden,boolean,NO,false,,Ẩn khỏi danh sách mặc định; không xóa vật lý,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,legal_identifier_type_code,varchar(30),YES,,CODE_CONTRACT,VN_TAX_ID / VN_PERSONAL_ID / FOREIGN_REG; có điều kiện bắt buộc khi hồ sơ chính thức,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,legal_identifier_normalized,varchar(128),YES,,PARTIAL_UNIQUE,"Định danh chuẩn hóa duy nhất theo (country_code, type, value), kể cả khách ẩn; không duplicate tax_number",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,address_line,text,YES,,,"Số nhà, tên đường trong nước; đường/địa chỉ chi tiết ở nước ngoài",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,province_code,char(2),YES,,FK_PROVINCE,Mã tỉnh chính thức; NULL cho nước ngoài,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,ward_code,char(5),YES,,COMPOSITE_FK_WARD_PROVINCE,Mã phường/xã/đặc khu chính thức; NULL cho nước ngoài,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,country_code,char(2),NO,'VN',COUNTRY_CODE_CONTRACT,"ISO 3166-1 alpha-2, quốc gia địa chỉ và đăng ký ở phạm vi V1",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,foreign_locality,varchar(150),YES,,,Địa phương/thành phố tại nước ngoài,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,foreign_state_province,varchar(150),YES,,,Bang/tỉnh tại nước ngoài,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,contact_id,uuid,NO,gen_random_uuid(),PK,Khóa người liên hệ,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng sở hữu,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,full_name,varchar(150),NO,,,Tên người liên hệ,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,position_title,varchar(100),YES,,,Chức vụ,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,phone,varchar(30),YES,,CHECK_PHONE_ZALO,Ít nhất phone hoặc zalo_phone phải có,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,zalo_phone,varchar(30),YES,,CHECK_PHONE_ZALO,Số Zalo,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,email,varchar(254),YES,,,Email,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,is_primary,boolean,NO,false,PARTIAL_UNIQUE_PRIMARY,Tối đa 1 liên hệ chính đang hoạt động/khách,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,is_active,boolean,NO,true,,Liên hệ còn sử dụng,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,created_at,timestamptz,NO,now(),,Ngày tạo,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,updated_at,timestamptz,YES,,,Lần chỉnh sửa,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_contacts,created_account_id,uuid,YES,,IAM_LOGICAL_REF,Người tạo; không FK IAM,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_groups,group_id,uuid,NO,gen_random_uuid(),PK,Khóa nhóm khách hàng,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_groups,group_code,varchar(30),NO,,UNIQUE,Mã nhóm,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_groups,group_name,varchar(150),NO,,,Tên nhóm,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_groups,parent_group_id,uuid,YES,,FK:cm_customer_groups.group_id;CHECK_NOT_SELF,"Nhóm cha, không được trỏ chính mình",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_groups,description,text,YES,,,Mô tả nhóm,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_groups,is_active,boolean,NO,true,,Trạng thái sử dụng,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_groups,created_at,timestamptz,NO,now(),,Ngày tạo,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_groups,created_account_id,uuid,YES,,IAM_LOGICAL_REF,Người tạo,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_group_members,customer_id,uuid,NO,,PK_COMPONENT;FK:cm_customers.customer_id,Khách hàng,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_group_members,group_id,uuid,NO,,PK_COMPONENT;FK:cm_customer_groups.group_id,Nhóm,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_group_members,assigned_at,timestamptz,NO,now(),,Thời điểm gán,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_group_members,assigned_account_id,uuid,YES,,IAM_LOGICAL_REF,Người gán; không FK IAM,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,assignment_id,uuid,NO,gen_random_uuid(),PK,Mã lượt phân công,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,sale_account_id,uuid,NO,,IAM_LOGICAL_REF;PARTIAL_UNIQUE_ACTIVE,Sale phụ trách của lượt phân công; không FK IAM,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,assigned_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người giao việc hoặc admin,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,assigned_at,timestamptz,NO,now(),,Thời điểm bắt đầu phụ trách,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,ended_at,timestamptz,YES,,CHECK_TIME_ORDER,"NULL=đang phụ trách, hết hiệu lực khi kết thúc",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,ended_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người kết thúc phân công,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,handover_to_account_id,uuid,YES,,IAM_LOGICAL_REF,Sale được bàn giao (nếu có),BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,handover_note,text,YES,,,Ghi chú bàn giao,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,handover_accepted_at,timestamptz,YES,,,Thời điểm người nhận xác nhận (nếu có),BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_assignments,handover_accepted_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người xác nhận nhận bàn giao,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,activity_id,uuid,NO,gen_random_uuid(),PK,Mã hoạt động/công việc,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,activity_type_code,varchar(30),NO,,CODE_CONTRACT,NOTE/CALL/MEETING/TASK/FOLLOW_UP/HANDOVER,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,activity_status_code,varchar(30),NO,'OPEN',CODE_CONTRACT,OPEN/DONE/CANCELLED; lịch sử ghi chú có thể DONE,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,title,varchar(255),NO,,,Tiêu đề,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,description,text,YES,,,Nội dung làm việc,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,occurred_at,timestamptz,NO,now(),,Thời điểm sự kiện/công việc,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,due_at,timestamptz,YES,,,Thời hạn công việc (nếu có),BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,assigned_to_account_id,uuid,YES,,IAM_LOGICAL_REF,Người được giao xử lý công việc,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,created_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người tạo hoạt động,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,created_at,timestamptz,NO,now(),,Thời gian hệ thống ghi nhận,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_activities,completed_at,timestamptz,YES,,,Thời gian hoàn thành,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,document_id,uuid,NO,gen_random_uuid(),PK,"ID tài liệu, file mới = bản ghi mới",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,customer_id,uuid,NO,,FK:cm_customers.customer_id,Khách hàng,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,document_name,varchar(255),NO,,,Tên hiển thị tài liệu,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,document_type_code,varchar(30),NO,,CODE_CONTRACT,LEGAL/CONTRACT/AUTHORIZATION/OTHER,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,file_name,varchar(255),NO,,,Tên file gốc,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,storage_path,varchar(500),NO,,,"Khóa/đường dẫn tương đối trên storage, không phải absolute public URL",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,file_type,varchar(100),NO,,,"MIME type, ví dụ application/pdf",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,file_size,bigint,NO,,CHECK_NONNEGATIVE,Kích thước byte >= 0,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,uploaded_by_account_id,uuid,YES,,IAM_LOGICAL_REF,Người upload,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,uploaded_at,timestamptz,NO,now(),,Thời gian upload,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,note,text,YES,,,Ghi chú,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,signed_date,date,YES,,,"Ngày ký tài liệu, có thể NULL",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,effective_date,date,YES,,,"Ngày bắt đầu hiệu lực, có thể NULL",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customer_documents,expiry_date,date,YES,,CHECK_EFFECTIVE_EXPIRY,"Ngày hết hạn, có thể NULL",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_provinces,province_code,char(2),NO,,PK,Mã 2 chữ số theo Quyết định 19/2025/QĐ-TTg,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_provinces,province_name,varchar(150),NO,,,Tên tỉnh/thành chuẩn,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_provinces,unit_type_code,varchar(20),NO,,CODE_CONTRACT,TINH/THANH_PHO,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_provinces,valid_from,date,NO,,,Ngày hiệu lực nguồn,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_provinces,valid_to,date,YES,,,Ngày hết hiệu lực nếu có,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_provinces,is_active,boolean,NO,true,,Trạng thái danh mục,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_provinces,source_ref,varchar(255),NO,,,Văn bản chính thức,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_provinces,source_version,varchar(60),NO,,,Phiên bản import,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_wards,ward_code,char(5),NO,,PK,Mã 5 chữ số theo QĐ 19,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_wards,province_code,char(2),NO,,FK_PROVINCE,Tỉnh trực thuộc,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_wards,ward_name,varchar(150),NO,,,Tên phường/xã/đặc khu,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_wards,unit_type_code,varchar(20),NO,,CODE_CONTRACT,PHUONG/XA/DAC_KHU,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_wards,valid_from,date,NO,,,Ngày hiệu lực,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_wards,valid_to,date,YES,,,Ngày hết hiệu lực,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_wards,is_active,boolean,NO,true,,Trạng thái,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_wards,source_ref,varchar(255),NO,,,Nguồn chính thức,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_wards,source_version,varchar(60),NO,,,Phiên bản import,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_economic_regions,region_code,varchar(20),NO,,PK,Mã vùng kinh tế nội bộ ổn định,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_economic_regions,region_name,varchar(150),NO,,,Tên một trong sáu vùng kinh tế,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_economic_regions,valid_from,date,NO,,,Hiệu lực văn bản/phiên bản,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_economic_regions,valid_to,date,YES,,,Hết hiệu lực nếu thay đổi,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_economic_regions,is_active,boolean,NO,true,,Đang sử dụng,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_economic_regions,source_ref,varchar(255),NO,,,Nguồn pháp lý,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_province_region_map,province_code,char(2),NO,,PK_COMPONENT;FK_PROVINCE,Tỉnh được ánh xạ,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_province_region_map,region_code,varchar(20),NO,,FK_REGION,Vùng kinh tế,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_province_region_map,macro_region_code,varchar(15),NO,,CODE_CONTRACT,"NORTH/CENTRAL/SOUTH (quy ước kinh doanh, chưa là luật)",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_province_region_map,valid_from,date,NO,,PK_COMPONENT,Ngày bắt đầu dùng ánh xạ,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_province_region_map,valid_to,date,YES,,,"Ngày kết thúc ánh xạ, NULL = hiện hành",BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_province_region_map,source_ref,varchar(255),NO,,,Nguồn phân vùng pháp lý,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_ref_province_region_map,mapping_version,varchar(60),NO,,,Phiên bản ánh xạ,BASELINE_R2_INSTALLED_BY_CLAUDE_REPORT,R2 DDL + column inventory 114
+cm,cm_customers,record_status_code,varchar(12),NO,'DRAFT',"CHECK (DRAFT, VERIFIED)","Trạng thái hoàn thiện hồ sơ (đề xuất migration, tách khỏi quan hệ KH)",MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 ALIGNMENT SQL candidate
+cm,cm_customer_assignments,assignment_role_code,varchar(16),NO,'PRIMARY',"CHECK (PRIMARY, SUPPORT)",Sale chính/hỗ trợ (đề xuất migration),MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 ALIGNMENT SQL candidate
+cm,cm_customer_documents,supersedes_document_id,uuid,YES,,FK cùng customer_id + UNIQUE người kế nhiệm,Tài liệu phiên bản mới thay thế bản trước (đề xuất migration),MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 ALIGNMENT SQL candidate
+cm,cm_customer_legal_change_requests,change_request_id,uuid,NO,SEE_SQL_CANDIDATE,SEE_SQL_CANDIDATE,Định danh yêu cầu thay đổi pháp lý,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,customer_id,uuid,NO,,SEE_SQL_CANDIDATE,Tham chiếu khách hàng,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,requested_by_account_id,uuid,NO,,SEE_SQL_CANDIDATE,Tài khoản khởi tạo yêu cầu,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,requested_at,timestamptz,NO,SEE_SQL_CANDIDATE,SEE_SQL_CANDIDATE,Ngày yêu cầu,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,status_code,varchar(24),NO,SEE_SQL_CANDIDATE,SEE_SQL_CANDIDATE,Trạng thái phê duyệt hoặc bàn giao,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,reason,text,NO,,SEE_SQL_CANDIDATE,Lý do thay đổi,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,evidence_document_id,uuid,NO,,SEE_SQL_CANDIDATE,Chứng từ pháp lý cùng khách hàng,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,old_legal_name,varchar(255),YES,,SEE_SQL_CANDIDATE,Tên pháp lý trước,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,new_legal_name,varchar(255),NO,,SEE_SQL_CANDIDATE,Tên pháp lý đề nghị,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,old_country_code,char(2),NO,,SEE_SQL_CANDIDATE,Quốc gia trước,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,new_country_code,char(2),NO,,SEE_SQL_CANDIDATE,Quốc gia sau,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,old_customer_type_code,varchar(30),YES,,SEE_SQL_CANDIDATE,Loại đối tượng trước,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,new_customer_type_code,varchar(30),NO,,SEE_SQL_CANDIDATE,Loại đối tượng sau,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,old_identifier_type_code,varchar(30),YES,,SEE_SQL_CANDIDATE,Loại định danh trước,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,new_identifier_type_code,varchar(30),NO,,SEE_SQL_CANDIDATE,Loại định danh sau,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,old_identifier_normalized,varchar(128),YES,,SEE_SQL_CANDIDATE,Định danh trước,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,new_identifier_normalized,varchar(128),NO,,SEE_SQL_CANDIDATE,Định danh đề nghị,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,resolved_at,timestamptz,YES,,SEE_SQL_CANDIDATE,Ngày xử lý xong,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,applied_at,timestamptz,YES,,SEE_SQL_CANDIDATE,Ngày áp dụng thay đổi,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_requests,applied_by_account_id,uuid,YES,,SEE_SQL_CANDIDATE,Tài khoản thực hiện cập nhật,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_approvals,approval_id,uuid,NO,SEE_SQL_CANDIDATE,SEE_SQL_CANDIDATE,ID bản ghi duyệt,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_approvals,change_request_id,uuid,NO,,SEE_SQL_CANDIDATE,Định danh yêu cầu thay đổi pháp lý,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_approvals,stage_code,varchar(16),NO,,SEE_SQL_CANDIDATE,Bước duyệt (management/accounting),MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_approvals,decision_code,varchar(12),NO,,SEE_SQL_CANDIDATE,Kết luận duyệt,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_approvals,decided_by_account_id,uuid,NO,,SEE_SQL_CANDIDATE,Tài khoản duyệt,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_approvals,decided_at,timestamptz,NO,SEE_SQL_CANDIDATE,SEE_SQL_CANDIDATE,Ngày duyệt,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_legal_change_approvals,decision_note,text,YES,,SEE_SQL_CANDIDATE,Ghi chú duyệt,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,handover_id,uuid,NO,SEE_SQL_CANDIDATE,SEE_SQL_CANDIDATE,Định danh lần bàn giao,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,customer_id,uuid,NO,,SEE_SQL_CANDIDATE,Tham chiếu khách hàng,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,from_assignment_id,uuid,NO,,SEE_SQL_CANDIDATE,Phân công Sale chính bị thay,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,to_sale_account_id,uuid,NO,,SEE_SQL_CANDIDATE,Tài khoản Sale tiếp nhận,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,initiated_by_account_id,uuid,NO,,SEE_SQL_CANDIDATE,Tài khoản khởi tạo,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,handover_mode_code,varchar(20),NO,,SEE_SQL_CANDIDATE,Luồng quản lý/Sale khởi tạo,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,status_code,varchar(26),NO,,SEE_SQL_CANDIDATE,Trạng thái phê duyệt hoặc bàn giao,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,requested_at,timestamptz,NO,SEE_SQL_CANDIDATE,SEE_SQL_CANDIDATE,Ngày yêu cầu,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,manager_approved_by_account_id,uuid,YES,,SEE_SQL_CANDIDATE,Quản lý duyệt,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,manager_approved_at,timestamptz,YES,,SEE_SQL_CANDIDATE,Thời điểm quản lý duyệt,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,current_ack_by_account_id,uuid,YES,,SEE_SQL_CANDIDATE,Sale cũ xác nhận,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,current_ack_at,timestamptz,YES,,SEE_SQL_CANDIDATE,Thời điểm Sale cũ xác nhận,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,current_ack_override_by_account_id,uuid,YES,,SEE_SQL_CANDIDATE,Người có quyền xác nhận thay Sale cũ,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,current_ack_override_reason,text,YES,,SEE_SQL_CANDIDATE,Lý do xác nhận thay,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,receiver_ack_by_account_id,uuid,YES,,SEE_SQL_CANDIDATE,Sale mới xác nhận,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,receiver_ack_at,timestamptz,YES,,SEE_SQL_CANDIDATE,Thời điểm Sale mới xác nhận,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,rejected_by_account_id,uuid,YES,,SEE_SQL_CANDIDATE,Người từ chối,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,rejected_at,timestamptz,YES,,SEE_SQL_CANDIDATE,Thời điểm từ chối,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,rejection_reason,text,YES,,SEE_SQL_CANDIDATE,Lý do từ chối,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,completed_at,timestamptz,YES,,SEE_SQL_CANDIDATE,Thời điểm hoàn tất bàn giao,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handovers,handover_note,text,YES,,SEE_SQL_CANDIDATE,Ghi chú bàn giao,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handover_activity_transfers,transfer_id,uuid,NO,SEE_SQL_CANDIDATE,SEE_SQL_CANDIDATE,Định danh lần chuyển công việc,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handover_activity_transfers,handover_id,uuid,NO,,SEE_SQL_CANDIDATE,Định danh lần bàn giao,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handover_activity_transfers,activity_id,uuid,NO,,SEE_SQL_CANDIDATE,Công việc được chuyển,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handover_activity_transfers,customer_id,uuid,NO,,SEE_SQL_CANDIDATE,Tham chiếu khách hàng,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handover_activity_transfers,previous_assignee_account_id,uuid,NO,,SEE_SQL_CANDIDATE,Người phụ trách công việc cũ,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handover_activity_transfers,new_assignee_account_id,uuid,NO,,SEE_SQL_CANDIDATE,Người phụ trách mới,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handover_activity_transfers,transferred_by_account_id,uuid,NO,,SEE_SQL_CANDIDATE,Người thực hiện chuyển,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory
+cm,cm_customer_handover_activity_transfers,transferred_at,timestamptz,NO,SEE_SQL_CANDIDATE,SEE_SQL_CANDIDATE,Thời điểm chuyển công việc,MIGRATION_CANDIDATE_NOT_INSTALLED,BE REV01 56-col inventory

@@ -1,12 +1,12 @@
-import { ACCOUNTS, MOCK_PERMISSIONS, MOCK_VERSION, PROVINCES, seedState } from '../mock/seed';
+import { ACCOUNTS, MACRO_REGIONS, MOCK_PERMISSIONS, MOCK_VERSION, PROVINCES, REGIONS, seedState } from '../mock/seed';
 import type { MockState } from '../mock/seed';
 import type {
-  Account, Activity, Appointment, Assignment, Contact, CrmDocument, Customer, Group, Handover, IdentifierType, LegalChange, Permission, Session, Task,
-  WorkReport,
+  Account, Activity, Appointment, Assignment, AuditEntry, Contact, CrmDocument, Customer, CustomerView, Group, Handover, IdentifierType, LegalChange, Permission, Session,
+  Task, WorkReport,
 } from '../types/domain';
-import { CrmClientError } from './adapter';
+import { CrmClientError, IDENTIFIER_VIEW_PERMISSION } from './adapter';
 import type {
-  ActivityInput, AppointmentInput, AppointmentQuery, CapabilityStatus, ContactInput, CrmAdapter, CustomerBundle, CustomerInput, CustomerPatch,
+  ActivityInput, AppointmentInput, AppointmentQuery, CapabilityStatus, ContactInput, CrmAdapter, CustomerBundle, CustomerCreateBundle, CustomerInput, CustomerPatch,
   CustomerQuery, DocumentInput, DocumentMetadata, LegalChangeInput, Page, Reminder, ReportInput, ReportQuery, TaskInput, TaskQuery,
 } from './adapter';
 
@@ -42,6 +42,39 @@ export function csvCell(v: string | null | undefined): string {
   return /[",\r\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
 }
 
+// Proposal OD-05 (NOT approved): a viewer without crm.legal_change.read sees the legal identifier masked.
+export function maskIdentifier(v: string | null): string | null {
+  if (!v) return v;
+  return v.length <= 3 ? '•••' : '•'.repeat(Math.min(8, v.length - 3)) + v.slice(-3);
+}
+
+// AUDIT DEMO: write method → action code (MODULE.FUNCTION.ACTION). Appointment / task / report codes are mock-only
+// (no IAM function yet — OD-11).
+const AUDITED: Record<string, string | ((args: unknown[]) => string)> = {
+  createCustomer: 'CRM.CUSTOMER.CREATE', updateCustomer: 'CRM.CUSTOMER.UPDATE', verifyCustomer: 'CRM.CUSTOMER.VERIFY', hideCustomer: 'CRM.CUSTOMER.HIDE',
+  exportCustomersCsv: 'CRM.CUSTOMER.EXPORT', setCustomerGroups: 'CRM.GROUP.ASSIGN', createGroup: 'CRM.GROUP.MANAGE', updateGroup: 'CRM.GROUP.MANAGE',
+  createContact: 'CRM.CONTACT.MANAGE', updateContact: 'CRM.CONTACT.MANAGE', deactivateContact: 'CRM.CONTACT.MANAGE',
+  addAssignment: 'CRM.ASSIGNMENT.MANAGE', endAssignment: 'CRM.ASSIGNMENT.MANAGE',
+  requestHandover: 'CRM.HANDOVER.REQUEST', approveHandover: 'CRM.HANDOVER.APPROVE', rejectHandover: 'CRM.HANDOVER.REJECT',
+  acknowledgeHandover: (a) => (typeof a[1] === 'string' && a[1].trim() ? 'CRM.HANDOVER.OVERRIDE' : 'CRM.HANDOVER.ACKNOWLEDGE'),
+  requestLegalChange: 'CRM.LEGAL_CHANGE.REQUEST',
+  decideLegalChange: (a) => (a[1] === 'MANAGEMENT' ? 'CRM.LEGAL_CHANGE.APPROVE_MANAGEMENT' : 'CRM.LEGAL_CHANGE.APPROVE_ACCOUNTING'),
+  createActivity: 'CRM.ACTIVITY.CREATE', updateActivity: 'CRM.ACTIVITY.UPDATE', completeActivity: 'CRM.ACTIVITY.COMPLETE',
+  createDocument: 'CRM.DOCUMENT.MANAGE', updateDocumentMetadata: 'CRM.DOCUMENT.MANAGE',
+  createAppointment: 'CRM.APPOINTMENT.CREATE (mock)', updateAppointment: 'CRM.APPOINTMENT.UPDATE (mock)', cancelAppointment: 'CRM.APPOINTMENT.CANCEL (mock)',
+  completeAppointment: 'CRM.APPOINTMENT.COMPLETE (mock)', createTask: 'CRM.TASK.CREATE (mock)', updateTask: 'CRM.TASK.UPDATE (mock)',
+  createReport: 'CRM.REPORT.CREATE (mock)', updateReport: 'CRM.REPORT.UPDATE (mock)', submitReport: 'CRM.REPORT.SUBMIT (mock)',
+};
+// Object of an audit entry = the id named after the FUNCTION of the action code (an appointment also carries a contactId…).
+const AUDIT_OBJECT_KEY: Record<string, string> = {
+  CUSTOMER: 'customerId', GROUP: 'groupId', CONTACT: 'contactId', ASSIGNMENT: 'assignmentId', HANDOVER: 'handoverId', LEGAL_CHANGE: 'changeRequestId',
+  ACTIVITY: 'activityId', DOCUMENT: 'documentId', APPOINTMENT: 'appointmentId', TASK: 'taskId', REPORT: 'reportId',
+};
+
+// TARGET DESIGN switch (FE-FIX-02): open To-dos of the previous sale follow the customer on handover completion.
+// Not a Backend REV01 rule — needs Backend/DB delta approval (docs/05 GAP-DB-04, docs/07 OD-07).
+export const TARGET_DESIGN_TRANSFER_TODOS = true;
+
 function loadState(): MockState {
   try {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
@@ -67,6 +100,17 @@ export class MockCrmAdapter implements CrmAdapter {
     let stored: string | null = null;
     try { stored = this.persist ? globalThis.localStorage?.getItem(ACCOUNT_KEY) ?? null : null; } catch { stored = null; }
     this.accountId = options.accountId ?? (stored && MOCK_PERMISSIONS[stored] ? stored : 'acc-sale-a');
+    // AUDIT DEMO: wrap each write method; an entry is added only after the operation succeeded (a rolled-back mock
+    // transaction restores the store, audit included).
+    const self = this as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
+    for (const [method, action] of Object.entries(AUDITED)) {
+      const original = self[method]!.bind(this);
+      self[method] = async (...args: unknown[]) => {
+        const result = await original(...args);
+        this.recordAudit(typeof action === 'function' ? action(args) : action, method, result, args);
+        return result;
+      };
+    }
   }
   private readonly persist: boolean;
 
@@ -77,6 +121,17 @@ export class MockCrmAdapter implements CrmAdapter {
     this.accountId = accountId;
     try { if (this.persist) globalThis.localStorage?.setItem(ACCOUNT_KEY, accountId); } catch { /* ignore */ }
     this.emit();
+  }
+  auditLog(): AuditEntry[] { return clone([...this.state.audit].reverse()); }
+  private recordAudit(action: string, method: string, result: unknown, args: unknown[]): void {
+    const target = (result && typeof result === 'object' && 'customer' in result ? (result as { customer: unknown }).customer : result) as Record<string, unknown> | null;
+    const wanted = AUDIT_OBJECT_KEY[action.split('.')[1] ?? ''];
+    const key = wanted && target && typeof target === 'object' && typeof target[wanted] === 'string' ? wanted : undefined;
+    const objectId = key ? String(target?.[key]) : typeof args[0] === 'string' ? args[0] : '—';
+    const objectType = key ? key.replace(/Id$/, '') : method === 'exportCustomersCsv' ? 'csv' : 'customer';
+    const detail = method === 'acknowledgeHandover' && typeof args[1] === 'string' && args[1].trim() ? 'override' : method === 'decideLegalChange' ? String(args[2]) : null;
+    this.state.audit.push({ auditId: this.id('aud'), at: nowIso(), actorAccountId: this.accountId, action, objectType, objectId, detail });
+    this.save();
   }
   reset(): void {
     this.state = seedState();
@@ -92,6 +147,11 @@ export class MockCrmAdapter implements CrmAdapter {
       { feature: 'Lịch hẹn, nhắc lịch', state: 'MOCK', reason: 'Chưa có bảng DB — Gate 2 (CRM_V1_DB_EXTENSION_APPROVAL); nhắc lịch chỉ trong ứng dụng' },
       { feature: 'Công việc (To-do)', state: 'MOCK', reason: 'Chưa có bảng DB riêng (ưu tiên, tiến độ) — Gate 2' },
       { feature: 'Báo cáo công việc', state: 'MOCK', reason: 'Chưa có bảng DB — Gate 2' },
+      { feature: 'Tạo khách tổng hợp (hồ sơ + liên hệ + Sale + nhóm + xác minh)', state: 'MOCK', reason: 'GAP-API-01: Backend REV01 không có endpoint tạo tổng hợp; mock chạy nguyên khối' },
+      { feature: 'Chuyển To-do khi bàn giao', state: 'MOCK', reason: 'TARGET DESIGN — không thuộc Backend REV01; cần phê duyệt Backend/DB Delta' },
+      { feature: 'Che định danh pháp lý theo quyền', state: 'MOCK', reason: 'Đề xuất OD-05 (chưa duyệt): không có crm.legal_change.read thì hiển thị che' },
+      { feature: 'Audit demo (nhật ký thao tác trong phiên)', state: 'MOCK', reason: 'Chỉ trong trình duyệt, không chứa PII' },
+      { feature: 'Audit Foundation (BR-12)', state: 'BLOCKED', reason: 'Cần Backend + Foundation Audit trong cùng giao dịch — không nghiệm thu tích hợp trong Gate 1 (GAP-AUD-01)' },
       { feature: 'Phân quyền IAM', state: 'MOCK', reason: 'Quyền crm.* chưa đăng ký; mock dùng bộ quyền giả lập theo vai trò' },
     ];
   }
@@ -101,19 +161,48 @@ export class MockCrmAdapter implements CrmAdapter {
     return () => { this.listeners.delete(listener); };
   }
   private emit(): void { for (const l of [...this.listeners]) l(); }
+  private batch = 0;
   private save(): void {
+    if (this.batch > 0) return;
     try { if (this.persist) globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(this.state)); } catch { /* ignore */ }
     this.emit();
   }
   private id(prefix: string): string { this.state.seq += 1; return `${prefix}-${this.state.seq}`; }
+  // All-or-nothing on a copy of the store (mock of one DB transaction): any error restores the previous state.
+  private async atomic<R>(fn: () => Promise<R>): Promise<R> {
+    const snapshot = clone(this.state);
+    this.batch += 1;
+    try {
+      const r = await fn();
+      this.batch -= 1;
+      this.save();
+      return r;
+    } catch (e) {
+      this.state = snapshot;
+      this.batch -= 1;
+      throw e;
+    }
+  }
 
   // ------------------------------------------------------------------------------------------- authorisation
   private perms(): Set<Permission> { return new Set(MOCK_PERMISSIONS[this.accountId] ?? []); }
   private can(p: Permission): boolean { return this.perms().has(p); }
-  private need(p: Permission): void { if (!this.can(p)) throw err('FORBIDDEN', 'Bạn không có quyền thực hiện thao tác này.'); }
+  private need(p: Permission): void { if (!this.can(p)) throw err('CM_PERMISSION_DENIED', 'Bạn không có quyền thực hiện thao tác này.'); }
   private activeAssignments(customerId: string): Assignment[] { return this.state.assignments.filter((a) => a.customerId === customerId && a.endedAt === null); }
   private visible(c: Customer): boolean {
     return this.can('crm.customer.read_all') || this.activeAssignments(c.customerId).some((a) => a.saleAccountId === this.accountId);
+  }
+  // Full legal identifier: ONE decision point (proposal OD-05 — crm.legal_change.read; not an approved rule). The same
+  // right governs viewing AND searching by identifier: without it the identifier is masked and is not a search field.
+  canViewIdentifier(): boolean { return this.can(IDENTIFIER_VIEW_PERMISSION); }
+  private view(c: Customer): CustomerView {
+    const active = this.activeAssignments(c.customerId);
+    const p = PROVINCES.find((x) => x.code === c.provinceCode);
+    const masked = !this.canViewIdentifier();
+    return { ...c, legalIdentifier: masked ? maskIdentifier(c.legalIdentifier) : c.legalIdentifier, identifierMasked: masked && c.legalIdentifier !== null,
+      primarySaleAccountId: active.find((a) => a.role === 'PRIMARY')?.saleAccountId ?? null,
+      supportSaleAccountIds: active.filter((a) => a.role === 'SUPPORT').map((a) => a.saleAccountId),
+      regionCode: p?.region ?? null, macroRegionCode: p?.macro ?? null };
   }
   private customer(customerId: string): Customer {
     const c = this.state.customers.find((x) => x.customerId === customerId);
@@ -132,6 +221,7 @@ export class MockCrmAdapter implements CrmAdapter {
   }
   async accounts(): Promise<Account[]> { return clone(ACCOUNTS); }
   async provinces() { return clone(PROVINCES); }
+  async regions() { return { regions: clone(REGIONS), macroRegions: clone(MACRO_REGIONS) }; }
   async groups(): Promise<Group[]> { this.need('crm.group.read'); return clone(this.state.groups); }
 
   // --------------------------------------------------------------------------------------------- customers
@@ -168,32 +258,37 @@ export class MockCrmAdapter implements CrmAdapter {
   private similar(name: string | null | undefined, exceptId: string | null): number {
     if (!name) return 0;
     const n = name.trim().toLowerCase();
-    return this.state.customers.filter((c) => c.customerId !== exceptId && (c.displayName.trim().toLowerCase() === n || (c.legalName ?? '').trim().toLowerCase() === n)).length;
+    return this.state.customers.filter((c) => c.customerId !== exceptId && this.visible(c) && (c.displayName.trim().toLowerCase() === n || (c.legalName ?? '').trim().toLowerCase() === n)).length;
   }
   private filtered(q: CustomerQuery): Customer[] {
     const term = q.q?.trim().toLowerCase();
     const showHidden = q.includeHidden === true && this.can('crm.customer.read_all');
     const list = this.state.customers.filter((c) => this.visible(c) && (showHidden || !c.isHidden)
-      && (!term || [c.customerCode, c.displayName, c.legalName ?? '', c.legalIdentifier ?? ''].some((v) => v.toLowerCase().includes(term)))
+      && (!term || [c.customerCode, c.displayName, c.legalName ?? '', ...(this.canViewIdentifier() ? [c.legalIdentifier ?? ''] : [])].some((v) => v.toLowerCase().includes(term)))
       && (!q.customerType || c.customerType === q.customerType) && (!q.customerStatus || c.customerStatus === q.customerStatus)
       && (!q.recordStatus || c.recordStatus === q.recordStatus) && (!q.provinceCode || c.provinceCode === q.provinceCode)
       && (!q.groupId || c.groupIds.includes(q.groupId))
-      && (!q.saleAccountId || this.activeAssignments(c.customerId).some((a) => a.saleAccountId === q.saleAccountId)));
+      && (!q.macroRegionCode || PROVINCES.find((p) => p.code === c.provinceCode)?.macro === q.macroRegionCode)
+      && (!q.regionCode || PROVINCES.find((p) => p.code === c.provinceCode)?.region === q.regionCode)
+      && ((!q.saleAccountId && !q.saleRole) || this.activeAssignments(c.customerId).some((a) => a.saleAccountId === (q.saleAccountId || this.accountId)
+        && (!q.saleRole || a.role === q.saleRole))));
     const sort = q.sort ?? 'code';
-    return list.sort((a, b) => (sort === 'name' ? a.displayName.localeCompare(b.displayName, 'vi') : sort === 'createdAt' ? b.createdAt.localeCompare(a.createdAt)
-      : a.customerCode.localeCompare(b.customerCode)) || a.customerId.localeCompare(b.customerId));
+    const dir = q.sortDir === 'desc' ? -1 : 1;
+    const key = (a: Customer, b: Customer) => (sort === 'name' ? a.displayName.localeCompare(b.displayName, 'vi') : sort === 'createdAt' ? a.createdAt.localeCompare(b.createdAt)
+      : a.customerCode.localeCompare(b.customerCode));
+    return list.sort((a, b) => dir * key(a, b) || a.customerId.localeCompare(b.customerId)); // stable: primary-key tie-break
   }
 
-  async listCustomers(q: CustomerQuery): Promise<Page<Customer>> {
+  async listCustomers(q: CustomerQuery): Promise<Page<CustomerView>> {
     this.need('crm.customer.read');
     const all = this.filtered(q);
     const page = Math.max(1, q.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, q.pageSize ?? 20));
-    return { items: clone(all.slice((page - 1) * pageSize, page * pageSize)), total: all.length, page, pageSize };
+    return { items: clone(all.slice((page - 1) * pageSize, page * pageSize).map((c) => this.view(c))), total: all.length, page, pageSize };
   }
   async visibleCustomers(): Promise<Customer[]> {
     if (!this.can('crm.customer.read')) return [];
-    return clone(this.state.customers.filter((c) => this.visible(c) && !c.isHidden));
+    return clone(this.state.customers.filter((c) => this.visible(c) && !c.isHidden).map((c) => this.view(c)));
   }
 
   async customerBundle(customerId: string): Promise<CustomerBundle> {
@@ -201,7 +296,7 @@ export class MockCrmAdapter implements CrmAdapter {
     const c = this.customer(customerId);
     const s = this.state;
     return clone({
-      customer: c,
+      customer: this.view(c),
       contacts: this.can('crm.contact.read') ? s.contacts.filter((x) => x.customerId === customerId) : [],
       assignments: this.can('crm.assignment.read') ? s.assignments.filter((x) => x.customerId === customerId) : this.activeAssignments(customerId),
       handovers: this.can('crm.assignment.read') ? s.handovers.filter((x) => x.customerId === customerId) : [],
@@ -210,16 +305,18 @@ export class MockCrmAdapter implements CrmAdapter {
       documents: this.can('crm.document.read') ? s.documents.filter((x) => x.customerId === customerId) : [],
       appointments: s.appointments.filter((x) => x.customerId === customerId).sort((a, b) => a.startAt.localeCompare(b.startAt)),
       tasks: s.tasks.filter((x) => x.customerId === customerId),
+      reports: s.reports.filter((r) => r.customerIds.includes(customerId) && (r.authorAccountId === this.accountId || r.status === 'SUBMITTED'))
+        .sort((a, b) => b.workDate.localeCompare(a.workDate)),
     });
   }
 
   async checkIdentity(type: IdentifierType, value: string, countryCode: string, name?: string) {
-    if (!this.can('crm.customer.create') && !this.can('crm.customer.update')) throw err('FORBIDDEN', 'Bạn không có quyền thực hiện thao tác này.');
+    if (!this.can('crm.customer.create') && !this.can('crm.customer.update')) throw err('CM_PERMISSION_DENIED', 'Bạn không có quyền thực hiện thao tác này.');
     const normalized = normalizeIdentifier(type, value);
     return { normalized, duplicate: normalized !== null && this.identifierTaken(countryCode, type, normalized, null), similarNameCount: this.similar(name, null) };
   }
 
-  async createCustomer(input: CustomerInput) {
+  async createCustomer(input: CustomerInput, autoAssignCreator = true) {
     this.need('crm.customer.create');
     if (!input.displayName.trim()) throw err('CM_VALIDATION_FAILED', 'Tên khách hàng là bắt buộc.');
     let idType: IdentifierType | null = null;
@@ -242,11 +339,30 @@ export class MockCrmAdapter implements CrmAdapter {
     this.state.customers.push(customer);
     // GAP-BE-01 (pending decision): the creator is not auto-assigned by the backend contract. In the mock the creator
     // receives the PRIMARY assignment so that the profile stays visible; flagged in the Frontend report.
-    if (!this.can('crm.customer.read_all')) this.state.assignments.push({ assignmentId: this.id('asg'), customerId: customer.customerId, saleAccountId: this.accountId,
+    if (autoAssignCreator && !this.can('crm.customer.read_all')) this.state.assignments.push({ assignmentId: this.id('asg'), customerId: customer.customerId, saleAccountId: this.accountId,
       role: 'PRIMARY', assignedAt: nowIso(), assignedByAccountId: this.accountId, endedAt: null, endedByAccountId: null, handoverToAccountId: null });
     const similar = this.similar(customer.legalName ?? customer.displayName, customer.customerId);
     this.save();
     return { customer: clone(customer), warnings: similar > 0 ? [`Có ${similar} khách hàng trùng hoặc gần trùng tên (chỉ cảnh báo).`] : [] };
+  }
+
+  // Create form (4 groups) in ONE mock transaction: customer, contacts, assignments, groups and optional verify.
+  async createCustomerFull(input: CustomerCreateBundle): Promise<{ customer: Customer; warnings: string[] }> {
+    this.need('crm.customer.create');
+    if (input.contacts.length) this.need('crm.contact.manage');
+    if (input.primarySaleAccountId || input.supportSaleAccountIds.length) this.need('crm.assignment.manage');
+    if (input.groupIds.length) this.need('crm.group.assign');
+    if (input.verify) this.need('crm.customer.verify');
+    return this.atomic(async () => {
+      const created = await this.createCustomer(input.customer, input.primarySaleAccountId === null);
+      const id = created.customer.customerId;
+      for (const ct of input.contacts) await this.createContact(id, ct);
+      if (input.primarySaleAccountId) await this.addAssignment(id, input.primarySaleAccountId, 'PRIMARY');
+      for (const sale of input.supportSaleAccountIds) await this.addAssignment(id, sale, 'SUPPORT');
+      if (input.groupIds.length) await this.setCustomerGroups(id, input.groupIds);
+      const customer = input.verify ? await this.verifyCustomer(id, {}) : this.state.customers.find((c) => c.customerId === id) ?? created.customer;
+      return { customer: clone(customer), warnings: created.warnings };
+    });
   }
 
   async updateCustomer(customerId: string, patch: CustomerPatch): Promise<Customer> {
@@ -312,7 +428,7 @@ export class MockCrmAdapter implements CrmAdapter {
     this.need('crm.customer.export');
     const rows = this.filtered(q);
     const header = ['customer_code', 'display_name', 'legal_name', 'customer_type', 'customer_status', 'record_status', 'identifier_type', 'identifier', 'address', 'province_code', 'ward_code', 'country_code'];
-    const lines = rows.map((c) => [c.customerCode, c.displayName, c.legalName, c.customerType, c.customerStatus, c.recordStatus, c.legalIdentifierType, c.legalIdentifier,
+    const lines = rows.map((x) => this.view(x)).map((c) => [c.customerCode, c.displayName, c.legalName, c.customerType, c.customerStatus, c.recordStatus, c.legalIdentifierType, c.legalIdentifier,
       c.registeredAddress ?? c.addressLine, c.provinceCode, c.wardCode, c.countryCode].map(csvCell).join(','));
     return `﻿${[header.join(','), ...lines].join('\r\n')}\r\n`;
   }
@@ -449,7 +565,7 @@ export class MockCrmAdapter implements CrmAdapter {
     const h: Handover = { handoverId: this.id('hdv'), customerId, fromAssignmentId: primary.assignmentId, currentSaleAccountId: primary.saleAccountId, toSaleAccountId,
       initiatedByAccountId: this.accountId, mode, status: mode === 'MANAGER_INITIATED' ? 'PENDING_CURRENT_ACK' : 'PENDING_APPROVAL', requestedAt: nowIso(), note: note ?? null,
       managerApprovedByAccountId: null, currentAckByAccountId: null, currentAckOverrideByAccountId: null, currentAckOverrideReason: null, receiverAckByAccountId: null,
-      rejectedByAccountId: null, rejectionReason: null, completedAt: null, transferredActivityIds: [] };
+      rejectedByAccountId: null, rejectionReason: null, completedAt: null, transferredActivityIds: [], transferredTaskIds: [] };
     this.state.handovers.push(h);
     this.save();
     return clone(h);
@@ -459,7 +575,7 @@ export class MockCrmAdapter implements CrmAdapter {
     const h = this.handover(handoverId);
     this.customer(h.customerId);
     if (h.status !== 'PENDING_APPROVAL') throw err('CM_HANDOVER_INVALID_STATE', 'Trạng thái bàn giao không cho phép thao tác này.');
-    if (h.initiatedByAccountId === this.accountId) throw err('CM_SELF_APPROVAL_FORBIDDEN', 'Người đề nghị không được tự duyệt.');
+    if (h.initiatedByAccountId === this.accountId) throw err('CM_PERMISSION_DENIED', 'Người đề nghị không được tự duyệt.');
     h.managerApprovedByAccountId = this.accountId;
     h.status = 'PENDING_RECEIVER_ACK';
     this.save();
@@ -494,7 +610,15 @@ export class MockCrmAdapter implements CrmAdapter {
       assignedByAccountId: h.managerApprovedByAccountId ?? h.initiatedByAccountId, endedAt: null, endedByAccountId: null, handoverToAccountId: null });
     const moved = this.state.activities.filter((x) => x.customerId === h.customerId && x.activityStatus === 'OPEN' && x.assignedToAccountId === from.saleAccountId);
     for (const x of moved) x.assignedToAccountId = this.accountId;
-    Object.assign(h, { receiverAckByAccountId: this.accountId, status: 'COMPLETED', completedAt: t, transferredActivityIds: moved.map((x) => x.activityId) });
+    // TARGET DESIGN: open To-dos of the previous sale linked to this customer follow the customer (history kept).
+    const movedTasks = TARGET_DESIGN_TRANSFER_TODOS ? this.state.tasks.filter((x) => x.customerId === h.customerId && (x.status === 'TODO' || x.status === 'IN_PROGRESS')
+      && x.assigneeAccountId === from.saleAccountId) : [];
+    for (const x of movedTasks) {
+      x.history.push({ at: t, fromAccountId: x.assigneeAccountId, toAccountId: this.accountId, reason: 'HANDOVER', handoverId: h.handoverId });
+      x.assigneeAccountId = this.accountId;
+    }
+    Object.assign(h, { receiverAckByAccountId: this.accountId, status: 'COMPLETED', completedAt: t, transferredActivityIds: moved.map((x) => x.activityId),
+      transferredTaskIds: movedTasks.map((x) => x.taskId) });
     this.state.activities.push({ activityId: this.id('act'), customerId: h.customerId, activityType: 'HANDOVER', activityStatus: 'DONE', title: 'Hoàn tất bàn giao khách hàng',
       description: `Chuyển ${moved.length} công việc đang mở.`, occurredAt: t, dueAt: null, assignedToAccountId: this.accountId, createdByAccountId: this.accountId, completedAt: t });
     this.save();
@@ -551,7 +675,7 @@ export class MockCrmAdapter implements CrmAdapter {
     if (!l) throw err('CM_CUSTOMER_NOT_FOUND', 'Không tìm thấy yêu cầu.');
     const c = this.customer(l.customerId);
     if (l.status !== (stage === 'MANAGEMENT' ? 'PENDING_MANAGEMENT' : 'PENDING_ACCOUNTING')) throw err('CM_LEGAL_CHANGE_INVALID_STATE', 'Trạng thái yêu cầu không cho phép thao tác này.');
-    if (l.requestedByAccountId === this.accountId) throw err('CM_SELF_APPROVAL_FORBIDDEN', 'Người đề nghị không được tự duyệt yêu cầu của mình.');
+    if (l.requestedByAccountId === this.accountId) throw err('CM_PERMISSION_DENIED', 'Người đề nghị không được tự duyệt yêu cầu của mình.');
     if (decision === 'REJECTED' && !note?.trim()) throw err('CM_VALIDATION_FAILED', 'Từ chối phải nêu lý do.');
     if (decision === 'APPROVED' && stage === 'ACCOUNTING') {
       const same = c.legalName === l.oldLegalName && c.customerType === l.oldCustomerType && c.legalIdentifierType === l.oldIdentifierType
@@ -677,6 +801,10 @@ export class MockCrmAdapter implements CrmAdapter {
     if (!start || !end || Number.isNaN(Date.parse(start)) || Number.isNaN(Date.parse(end)) || end <= start) throw err('CM_VALIDATION_FAILED', 'Giờ kết thúc phải sau giờ bắt đầu.');
     const cid = input.customerId !== undefined ? input.customerId : base?.customerId ?? null;
     if (cid) this.customer(cid);
+    const contactId = input.contactId !== undefined ? input.contactId : input.customerId !== undefined ? null : base?.contactId ?? null;
+    if (contactId && !this.state.contacts.some((c) => c.contactId === contactId && c.customerId === cid && c.isActive)) {
+      throw err('CM_VALIDATION_FAILED', 'Người liên hệ phải thuộc khách hàng đã chọn và còn hiệu lực.');
+    }
   }
   async listAppointments(q: AppointmentQuery): Promise<Appointment[]> {
     return clone(this.state.appointments.filter((a) => this.canSeeOwned(a.ownerAccountId, a.customerId) && a.endAt >= q.from && a.startAt < q.to
@@ -755,7 +883,7 @@ export class MockCrmAdapter implements CrmAdapter {
     this.ensureActiveAccount(assignee);
     const t: Task = { taskId: this.id('tsk'), title: input.title.trim(), description: input.description ?? null, customerId: input.customerId, assigneeAccountId: assignee,
       createdByAccountId: this.accountId, dueAt: input.dueAt ?? null, priority: input.priority ?? 'MEDIUM', status: 'TODO', progress: Math.min(100, Math.max(0, input.progress ?? 0)),
-      completedAt: null, createdAt: nowIso() };
+      completedAt: null, createdAt: nowIso(), history: [] };
     this.state.tasks.push(t);
     this.save();
     return clone(t);
@@ -767,6 +895,9 @@ export class MockCrmAdapter implements CrmAdapter {
     if (patch.assigneeAccountId) this.ensureActiveAccount(patch.assigneeAccountId);
     if (patch.title !== undefined && !patch.title.trim()) throw err('CM_VALIDATION_FAILED', 'Tên công việc là bắt buộc.');
     const next = { ...t, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) } as Task;
+    if (next.assigneeAccountId !== t.assigneeAccountId) {
+      next.history = [...t.history, { at: nowIso(), fromAccountId: t.assigneeAccountId, toAccountId: next.assigneeAccountId, reason: 'REASSIGN', handoverId: null }];
+    }
     next.progress = Math.min(100, Math.max(0, next.progress));
     if (next.status === 'TODO' && next.progress > 0) next.status = 'IN_PROGRESS';
     if (next.status === 'DONE') { next.progress = 100; next.completedAt = nowIso(); }
@@ -780,6 +911,7 @@ export class MockCrmAdapter implements CrmAdapter {
   async listReports(q: ReportQuery): Promise<WorkReport[]> {
     return clone(this.state.reports.filter((r) => (r.authorAccountId === this.accountId || (this.can('crm.customer.read_all') && r.status === 'SUBMITTED'))
       && (!q.authorAccountId || r.authorAccountId === q.authorAccountId) && (!q.status || r.status === q.status)
+      && (!q.customerId || r.customerIds.includes(q.customerId))
       && (!q.from || r.workDate >= q.from) && (!q.to || r.workDate <= q.to)).sort((a, b) => b.workDate.localeCompare(a.workDate) || b.updatedAt.localeCompare(a.updatedAt)));
   }
   private checkReport(input: Partial<ReportInput>, base: WorkReport | null): void {

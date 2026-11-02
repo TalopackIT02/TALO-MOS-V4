@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CrmProvider, useAction, useCrm, useQuery } from '../hooks/crm';
 import { MockCrmAdapter } from '../services/mockAdapter';
-import { fmtTime } from '../utils/format';
+import { fmtDateTime, fmtTime } from '../utils/format';
 
 // Shared CRM UI pieces. Classes are prefixed crm- and scoped under .app-shell (crm.css), reusing the AppShell tokens.
 
@@ -52,10 +52,12 @@ export function Field({ label, required, children, hint }: { label: string; requ
   return <label className="crm-field"><span>{label}{required && ' *'}</span>{children}{hint && <small>{hint}</small>}</label>;
 }
 
-export function Pagination({ page, pageSize, total, onPage }: { page: number; pageSize: number; total: number; onPage: (p: number) => void }) {
+export function Pagination({ page, pageSize, total, onPage, onPageSize }: { page: number; pageSize: number; total: number; onPage: (p: number) => void; onPageSize?: (n: number) => void }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   return (
     <div className="crm-pager">
+      {onPageSize && <label>Hiển thị <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} aria-label="Số dòng mỗi trang">
+        {[10, 20, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}</select> dòng</label>}
       <span>{total === 0 ? '0 bản ghi' : `${(page - 1) * pageSize + 1}–${Math.min(total, page * pageSize)} / ${total}`}</span>
       <button type="button" className="crm-btn crm-sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>‹ Trước</button>
       <span>Trang {page}/{pages}</span>
@@ -99,19 +101,28 @@ function Reminders() {
 
 // Mock banner: makes the simulated state explicit and lets the acceptance tester switch the synthetic account.
 function MockBanner() {
-  const { adapter, session, accounts } = useCrm();
+  const { adapter, session, accounts, accountName } = useCrm();
   const [open, setOpen] = useState(false);
+  const [audit, setAudit] = useState(false);
   if (!(adapter instanceof MockCrmAdapter)) return null;
   return (
     <div className="crm-mockbar">
-      <span><Badge tone="amber">Chế độ mô phỏng</Badge> Dữ liệu giả lập trong trình duyệt — chưa ghi vào hệ thống.</span>
+      <span><Badge tone="amber">DEMO — IAM GIẢ LẬP</Badge> Dữ liệu và tài khoản giả lập trong trình duyệt — không phải quyền IAM thật, chưa ghi vào hệ thống.</span>
       <label>Tài khoản thử:
         <select value={session?.account.accountId ?? ''} onChange={(e) => adapter.switchAccount(e.target.value)} aria-label="Tài khoản mô phỏng">
           {accounts.map((a) => <option key={a.accountId} value={a.accountId}>{a.fullName} — {a.title}</option>)}
         </select>
       </label>
       <button type="button" className="crm-link" onClick={() => setOpen(true)}>Trạng thái tích hợp</button>
+      <button type="button" className="crm-link" onClick={() => setAudit(true)}>Nhật ký thao tác (Audit demo)</button>
       <button type="button" className="crm-link" onClick={() => { if (window.confirm('Khôi phục toàn bộ dữ liệu mẫu? Thay đổi mô phỏng sẽ mất.')) adapter.reset(); }}>Khôi phục dữ liệu mẫu</button>
+      {audit && <Modal title="Nhật ký thao tác (Audit demo)" onClose={() => setAudit(false)} wide>
+        <p className="crm-note crm-warn">Chỉ ghi thao tác <b>thành công</b> trong phiên mô phỏng (không có IP, correlation id, thao tác thất bại; không chứa PII). <b>Không phải Audit của Foundation</b> — tích hợp audit thật BLOCKED (BR-12, GAP-AUD-01), không nghiệm thu được trong Gate 1.</p>
+        {adapter.auditLog().length === 0 ? <Empty>Chưa có thao tác nào trong phiên mô phỏng.</Empty> : (
+          <div className="crm-tablewrap"><table className="crm-table crm-compact"><thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Hành động</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead><tbody>
+            {adapter.auditLog().slice(0, 100).map((e) => <tr key={e.auditId}><td>{fmtDateTime(e.at)}</td><td>{accountName(e.actorAccountId)}</td><td className="crm-mono">{e.action}</td><td>{e.objectType} · <span className="crm-mono">{e.objectId}</span></td><td>{e.detail ?? '—'}</td></tr>)}
+          </tbody></table></div>)}
+      </Modal>}
       {open && <Modal title="Trạng thái tích hợp CRM" onClose={() => setOpen(false)} wide>
         <table className="crm-table"><thead><tr><th>Chức năng</th><th>Trạng thái</th><th>Lý do</th></tr></thead><tbody>
           {adapter.capabilities().map((c) => <tr key={c.feature}><td>{c.feature}</td>

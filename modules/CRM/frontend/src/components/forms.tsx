@@ -22,12 +22,13 @@ export function AppointmentForm({ appointment, customerId, defaultStart, onClose
   const { run, busy } = useAction();
   const start = defaultStart ?? (() => { const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1); return d; })();
   const [f, setF] = useState({
-    title: appointment?.title ?? '', customerId: appointment?.customerId ?? customerId ?? null,
+    title: appointment?.title ?? '', customerId: appointment?.customerId ?? customerId ?? null, contactId: appointment?.contactId ?? null,
     startAt: toLocalInput(appointment?.startAt ?? start.toISOString()), endAt: toLocalInput(appointment?.endAt ?? new Date(start.getTime() + 3_600_000).toISOString()),
     location: appointment?.location ?? '', description: appointment?.description ?? '', remindMinutes: appointment?.remindMinutes ?? 30,
   });
+  const { data: contacts } = useQuery(() => (f.customerId ? adapter.customerBundle(f.customerId).then((x) => x.contacts.filter((c) => c.isActive)) : Promise.resolve([])), [f.customerId]);
   const save = () => run(async () => {
-    const input = { title: f.title, customerId: f.customerId, startAt: fromLocalInput(f.startAt) ?? '', endAt: fromLocalInput(f.endAt) ?? '',
+    const input = { title: f.title, customerId: f.customerId, contactId: f.customerId ? f.contactId : null, startAt: fromLocalInput(f.startAt) ?? '', endAt: fromLocalInput(f.endAt) ?? '',
       location: f.location || null, description: f.description || null, remindMinutes: f.remindMinutes || null };
     if (appointment) await adapter.updateAppointment(appointment.appointmentId, input); else await adapter.createAppointment(input);
   }, appointment ? 'Đã cập nhật lịch hẹn.' : 'Đã tạo lịch hẹn.').then((ok) => { if (ok) onClose(); });
@@ -37,7 +38,12 @@ export function AppointmentForm({ appointment, customerId, defaultStart, onClose
       <button type="button" className="crm-btn crm-primary" disabled={busy} onClick={save}>Lưu lịch hẹn</button></>}>
       <div className="crm-form">
         <Field label="Tiêu đề" required><input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} autoFocus /></Field>
-        <Field label="Khách hàng"><CustomerSelect value={f.customerId} disabled={customerId !== undefined && !appointment} onChange={(v) => setF({ ...f, customerId: v })} /></Field>
+        <div className="crm-row2">
+          <Field label="Khách hàng"><CustomerSelect value={f.customerId} disabled={customerId !== undefined && !appointment} onChange={(v) => setF({ ...f, customerId: v, contactId: null })} /></Field>
+          <Field label="Người liên hệ"><select value={f.contactId ?? ''} disabled={!f.customerId} onChange={(e) => setF({ ...f, contactId: e.target.value || null })}>
+            <option value="">{f.customerId ? '— Không chọn —' : 'Chọn khách hàng trước'}</option>
+            {(contacts ?? []).map((c) => <option key={c.contactId} value={c.contactId}>{c.fullName}{c.positionTitle ? ` — ${c.positionTitle}` : ''}</option>)}</select></Field>
+        </div>
         <div className="crm-row2">
           <Field label="Bắt đầu" required><input type="datetime-local" value={f.startAt} onChange={(e) => setF({ ...f, startAt: e.target.value })} /></Field>
           <Field label="Kết thúc" required><input type="datetime-local" value={f.endAt} onChange={(e) => setF({ ...f, endAt: e.target.value })} /></Field>
@@ -54,10 +60,20 @@ export function AppointmentForm({ appointment, customerId, defaultStart, onClose
   );
 }
 
+function AppointmentParty({ customerId, contactId }: { customerId: string | null; contactId: string | null }) {
+  const { adapter } = useCrm();
+  const { data } = useQuery(() => (customerId ? adapter.customerBundle(customerId) : Promise.resolve(null)), [customerId]);
+  if (!customerId) return <>Không gắn khách hàng</>;
+  if (!data) return <>…</>;
+  const contact = data.contacts.find((c) => c.contactId === contactId);
+  return <>{data.customer.customerCode} · {data.customer.displayName}{contact && <small className="crm-sub">Liên hệ: {contact.fullName}</small>}</>;
+}
+
 export function AppointmentDetail({ appointment: a, onClose }: { appointment: Appointment; onClose: () => void }) {
   const { adapter, accountName, session, navigate } = useCrm();
   const { run } = useAction();
   const [mode, setMode] = useState<'view' | 'edit' | 'cancel' | 'done'>('view');
+  const mine = a.ownerAccountId === session?.account.accountId;
   const own = a.ownerAccountId === session?.account.accountId && a.status === 'SCHEDULED';
   if (mode === 'edit') return <AppointmentForm appointment={a} onClose={onClose} />;
   if (mode === 'cancel') return <PromptDialog title="Hủy lịch hẹn" label="Lý do hủy" confirm="Hủy lịch hẹn" danger onCancel={onClose}
@@ -66,15 +82,17 @@ export function AppointmentDetail({ appointment: a, onClose }: { appointment: Ap
     onConfirm={(t) => run(() => adapter.completeAppointment(a.appointmentId, t), 'Đã ghi kết quả.')} />;
   return (
     <Modal title={a.title} onClose={onClose} footer={<>
-      {a.customerId && <button type="button" className="crm-btn" onClick={() => navigate('customers', { customer: a.customerId ?? '' })}>Mở hồ sơ khách hàng</button>}
+      {a.customerId && <button type="button" className="crm-btn" onClick={() => navigate('customers', { customer: a.customerId ?? '', tab: 'Lịch hẹn' })}>Mở lịch hẹn trong hồ sơ khách hàng</button>}
       {own && <button type="button" className="crm-btn" onClick={() => setMode('cancel')}>Hủy lịch</button>}
       {own && <button type="button" className="crm-btn" onClick={() => setMode('edit')}>Sửa</button>}
       {own && <button type="button" className="crm-btn crm-primary" onClick={() => setMode('done')}>Đã diễn ra</button>}
+      {mine && a.status !== 'CANCELLED' && <button type="button" className="crm-btn" onClick={() => navigate('reports', { appointment: a.appointmentId })}>Lập báo cáo</button>}
     </>}>
       <dl className="crm-dl">
         <dt>Thời gian</dt><dd>{fmtDateTime(a.startAt)} – {fmtDateTime(a.endAt)}</dd>
         <dt>Trạng thái</dt><dd><Badge tone={a.status === 'SCHEDULED' ? 'blue' : a.status === 'DONE' ? 'green' : 'grey'}>{APPOINTMENT_STATUS[a.status]}</Badge></dd>
         <dt>Người phụ trách</dt><dd>{accountName(a.ownerAccountId)}</dd>
+        <dt>Khách hàng / liên hệ</dt><dd><AppointmentParty customerId={a.customerId} contactId={a.contactId} /></dd>
         <dt>Địa điểm</dt><dd>{a.location ?? '—'}</dd>
         <dt>Nhắc lịch</dt><dd>{a.remindMinutes ? `${a.remindMinutes} phút trước` : 'Không'}</dd>
         <dt>Nội dung</dt><dd>{a.description ?? '—'}</dd>
@@ -86,7 +104,7 @@ export function AppointmentDetail({ appointment: a, onClose }: { appointment: Ap
 }
 
 export function TaskForm({ task, customerId, onClose }: { task?: Task; customerId?: string | null; onClose: () => void }) {
-  const { adapter, accounts } = useCrm();
+  const { adapter, accounts, accountName } = useCrm();
   const { run, busy } = useAction();
   const [f, setF] = useState({
     title: task?.title ?? '', description: task?.description ?? '', customerId: task?.customerId ?? customerId ?? null,
@@ -111,11 +129,14 @@ export function TaskForm({ task, customerId, onClose }: { task?: Task; customerI
           </select></Field>
         </div>
         <div className="crm-row2">
-          <Field label="Mức ưu tiên"><select value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value as TaskPriority })}>
+          <Field label="Mức ưu tiên (mô phỏng)" hint="Ưu tiên và tiến độ chỉ có trong bản mô phỏng — chưa có cột DB (GAP-DB-02)."><select value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value as TaskPriority })}>
             {(['HIGH', 'MEDIUM', 'LOW'] as const).map((p) => <option key={p} value={p}>{TASK_PRIORITY[p]}</option>)}</select></Field>
-          <Field label={`Tiến độ: ${f.progress}%`}><input type="range" min={0} max={100} step={10} value={f.progress} onChange={(e) => setF({ ...f, progress: Number(e.target.value) })} /></Field>
+          <Field label={`Tiến độ (mô phỏng): ${f.progress}%`}><input type="range" min={0} max={100} step={10} value={f.progress} onChange={(e) => setF({ ...f, progress: Number(e.target.value) })} /></Field>
         </div>
         <Field label="Mô tả"><textarea rows={3} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
+        {task && task.history.length > 0 && <div className="crm-field"><span>Lịch sử chuyển giao</span>
+          <ul className="crm-history-list">{task.history.map((h, i) => <li key={i}>{fmtDateTime(h.at)} — {accountName(h.fromAccountId)} → {accountName(h.toAccountId)}
+            {h.reason === 'HANDOVER' ? <> <Badge tone="violet">Bàn giao khách hàng — Target Design</Badge></> : ' (đổi người làm)'}</li>)}</ul></div>}
       </div>
     </Modal>
   );
@@ -123,7 +144,7 @@ export function TaskForm({ task, customerId, onClose }: { task?: Task; customerI
 
 const PRIORITY_TONE = { HIGH: 'red', MEDIUM: 'amber', LOW: 'grey' } as const;
 export function TaskRows({ tasks, showCustomer = true }: { tasks: Task[]; showCustomer?: boolean }) {
-  const { adapter, accountName, navigate } = useCrm();
+  const { adapter, accountName, navigate, session } = useCrm();
   const { run } = useAction();
   const [edit, setEdit] = useState<Task | null>(null);
   const { data: customers } = useQuery(() => adapter.visibleCustomers(), []);
@@ -138,7 +159,7 @@ export function TaskRows({ tasks, showCustomer = true }: { tasks: Task[]; showCu
           const c = customers?.find((x) => x.customerId === t.customerId);
           return (
             <tr key={t.taskId} className={overdue ? 'crm-overdue' : ''}>
-              <td><b>{t.title}</b>{t.description && <small className="crm-sub">{t.description}</small>}</td>
+              <td><b>{t.title}</b>{t.history.some((h) => h.reason === 'HANDOVER') && <> <Badge tone="violet">Đã chuyển giao</Badge></>}{t.description && <small className="crm-sub">{t.description}</small>}</td>
               {showCustomer && <td>{c ? <button type="button" className="crm-link" onClick={() => navigate('customers', { customer: c.customerId })}>{c.customerCode} · {c.displayName}</button> : '—'}</td>}
               <td>{fmtDateTime(t.dueAt)}{overdue && <> <Badge tone="red">Quá hạn</Badge></>}</td>
               <td><Badge tone={PRIORITY_TONE[t.priority]}>{TASK_PRIORITY[t.priority]}</Badge></td>
@@ -148,7 +169,9 @@ export function TaskRows({ tasks, showCustomer = true }: { tasks: Task[]; showCu
               <td className="crm-actions">{open && <>
                 <button type="button" className="crm-btn crm-sm" onClick={() => setEdit(t)}>Sửa</button>
                 <button type="button" className="crm-btn crm-sm crm-primary" onClick={() => run(() => adapter.completeTask(t.taskId), 'Đã hoàn thành công việc.')}>Hoàn thành</button>
-              </>}</td>
+              </>}
+                {t.assigneeAccountId === session?.account.accountId && t.status !== 'CANCELLED' &&
+                  <button type="button" className="crm-btn crm-sm" onClick={() => navigate('reports', { task: t.taskId })}>Lập báo cáo</button>}</td>
             </tr>
           );
         })}</tbody>
@@ -158,12 +181,13 @@ export function TaskRows({ tasks, showCustomer = true }: { tasks: Task[]; showCu
   );
 }
 
-export function ReportForm({ report, onClose }: { report?: WorkReport; onClose: () => void }) {
+export type ReportSeed = { workDate: string; workDone: string; customerIds: string[]; appointmentIds: string[]; taskIds: string[] };
+export function ReportForm({ report, seed, onClose }: { report?: WorkReport; seed?: ReportSeed; onClose: () => void }) {
   const { adapter } = useCrm();
   const { run, busy } = useAction();
   const [f, setF] = useState({
-    workDate: report?.workDate ?? todayKey(), workDone: report?.workDone ?? '', results: report?.results ?? '', issues: report?.issues ?? '', nextSteps: report?.nextSteps ?? '',
-    customerIds: report?.customerIds ?? [], appointmentIds: report?.appointmentIds ?? [], taskIds: report?.taskIds ?? [],
+    workDate: report?.workDate ?? seed?.workDate ?? todayKey(), workDone: report?.workDone ?? seed?.workDone ?? '', results: report?.results ?? '', issues: report?.issues ?? '', nextSteps: report?.nextSteps ?? '',
+    customerIds: report?.customerIds ?? seed?.customerIds ?? [], appointmentIds: report?.appointmentIds ?? seed?.appointmentIds ?? [], taskIds: report?.taskIds ?? seed?.taskIds ?? [],
   });
   const from = new Date(`${f.workDate}T00:00:00`);
   const to = new Date(from.getTime() + 86_400_000);
@@ -194,7 +218,7 @@ export function ReportForm({ report, onClose }: { report?: WorkReport; onClose: 
             <label key={a.appointmentId}><input type="checkbox" checked={f.appointmentIds.includes(a.appointmentId)} onChange={() => toggle('appointmentIds', a.appointmentId)} /> {a.title}</label>)}
         </fieldset>
         <fieldset className="crm-links"><legend>Liên kết công việc</legend>
-          {(tasks ?? []).slice(0, 12).map((t) => <label key={t.taskId}><input type="checkbox" checked={f.taskIds.includes(t.taskId)} onChange={() => toggle('taskIds', t.taskId)} /> {t.title}</label>)}
+          {[...(tasks ?? []).filter((t) => f.taskIds.includes(t.taskId)), ...(tasks ?? []).filter((t) => !f.taskIds.includes(t.taskId)).slice(0, 12)].map((t) => <label key={t.taskId}><input type="checkbox" checked={f.taskIds.includes(t.taskId)} onChange={() => toggle('taskIds', t.taskId)} /> {t.title}</label>)}
         </fieldset>
         <fieldset className="crm-links"><legend>Khách hàng liên quan</legend>
           <select value="" onChange={(e) => { if (e.target.value) toggle('customerIds', e.target.value); }}>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { TaskForm, TaskRows } from '../components/forms';
 import { Empty } from '../components/ui';
-import { useCrm, useQuery } from '../hooks/crm';
+import { useCrm, useQuery, useUrlParam } from '../hooks/crm';
 import type { TaskQuery } from '../services/adapter';
 
 // Screen 4 — Công việc: To-do list independent of appointments (owner order IV). Same records as the "Công việc" tab
@@ -9,7 +9,8 @@ import type { TaskQuery } from '../services/adapter';
 
 export function TasksPage() {
   const { adapter } = useCrm();
-  const [q, setQ] = useState<TaskQuery>({ status: 'OPEN', mineOnly: true });
+  const preset = useUrlParam('filter');
+  const [q, setQ] = useState<TaskQuery>(preset === 'overdue' ? { status: '', overdueOnly: true, mineOnly: true } : preset === 'done' ? { status: 'DONE', mineOnly: true } : { status: 'OPEN', mineOnly: true });
   const [form, setForm] = useState(false);
   const { data } = useQuery(() => adapter.listTasks(q), [JSON.stringify(q)]);
   const { data: customers } = useQuery(() => adapter.visibleCustomers(), []);

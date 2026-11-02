@@ -17,6 +17,15 @@ export interface Account {
 export interface Ward { readonly code: string; readonly name: string }
 export interface Province { readonly code: string; readonly name: string; readonly region: string; readonly macro: string; readonly wards: readonly Ward[] }
 
+// List / profile view of a customer: stored columns + values the backend derives (current PRIMARY, region map).
+export interface CustomerView extends Customer {
+  primarySaleAccountId: string | null;
+  supportSaleAccountIds: string[];
+  regionCode: string | null;
+  macroRegionCode: string | null;
+  identifierMasked: boolean; // legalIdentifier masked for this viewer (proposal OD-05, not an approved rule)
+}
+
 export interface Customer {
   customerId: string;
   customerCode: string;
@@ -93,6 +102,8 @@ export interface Handover {
   rejectionReason: string | null;
   completedAt: string | null;
   transferredActivityIds: string[];
+  // TARGET DESIGN (not Backend REV01): open To-dos of the previous sale moved with the customer — needs Backend/DB delta approval.
+  transferredTaskIds: string[];
 }
 
 export type LegalStatus = 'PENDING_MANAGEMENT' | 'PENDING_ACCOUNTING' | 'APPLIED' | 'REJECTED' | 'CANCELLED';
@@ -189,9 +200,23 @@ export interface Task {
   progress: number; // 0..100
   completedAt: string | null;
   createdAt: string;
+  history: TaskHistory[];
 }
+export interface TaskHistory { at: string; fromAccountId: string; toAccountId: string; reason: 'HANDOVER' | 'REASSIGN'; handoverId: string | null }
 
 export type ReportStatus = 'DRAFT' | 'SUBMITTED';
+
+// AUDIT DEMO (mock only): successful write operations of the mock session. Not Foundation Audit (BR-12, GAP-AUD-01):
+// no IP / correlation id / failed attempts, no PII (ids and action codes only).
+export interface AuditEntry {
+  auditId: string;
+  at: string;
+  actorAccountId: string;
+  action: string; // MODULE.FUNCTION.ACTION (MIC-08 pattern), e.g. CRM.CUSTOMER.VERIFY
+  objectType: string;
+  objectId: string;
+  detail: string | null;
+}
 export interface WorkReport {
   reportId: string;
   authorAccountId: string;

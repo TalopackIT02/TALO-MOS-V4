@@ -1,0 +1,320 @@
+
+> talo-mos-crm-v1-demo@1.1.0 test
+> node --test tests/*.test.cjs
+
+TAP version 13
+# Subtest: T00 — Contract 40 endpoints; schema 15 tables, 173 columns
+ok 1 - T00 — Contract 40 endpoints; schema 15 tables, 173 columns
+  ---
+  duration_ms: 2.499311
+  type: 'test'
+  ...
+# Subtest: TC-01 — Tạo DRAFT không MST
+ok 2 - TC-01 — Tạo DRAFT không MST
+  ---
+  duration_ms: 2.767975
+  type: 'test'
+  ...
+# Subtest: TC-03 — VERIFIED thiếu pháp lý bị từ chối
+ok 3 - TC-03 — VERIFIED thiếu pháp lý bị từ chối
+  ---
+  duration_ms: 1.216431
+  type: 'test'
+  ...
+# Subtest: TC-04 — VERIFIED đủ thông tin và địa chỉ
+ok 4 - TC-04 — VERIFIED đủ thông tin và địa chỉ
+  ---
+  duration_ms: 0.736559
+  type: 'test'
+  ...
+# Subtest: TC-05 — Mã khách không trùng khi tạo nối tiếp
+ok 5 - TC-05 — Mã khách không trùng khi tạo nối tiếp
+  ---
+  duration_ms: 1.100616
+  type: 'test'
+  ...
+# Subtest: TC-06 — Duplicate định danh chặn cả record đã ẩn
+ok 6 - TC-06 — Duplicate định danh chặn cả record đã ẩn
+  ---
+  duration_ms: 0.505811
+  type: 'test'
+  ...
+# Subtest: TC-09 — Wrong province/ward rejected
+ok 7 - TC-09 — Wrong province/ward rejected
+  ---
+  duration_ms: 0.404158
+  type: 'test'
+  ...
+# Subtest: TC-10 — FOREIGN verified without VN province/ward
+ok 8 - TC-10 — FOREIGN verified without VN province/ward
+  ---
+  duration_ms: 0.758111
+  type: 'test'
+  ...
+# Subtest: TC-11/12/13 — PRIMARY/SUPPORT access, unrelated denied
+ok 9 - TC-11/12/13 — PRIMARY/SUPPORT access, unrelated denied
+  ---
+  duration_ms: 0.742657
+  type: 'test'
+  ...
+# Subtest: TC-14/48 — Scope filter before count and pagination
+ok 10 - TC-14/48 — Scope filter before count and pagination
+  ---
+  duration_ms: 6.978522
+  type: 'test'
+  ...
+# Subtest: TC-16 — Persona lacking CREATE denied
+ok 11 - TC-16 — Persona lacking CREATE denied
+  ---
+  duration_ms: 0.270096
+  type: 'test'
+  ...
+# Subtest: TC-17 — EXPORT capability separate from READ
+ok 12 - TC-17 — EXPORT capability separate from READ
+  ---
+  duration_ms: 0.492201
+  type: 'test'
+  ...
+# Subtest: TC-19 — Direct PATCH legal forbidden
+ok 13 - TC-19 — Direct PATCH legal forbidden
+  ---
+  duration_ms: 0.683499
+  type: 'test'
+  ...
+# Subtest: TC-20 — Legal request requires evidence
+ok 14 - TC-20 — Legal request requires evidence
+  ---
+  duration_ms: 0.701586
+  type: 'test'
+  ...
+# Subtest: TC-21/22/23 — MANAGEMENT + ACCOUNTING, no early apply
+ok 15 - TC-21/22/23 — MANAGEMENT + ACCOUNTING, no early apply
+  ---
+  duration_ms: 1.619658
+  type: 'test'
+  ...
+# Subtest: TC-24 — Concurrent legal requests blocked
+ok 16 - TC-24 — Concurrent legal requests blocked
+  ---
+  duration_ms: 0.554184
+  type: 'test'
+  ...
+# Subtest: TC-25/26 — Exactly 1 PRIMARY, several SUPPORT, block second PRIMARY
+ok 17 - TC-25/26 — Exactly 1 PRIMARY, several SUPPORT, block second PRIMARY
+  ---
+  duration_ms: 0.85079
+  type: 'test'
+  ...
+# Subtest: TC-27/29/30/31 — Workflow A waits both ACKs, transfers old OPEN only
+ok 18 - TC-27/29/30/31 — Workflow A waits both ACKs, transfers old OPEN only
+  ---
+  duration_ms: 1.665757
+  type: 'test'
+  ...
+# Subtest: TC-28 — Workflow B manager approval then receiver ACK
+ok 19 - TC-28 — Workflow B manager approval then receiver ACK
+  ---
+  duration_ms: 0.746794
+  type: 'test'
+  ...
+# Subtest: TC-32 — Two concurrent handovers rejected atomically
+ok 20 - TC-32 — Two concurrent handovers rejected atomically
+  ---
+  duration_ms: 0.673294
+  type: 'test'
+  ...
+# Subtest: TC-34 — Activity create, complete
+ok 21 - TC-34 — Activity create, complete
+  ---
+  duration_ms: 1.185945
+  type: 'test'
+  ...
+# Subtest: TC-38 — File contents must match magic bytes
+ok 22 - TC-38 — File contents must match magic bytes
+  ---
+  duration_ms: 0.897901
+  type: 'test'
+  ...
+# Subtest: TC-39 — Unauthorized download never returns data
+ok 23 - TC-39 — Unauthorized download never returns data
+  ---
+  duration_ms: 0.313292
+  type: 'test'
+  ...
+# Subtest: TC-40 — Expiry computed relative to demo clock
+ok 24 - TC-40 — Expiry computed relative to demo clock
+  ---
+  duration_ms: 0.454964
+  type: 'test'
+  ...
+# Subtest: TC-41 — Versions keep original record
+ok 25 - TC-41 — Versions keep original record
+  ---
+  duration_ms: 1.008018
+  type: 'test'
+  ...
+# Subtest: TC-47 — Validation failure does not commit
+ok 26 - TC-47 — Validation failure does not commit
+  ---
+  duration_ms: 0.399361
+  type: 'test'
+  ...
+# Subtest: TC-49 — CSV cells escaped and formula injection neutralized
+ok 27 - TC-49 — CSV cells escaped and formula injection neutralized
+  ---
+  duration_ms: 0.213011
+  type: 'test'
+  ...
+# Subtest: Contract envelope — errors contain code, message and requestId
+ok 28 - Contract envelope — errors contain code, message and requestId
+  ---
+  duration_ms: 0.521585
+  type: 'test'
+  ...
+# Subtest: TC-07 — Trùng tên khác định danh cảnh báo, vẫn tạo
+ok 29 - TC-07 — Trùng tên khác định danh cảnh báo, vẫn tạo
+  ---
+  duration_ms: 0.579091
+  type: 'test'
+  ...
+# Subtest: TC-08 — MST ngoài fixture sai format bị chặn
+ok 30 - TC-08 — MST ngoài fixture sai format bị chặn
+  ---
+  duration_ms: 0.463578
+  type: 'test'
+  ...
+# Subtest: TC-18 — CSV manager scoped records only
+ok 31 - TC-18 — CSV manager scoped records only
+  ---
+  duration_ms: 0.41841
+  type: 'test'
+  ...
+# Subtest: TC-15 — Read scope does not imply PATCH right
+ok 32 - TC-15 — Read scope does not imply PATCH right
+  ---
+  duration_ms: 0.389907
+  type: 'test'
+  ...
+# Subtest: UI-09 — Contact without position has phone or Zalo
+ok 33 - UI-09 — Contact without position has phone or Zalo
+  ---
+  duration_ms: 0.459301
+  type: 'test'
+  ...
+# Subtest: TC-35 — Assignment adds audit actor/action and timeline fixture
+ok 34 - TC-35 — Assignment adds audit actor/action and timeline fixture
+  ---
+  duration_ms: 0.688947
+  type: 'test'
+  ...
+# Subtest: TC-37 — PDF upload accepted and downloadable in session
+ok 35 - TC-37 — PDF upload accepted and downloadable in session
+  ---
+  duration_ms: 0.485431
+  type: 'test'
+  ...
+# Subtest: TC-45 — Actor, action, module, timestamp captured for mutation
+ok 36 - TC-45 — Actor, action, module, timestamp captured for mutation
+  ---
+  duration_ms: 0.380553
+  type: 'test'
+  ...
+# Subtest: TC-18 — Sale Bình has EXPORT grant but CSV remains within sale scope
+ok 37 - TC-18 — Sale Bình has EXPORT grant but CSV remains within sale scope
+  ---
+  duration_ms: 0.359832
+  type: 'test'
+  ...
+# Subtest: TC-37 — Valid PNG/JPEG bytes pass upload constraints
+ok 38 - TC-37 — Valid PNG/JPEG bytes pass upload constraints
+  ---
+  duration_ms: 1.109179
+  type: 'test'
+  ...
+# Subtest: TC-38 — File larger than 10MB is blocked
+ok 39 - TC-38 — File larger than 10MB is blocked
+  ---
+  duration_ms: 5.377954
+  type: 'test'
+  ...
+# Subtest: W01 Calendar — tạo từ hồ sơ và xem từ Calendar dùng cùng activity
+ok 40 - W01 Calendar — tạo từ hồ sơ và xem từ Calendar dùng cùng activity
+  ---
+  duration_ms: 4.931932
+  type: 'test'
+  ...
+# Subtest: W02 Calendar — chỉnh sửa ngày giờ và địa điểm bằng PATCH cũ
+ok 41 - W02 Calendar — chỉnh sửa ngày giờ và địa điểm bằng PATCH cũ
+  ---
+  duration_ms: 2.044367
+  type: 'test'
+  ...
+# Subtest: W03 Calendar — hủy lịch kiểm tra quyền, không xóa dữ liệu
+ok 42 - W03 Calendar — hủy lịch kiểm tra quyền, không xóa dữ liệu
+  ---
+  duration_ms: 1.784215
+  type: 'test'
+  ...
+# Subtest: W04 Task — tạo từ hồ sơ và Task List dùng chung dữ liệu
+ok 43 - W04 Task — tạo từ hồ sơ và Task List dùng chung dữ liệu
+  ---
+  duration_ms: 0.942198
+  type: 'test'
+  ...
+# Subtest: W05 Task — cập nhật, hoàn thành và không tự tạo Calendar
+ok 44 - W05 Task — cập nhật, hoàn thành và không tự tạo Calendar
+  ---
+  duration_ms: 2.246341
+  type: 'test'
+  ...
+# Subtest: W06 Task — overdue dựa trên demo clock
+ok 45 - W06 Task — overdue dựa trên demo clock
+  ---
+  duration_ms: 0.739123
+  type: 'test'
+  ...
+# Subtest: W07 Report — lập báo cáo NOTE có kết quả, liên kết văn bản với To-do
+ok 46 - W07 Report — lập báo cáo NOTE có kết quả, liên kết văn bản với To-do
+  ---
+  duration_ms: 2.141483
+  type: 'test'
+  ...
+# Subtest: W08 IAM — khác scope không thể tạo báo cáo khách
+ok 47 - W08 IAM — khác scope không thể tạo báo cáo khách
+  ---
+  duration_ms: 0.752863
+  type: 'test'
+  ...
+# Subtest: W09 phân biệt MEETING / TASK / NOTE báo cáo
+ok 48 - W09 phân biệt MEETING / TASK / NOTE báo cáo
+  ---
+  duration_ms: 0.627004
+  type: 'test'
+  ...
+# Subtest: W10 API Contract không tăng endpoint, schema không tăng bảng/cột
+ok 49 - W10 API Contract không tăng endpoint, schema không tăng bảng/cột
+  ---
+  duration_ms: 0.561004
+  type: 'test'
+  ...
+# Subtest: W11 Sidebar chứa chính xác năm mục, không có quản trị ẩn
+ok 50 - W11 Sidebar chứa chính xác năm mục, không có quản trị ẩn
+  ---
+  duration_ms: 0.800725
+  type: 'test'
+  ...
+# Subtest: W12 Các tab hồ sơ theo handoff và routes Calendar/To-do/Report
+ok 51 - W12 Các tab hồ sơ theo handoff và routes Calendar/To-do/Report
+  ---
+  duration_ms: 0.557389
+  type: 'test'
+  ...
+1..51
+# tests 51
+# suites 0
+# pass 51
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 648.087529

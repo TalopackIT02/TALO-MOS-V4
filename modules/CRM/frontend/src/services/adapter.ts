@@ -1,7 +1,11 @@
 import type {
-  Account, Activity, ActivityType, Appointment, Assignment, AssignmentRole, Contact, CrmDocument, Customer, CustomerStatus, CustomerType,
-  DocumentType, Group, Handover, HandoverMode, IdentifierType, LegalChange, Province, Session, Task, TaskPriority, TaskStatus, WorkReport,
+  Account, Activity, ActivityType, Appointment, Assignment, AssignmentRole, Contact, CrmDocument, Customer, CustomerStatus, CustomerType, CustomerView,
+  DocumentType, Group, Handover, HandoverMode, IdentifierType, LegalChange, Permission, Province, Session, Task, TaskPriority, TaskStatus, WorkReport,
 } from '../types/domain';
+
+// Right to see AND search by the full legal identifier (proposal OD-05 — NOT an approved rule; one place to change).
+// Without it the identifier is masked everywhere and is not a search field.
+export const IDENTIFIER_VIEW_PERMISSION: Permission = 'crm.legal_change.read';
 
 // CRM client adapter boundary (owner order III): screens only talk to this interface. Implementations:
 //   MockCrmAdapter  — in-browser data + the CM-BE-SPEC-REV01 business rules (current, labelled "Mô phỏng");
@@ -32,16 +36,20 @@ export interface CustomerQuery {
   customerStatus?: CustomerStatus | '';
   recordStatus?: 'DRAFT' | 'VERIFIED' | '';
   provinceCode?: string;
+  macroRegionCode?: string;
+  regionCode?: string;
   saleAccountId?: string;
+  saleRole?: 'PRIMARY' | 'SUPPORT' | '';
   groupId?: string;
   includeHidden?: boolean;
   sort?: 'code' | 'name' | 'createdAt';
+  sortDir?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }
 
 export interface CustomerBundle {
-  customer: Customer;
+  customer: CustomerView;
   contacts: Contact[];
   assignments: Assignment[];
   handovers: Handover[];
@@ -50,6 +58,18 @@ export interface CustomerBundle {
   documents: CrmDocument[];
   appointments: Appointment[];
   tasks: Task[];
+  reports: WorkReport[]; // submitted / own reports that reference this customer (GAP: no Backend contract for this aggregation)
+}
+
+// Create form (Fullstack Demo REV01 §B: 4 groups). GAP-API-01: Backend REV01 has no composite endpoint — the real client
+// would call POST /customers, POST contacts, POST assignments, PUT groups, POST verify (not one transaction).
+export interface CustomerCreateBundle {
+  customer: CustomerInput;
+  contacts: ContactInput[];
+  primarySaleAccountId: string | null;
+  supportSaleAccountIds: string[];
+  groupIds: string[];
+  verify: boolean;
 }
 
 export interface CustomerInput {
@@ -92,7 +112,7 @@ export interface AppointmentQuery { from: string; to: string; customerId?: strin
 export interface TaskInput { title: string; description?: string | null; customerId: string | null; assigneeAccountId?: string; dueAt?: string | null; priority?: TaskPriority; progress?: number }
 export interface TaskQuery { status?: TaskStatus | 'OPEN' | ''; customerId?: string; mineOnly?: boolean; q?: string; overdueOnly?: boolean }
 export interface ReportInput { workDate: string; workDone: string; results: string; issues?: string | null; nextSteps?: string | null; customerIds?: string[]; appointmentIds?: string[]; taskIds?: string[] }
-export interface ReportQuery { from?: string; to?: string; authorAccountId?: string; status?: 'DRAFT' | 'SUBMITTED' | '' }
+export interface ReportQuery { from?: string; to?: string; authorAccountId?: string; customerId?: string; status?: 'DRAFT' | 'SUBMITTED' | '' }
 export interface Reminder { appointment: Appointment; minutesLeft: number }
 
 export interface CrmAdapter {
@@ -105,11 +125,13 @@ export interface CrmAdapter {
   provinces(): Promise<Province[]>;
   groups(): Promise<Group[]>;
 
-  listCustomers(q: CustomerQuery): Promise<Page<Customer>>;
+  listCustomers(q: CustomerQuery): Promise<Page<CustomerView>>;
+  regions(): Promise<{ regions: { code: string; name: string }[]; macroRegions: { code: string; name: string }[] }>;
   visibleCustomers(): Promise<Customer[]>;
   customerBundle(customerId: string): Promise<CustomerBundle>;
   checkIdentity(type: IdentifierType, value: string, countryCode: string, name?: string): Promise<{ normalized: string | null; duplicate: boolean; similarNameCount: number }>;
   createCustomer(input: CustomerInput): Promise<{ customer: Customer; warnings: string[] }>;
+  createCustomerFull(input: CustomerCreateBundle): Promise<{ customer: Customer; warnings: string[] }>;
   updateCustomer(customerId: string, patch: CustomerPatch): Promise<Customer>;
   verifyCustomer(customerId: string, input: Partial<CustomerInput>): Promise<Customer>;
   hideCustomer(customerId: string): Promise<Customer>;

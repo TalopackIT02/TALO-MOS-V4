@@ -1,0 +1,41 @@
+﻿section,method,path_suffix,purpose,permission_if_defined,runtime_status
+1. API khách hàng,GET,`/customers`,"Danh sách, tìm kiếm, phân trang",customer.read,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+1. API khách hàng,GET,`/customers/:id`,Hồ sơ chi tiết,customer.read,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+1. API khách hàng,POST,`/customers`,Tạo hồ sơ DRAFT/chính thức,customer.create,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+1. API khách hàng,PATCH,`/customers/:id`,Sửa thông tin thông thường,customer.update,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+1. API khách hàng,POST,`/customers/:id/verify`,Hoàn thiện/xác minh hồ sơ,customer.verify,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+1. API khách hàng,POST,`/customers/:id/hide`,Ẩn hồ sơ,customer.hide,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+1. API khách hàng,GET,`/customers/check-identity`,Kiểm tra định danh trùng,customer.create/update,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+1. API khách hàng,POST,`/customers/:id/legal-changes`,Tạo yêu cầu sửa pháp lý,legal.change.request,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+1. API khách hàng,GET,`/customers/:id/legal-changes`,Danh sách yêu cầu sửa,legal.change.read,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+2. API người liên hệ,GET,`/customers/:id/contacts`,Danh sách liên hệ,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+2. API người liên hệ,POST,`/customers/:id/contacts`,Thêm liên hệ,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+2. API người liên hệ,PATCH,`/customers/:id/contacts/:contactId`,Sửa liên hệ,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+2. API người liên hệ,POST,`/customers/:id/contacts/:contactId/deactivate`,Ngừng sử dụng liên hệ,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+3. API phân công và bàn giao,GET,`/customers/:id/assignments`,"Xem Sale chính, hỗ trợ và lịch sử",,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+3. API phân công và bàn giao,POST,`/customers/:id/assignments`,Gán Sale theo quyền,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+3. API phân công và bàn giao,POST,`/customers/:id/handovers`,Tạo yêu cầu bàn giao,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+3. API phân công và bàn giao,GET,`/handovers`,Danh sách yêu cầu theo quyền,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+3. API phân công và bàn giao,GET,`/handovers/:id`,Chi tiết yêu cầu,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+3. API phân công và bàn giao,POST,`/handovers/:id/approve`,Quản lý duyệt,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+3. API phân công và bàn giao,POST,`/handovers/:id/acknowledge`,Người liên quan xác nhận,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+3. API phân công và bàn giao,POST,`/handovers/:id/reject`,Từ chối,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+4. API hoạt động,GET,`/customers/:id/activities`,Nhật ký công việc,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+4. API hoạt động,POST,`/customers/:id/activities`,Tạo hoạt động,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+4. API hoạt động,PATCH,`/activities/:id`,Cập nhật công việc,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+4. API hoạt động,POST,`/activities/:id/complete`,Hoàn thành,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+4. API hoạt động,GET,`/customers/:id/timeline`,Timeline khách hàng từ các nguồn được tích hợp,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+5. API hồ sơ và tài liệu,GET,`/customers/:id/documents`,Danh sách tài liệu,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+5. API hồ sơ và tài liệu,POST,`/customers/:id/documents`,Upload tài liệu,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+5. API hồ sơ và tài liệu,GET,`/documents/:id/download`,Tải file theo quyền,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+5. API hồ sơ và tài liệu,POST,`/documents/:id/versions`,Upload bản thay thế,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+5. API hồ sơ và tài liệu,PATCH,`/documents/:id/metadata`,Cập nhật metadata được phép,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+5. API hồ sơ và tài liệu,GET,`/documents/expiring`,Danh sách tài liệu sắp hết hạn theo quyền,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+6. API danh mục,GET,`/references/provinces`,Danh sách tỉnh/thành,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+6. API danh mục,GET,`/references/wards?provinceCode=...`,Xã/phường theo tỉnh,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+6. API danh mục,GET,`/references/regions`,Vùng kinh tế/miền,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+6. API danh mục,GET,`/references/customer-types`,Loại khách hàng,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+6. API danh mục,GET,`/groups`,Danh mục nhóm ngành,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+6. API danh mục,POST,`/groups`,Tạo nhóm ngành (nếu V1 chốt có UI),,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+6. API danh mục,PATCH,`/groups/:id`,Sửa nhóm ngành,,PROPOSED_NOT_IMPLEMENTED_VERIFIED
+6. API danh mục,PUT,`/customers/:id/groups`,Cập nhật nhiều nhóm của khách hàng,,PROPOSED_NOT_IMPLEMENTED_VERIFIED

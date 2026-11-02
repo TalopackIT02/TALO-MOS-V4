@@ -13,17 +13,34 @@ import { AddressFields, RecordBadge, STATUS_TONE } from './CustomersPage';
 // Customer profile — left 1/3: identity, legal data and responsible sales (+ the sensitive actions, by permission);
 // right 2/3: tabs Tổng quan · Thông tin liên hệ · Lịch hẹn · Công việc · Hoạt động & Kết quả · Tài liệu.
 
-const TABS = ['Tổng quan', 'Thông tin liên hệ', 'Lịch hẹn', 'Công việc', 'Hoạt động & Kết quả', 'Tài liệu'] as const;
+export const TABS = ['Tổng quan', 'Thông tin liên hệ', 'Lịch hẹn', 'Công việc', 'Hoạt động & Kết quả', 'Tài liệu'] as const;
+export type ProfileTab = (typeof TABS)[number];
 
-export function CustomerProfile({ customerId, onBack }: { customerId: string; onBack: () => void }) {
-  const { adapter } = useCrm();
-  const [tab, setTab] = useState<(typeof TABS)[number]>('Tổng quan');
+export function CustomerProfile({ customerId, onBack, initialTab }: { customerId: string; onBack: () => void; initialTab?: ProfileTab }) {
+  const { adapter, can } = useCrm();
+  const [tab, setTab] = useState<ProfileTab>(initialTab ?? 'Tổng quan');
+  const [quick, setQuick] = useState<null | 'edit' | 'appointment' | 'task'>(null);
   const { data: b, error } = useQuery(() => adapter.customerBundle(customerId), [customerId]);
   if (error) return <div className="crm-page"><button type="button" className="crm-link" onClick={onBack}>← Danh sách khách hàng</button><div className="crm-guard" role="alert">{error}</div></div>;
   if (!b) return <Empty>Đang tải hồ sơ…</Empty>;
+  const c = b.customer;
   return (
     <div className="crm-page">
-      <button type="button" className="crm-link" onClick={onBack}>← Danh sách khách hàng</button>
+      <div className="crm-profile-head">
+        <div>
+          <h2 className="crm-profile-title">{c.customerCode} – {c.displayName}</h2>
+          <p className="crm-sub">{c.legalName ?? 'Chưa có tên pháp lý'}</p>
+        </div>
+        <div className="crm-btnrow">
+          <button type="button" className="crm-btn" onClick={onBack}>← Danh sách</button>
+          {can('crm.customer.update') && <button type="button" className="crm-btn" onClick={() => setQuick('edit')}>Sửa thông tin</button>}
+          <button type="button" className="crm-btn" onClick={() => setQuick('appointment')}>+ Lịch hẹn</button>
+          <button type="button" className="crm-btn crm-primary" onClick={() => setQuick('task')}>+ Công việc</button>
+        </div>
+      </div>
+      {quick === 'edit' && <EditCustomer b={b} onClose={() => setQuick(null)} />}
+      {quick === 'appointment' && <AppointmentForm customerId={c.customerId} onClose={() => setQuick(null)} />}
+      {quick === 'task' && <TaskForm customerId={c.customerId} onClose={() => setQuick(null)} />}
       <div className="crm-profile">
         <aside className="crm-profile-left"><LeftPanel b={b} /></aside>
         <section className="crm-profile-right">
@@ -56,6 +73,7 @@ function LeftPanel({ b }: { b: CustomerBundle }) {
   const pendingLegal = b.legalChanges.find((l) => l.status === 'PENDING_MANAGEMENT' || l.status === 'PENDING_ACCOUNTING');
   const openHandover = b.handovers.find((h) => ['PENDING_APPROVAL', 'PENDING_CURRENT_ACK', 'PENDING_RECEIVER_ACK'].includes(h.status));
   const province = provinces?.find((p) => p.code === c.provinceCode);
+  const { data: regions } = useQuery(() => adapter.regions(), []);
   return (
     <>
       <div className="crm-card">
@@ -65,14 +83,15 @@ function LeftPanel({ b }: { b: CustomerBundle }) {
         <dl className="crm-dl">
           <dt>Tên pháp lý</dt><dd>{c.legalName ?? '—'}</dd>
           <dt>Loại</dt><dd>{CUSTOMER_TYPE[c.customerType]}</dd>
-          <dt>{c.legalIdentifierType ? IDENTIFIER_TYPE[c.legalIdentifierType] : 'Định danh'}</dt><dd className="crm-mono">{c.legalIdentifier ?? '—'}</dd>
+          <dt>{c.legalIdentifierType ? IDENTIFIER_TYPE[c.legalIdentifierType] : 'Định danh'}</dt><dd className="crm-mono">{c.legalIdentifier ?? '—'}{c.identifierMasked && <small className="crm-sub">Đã che theo quyền (đề xuất OD-05)</small>}</dd>
           <dt>Địa chỉ</dt><dd>{c.registeredAddress ?? ([c.addressLine, province?.name].filter(Boolean).join(', ') || '—')}</dd>
           <dt>Quốc gia</dt><dd>{c.countryCode}</dd>
+          <dt>Miền / Vùng</dt><dd>{regions?.macroRegions.find((r) => r.code === c.macroRegionCode)?.name ?? '—'}{c.regionCode && <small className="crm-sub">{regions?.regions.find((r) => r.code === c.regionCode)?.name}</small>}</dd>
+          <dt>Ngày tạo</dt><dd>{fmtDate(c.createdAt)} · {accountName(c.createdAccountId)}</dd>
           <dt>Đại diện</dt><dd>{c.representativeName ?? '—'}{c.representativePhone && <small className="crm-sub">{c.representativePhone}</small>}</dd>
         </dl>
         {c.recordStatus === 'DRAFT' && <p className="crm-note">Hồ sơ DRAFT: chưa dùng được cho nghiệp vụ yêu cầu hồ sơ đã xác minh.</p>}
         <div className="crm-btnrow">
-          {can('crm.customer.update') && <button type="button" className="crm-btn crm-sm" onClick={() => setDlg('edit')}>Sửa thông tin</button>}
           {c.recordStatus === 'DRAFT' && can('crm.customer.verify') && <button type="button" className="crm-btn crm-sm crm-primary" onClick={() => setDlg('verify')}>Xác minh hồ sơ</button>}
           {c.recordStatus === 'VERIFIED' && can('crm.legal_change.request') && !pendingLegal && <button type="button" className="crm-btn crm-sm" onClick={() => setDlg('legal')}>Đề nghị đổi pháp lý</button>}
           {can('crm.customer.hide') && !c.isHidden && <button type="button" className="crm-btn crm-sm" onClick={() => setDlg('hide')}>Ẩn hồ sơ</button>}
@@ -80,6 +99,8 @@ function LeftPanel({ b }: { b: CustomerBundle }) {
       </div>
 
       {pendingLegal && <LegalBox l={pendingLegal} />}
+      {b.legalChanges.some((l) => l !== pendingLegal) && <div className="crm-card"><h3>Lịch sử thay đổi pháp lý</h3>
+        <ul className="crm-history-list">{b.legalChanges.filter((l) => l !== pendingLegal).map((l) => <li key={l.changeRequestId}>{fmtDate(l.requestedAt)} — {l.oldLegalName ?? '—'} → <b>{l.newLegalName}</b> <Badge tone={l.status === 'APPLIED' ? 'green' : 'grey'}>{LEGAL_STATUS[l.status]}</Badge></li>)}</ul></div>}
 
       <div className="crm-card">
         <h3>Sale phụ trách</h3>
@@ -93,7 +114,11 @@ function LeftPanel({ b }: { b: CustomerBundle }) {
           {can('crm.handover.request') && primary && !openHandover && (primary.saleAccountId === me || can('crm.handover.approve'))
             && <button type="button" className="crm-btn crm-sm" onClick={() => setDlg('handover')}>Yêu cầu bàn giao</button>}
         </div>
-        {openHandover && <HandoverBox h={openHandover} />}
+        {openHandover && <HandoverBox h={openHandover} preview={{
+          activities: b.activities.filter((a) => a.activityStatus === 'OPEN' && a.assignedToAccountId === openHandover.currentSaleAccountId).length,
+          tasks: b.tasks.filter((t) => (t.status === 'TODO' || t.status === 'IN_PROGRESS') && t.assigneeAccountId === openHandover.currentSaleAccountId).length,
+        }} />}
+        {b.handovers.filter((h) => h.status === 'COMPLETED').slice(-1).map((h) => <p key={h.handoverId}><small>Bàn giao gần nhất ({fmtDate(h.completedAt)}): chuyển {h.transferredActivityIds.length} hoạt động OPEN (Backend REV01) và {h.transferredTaskIds.length} To-do (<b>Target Design</b>).</small></p>)}
         {b.assignments.some((a) => a.endedAt) && <details className="crm-history"><summary>Lịch sử phân công</summary>
           {b.assignments.filter((a) => a.endedAt).map((a) => <p key={a.assignmentId}>{a.role === 'PRIMARY' ? 'Sale chính' : 'Hỗ trợ'}: {accountName(a.saleAccountId)} ({fmtDate(a.assignedAt)} – {fmtDate(a.endedAt)})</p>)}
         </details>}
@@ -129,6 +154,7 @@ export function LegalBox({ l }: { l: LegalChange }) {
       <h3>Yêu cầu thay đổi pháp lý <Badge tone="amber">{LEGAL_STATUS[l.status]}</Badge></h3>
       <p><small>{accountName(l.requestedByAccountId)} · {fmtDateTime(l.requestedAt)}</small></p>
       <p>{l.reason}</p>
+      <p><small>Hai cấp: quản lý → kế toán. Người đề nghị không tự duyệt — <b>đề xuất D04, chưa chốt</b>; bản mô phỏng vẫn áp dụng để không làm yếu kiểm soát.</small></p>
       <table className="crm-table crm-compact"><thead><tr><th /><th>Hiện hành</th><th>Đề nghị</th></tr></thead><tbody>
         {row('Tên pháp lý', l.oldLegalName, l.newLegalName)}{row('Loại', CUSTOMER_TYPE[l.oldCustomerType], CUSTOMER_TYPE[l.newCustomerType])}
         {row('Định danh', l.oldIdentifier, l.newIdentifier)}{row('Quốc gia', l.oldCountryCode, l.newCountryCode)}
@@ -145,7 +171,7 @@ export function LegalBox({ l }: { l: LegalChange }) {
   );
 }
 
-export function HandoverBox({ h }: { h: Handover }) {
+export function HandoverBox({ h, preview }: { h: Handover; preview?: { activities: number; tasks: number } }) {
   const { adapter, can, accountName, session, accounts } = useCrm();
   const { run } = useAction();
   const [dlg, setDlg] = useState<null | 'reject' | 'override'>(null);
@@ -158,10 +184,12 @@ export function HandoverBox({ h }: { h: Handover }) {
       <p><b>Bàn giao:</b> {accountName(h.currentSaleAccountId)} → {accountName(h.toSaleAccountId)} <Badge tone="amber">{HANDOVER_STATUS[h.status]}</Badge></p>
       <p><small>{h.mode === 'MANAGER_INITIATED' ? 'Luồng A — quản lý yêu cầu' : 'Luồng B — Sale đề nghị'} · {accountName(h.initiatedByAccountId)} · {fmtDateTime(h.requestedAt)}</small></p>
       {h.note && <p><small>{h.note}</small></p>}
+      {preview && h.status === 'PENDING_RECEIVER_ACK' && <p className="crm-note">Khi Sale nhận xác nhận: chuyển <b>{preview.activities}</b> hoạt động OPEN của Sale hiện tại (Backend REV01, BR-11) và <b>{preview.tasks}</b> To-do chưa hoàn thành (<b>Target Design</b> — chưa thuộc Backend REV01, cần duyệt Delta).</p>}
       <div className="crm-btnrow">
         {h.status === 'PENDING_APPROVAL' && can('crm.handover.approve') && <button type="button" className="crm-btn crm-sm crm-primary" onClick={() => run(() => adapter.approveHandover(h.handoverId), 'Đã duyệt bàn giao — chờ Sale nhận xác nhận.')}>Duyệt bàn giao</button>}
         {h.status === 'PENDING_CURRENT_ACK' && h.currentSaleAccountId === me && can('crm.handover.acknowledge') && <button type="button" className="crm-btn crm-sm crm-primary" onClick={() => run(() => adapter.acknowledgeHandover(h.handoverId), 'Đã xác nhận bàn giao.')}>Xác nhận (Sale hiện tại)</button>}
         {h.status === 'PENDING_CURRENT_ACK' && currentInactive && can('crm.handover.override') && <button type="button" className="crm-btn crm-sm" onClick={() => setDlg('override')}>Xác nhận thay (Sale đã nghỉ)</button>}
+        {h.status === 'PENDING_CURRENT_ACK' && currentInactive && can('crm.handover.override') && <small className="crm-sub">Xác nhận thay: <b>chính sách đề xuất D05 — chờ phê duyệt</b> (REV01 §E); bắt buộc lý do.</small>}
         {h.status === 'PENDING_RECEIVER_ACK' && h.toSaleAccountId === me && can('crm.handover.acknowledge') && <button type="button" className="crm-btn crm-sm crm-primary" onClick={() => run(() => adapter.acknowledgeHandover(h.handoverId), 'Đã nhận bàn giao: bạn là Sale chính, công việc đang mở đã được chuyển.')}>Nhận bàn giao</button>}
         {canReject && <button type="button" className="crm-btn crm-sm" onClick={() => setDlg('reject')}>Từ chối</button>}
       </div>
@@ -302,7 +330,7 @@ function HandoverDialog({ b, onClose }: { b: CustomerBundle; onClose: () => void
           <option value="">— Chọn —</option>{accounts.filter((a) => a.active && a.accountId !== primary?.saleAccountId && a.title.startsWith('Sale')).map((a) => <option key={a.accountId} value={a.accountId}>{a.fullName}</option>)}</select></Field>
         <Field label="Ghi chú"><textarea rows={2} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
       </div>
-      <p className="crm-note">Khi hoàn tất: Sale nhận trở thành Sale chính; chỉ công việc đang mở của Sale cũ được chuyển; lịch sử được giữ.</p>
+      <p className="crm-note">Khi hoàn tất: Sale nhận trở thành Sale chính; chỉ hoạt động OPEN của Sale cũ được chuyển (Backend REV01); lịch sử được giữ. To-do chưa hoàn thành của Sale cũ cũng được chuyển trong bản mô phỏng — <b>Target Design</b>, chưa thuộc Backend REV01.</p>
     </Modal>
   );
 }
@@ -452,6 +480,13 @@ function ActivitiesTab({ b }: { b: CustomerBundle }) {
             </div>}
           </li>))}</ul>
       )}
+      <h4 className="crm-h4">Báo cáo công việc liên quan <Badge tone="amber">GAP — chưa có hợp đồng Backend</Badge></h4>
+      {b.reports.length === 0 ? <Empty>Chưa có báo cáo nào nhắc đến khách hàng này.</Empty> : (
+        <ul className="crm-timeline">{b.reports.map((r) => <li key={r.reportId}>
+          <div><Badge tone={r.status === 'SUBMITTED' ? 'green' : 'amber'}>{r.status === 'SUBMITTED' ? 'Đã nộp' : 'Bản nháp'}</Badge> <b>Báo cáo ngày {fmtDate(r.workDate)}</b>
+            <small className="crm-sub">{accountName(r.authorAccountId)}</small></div>
+          <p>{r.workDone}</p><p><small>Kết quả: {r.results}</small></p></li>)}</ul>
+      )}
       {form && <ActivityForm customerId={b.customer.customerId} activity={form === 'new' ? undefined : form} onClose={() => setForm(null)} />}
     </>
   );
@@ -488,7 +523,7 @@ function DocumentsTab({ b }: { b: CustomerBundle }) {
   const current = (d: CrmDocument) => !b.documents.some((n) => n.supersedesDocumentId === d.documentId);
   return (
     <>
-      <div className="crm-toolbar"><small className="crm-warn">Lưu file thật: <b>chưa có storage được phê duyệt (BLOCKED)</b>. Mô phỏng chỉ ghi metadata.</small><span className="crm-grow" />
+      <div className="crm-toolbar"><small className="crm-warn">Lưu / tải file thật: <b>BLOCKED — chưa có storage được phê duyệt</b>. Mô phỏng chỉ ghi metadata. Ngưỡng "sắp hết hạn" 30 ngày là <b>cấu hình đề xuất D06</b> (chưa chốt).</small><span className="crm-grow" />
         {can('crm.document.manage') && <button type="button" className="crm-btn crm-primary crm-sm" onClick={() => setForm({ mode: 'new' })}>+ Tài liệu (mô phỏng)</button>}</div>
       {!can('crm.document.read') ? <Empty>Bạn không có quyền xem tài liệu.</Empty> : b.documents.length === 0 ? <Empty>Chưa có tài liệu.</Empty> : (
         <div className="crm-tablewrap"><table className="crm-table"><thead><tr><th>Tài liệu</th><th>Loại</th><th>Ngày ký</th><th>Hiệu lực</th><th>Hết hạn</th><th>Trạng thái</th><th>Phiên bản</th><th /></tr></thead>
@@ -499,7 +534,9 @@ function DocumentsTab({ b }: { b: CustomerBundle }) {
                 <td><b>{d.documentName}</b><small className="crm-sub">{d.fileName} · {fileSize(d.fileSize)} · {accountName(d.uploadedByAccountId)}</small></td>
                 <td>{DOCUMENT_TYPE[d.documentType]}</td><td>{fmtDate(d.signedDate)}</td><td>{fmtDate(d.effectiveDate)}</td><td>{fmtDate(d.expiryDate)}</td>
                 <td><Badge tone={e.status === 'EXPIRED' ? 'red' : e.status === 'EXPIRING_SOON' ? 'amber' : e.status === 'VALID' ? 'green' : 'grey'}>{e.label}</Badge></td>
-                <td>{current(d) ? <Badge tone="green">Hiện hành</Badge> : <Badge tone="grey">Đã thay thế</Badge>}{d.supersedesDocumentId && <small className="crm-sub">thay bản cũ</small>}</td>
+                <td>{current(d) ? <Badge tone="green">Hiện hành</Badge> : <Badge tone="grey">Đã thay thế</Badge>}
+                  {d.supersedesDocumentId && <small className="crm-sub">Thay cho: {b.documents.find((x) => x.documentId === d.supersedesDocumentId)?.documentName ?? 'bản cũ'}</small>}
+                  {!current(d) && <small className="crm-sub">Bản mới: {b.documents.find((x) => x.supersedesDocumentId === d.documentId)?.documentName}</small>}</td>
                 <td className="crm-actions">
                   {can('crm.document.manage') && <button type="button" className="crm-btn crm-sm" onClick={() => setForm({ mode: 'meta', doc: d })}>Sửa thông tin</button>}
                   {can('crm.document.manage') && current(d) && <button type="button" className="crm-btn crm-sm" onClick={() => setForm({ mode: 'version', doc: d })}>Phiên bản mới</button>}
@@ -528,7 +565,7 @@ function DocumentForm({ customerId, mode, doc, onClose }: { customerId: string; 
   return (
     <Modal title={mode === 'meta' ? 'Sửa thông tin tài liệu' : mode === 'version' ? 'Tải phiên bản mới (mô phỏng)' : 'Thêm tài liệu (mô phỏng)'} onClose={onClose} footer={<>
       <button type="button" className="crm-btn" onClick={onClose}>Hủy bỏ</button><button type="button" className="crm-btn crm-primary" disabled={busy} onClick={save}>Lưu</button></>}>
-      {mode !== 'meta' && <p className="crm-note crm-warn">Chưa có storage được phê duyệt: file <b>không được lưu</b>, chỉ ghi tên, loại và dung lượng. Bản cũ được giữ nguyên.</p>}
+      {mode !== 'meta' && <p className="crm-note crm-warn">Chưa có storage được phê duyệt: file <b>không được lưu</b>, chỉ ghi tên, loại và dung lượng. Bản cũ được giữ nguyên. Giới hạn 10 MB là <b>cấu hình đề xuất D07</b> (chưa chốt).</p>}
       <div className="crm-form">
         {mode !== 'meta' && <Field label="File (PDF, JPG, PNG)" required><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>}
         <div className="crm-row2"><Field label="Tên tài liệu" required><input value={f.documentName} onChange={(e) => setF({ ...f, documentName: e.target.value })} /></Field>

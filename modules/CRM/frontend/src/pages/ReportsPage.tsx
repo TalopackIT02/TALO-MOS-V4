@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { ReportForm } from '../components/forms';
+import type { ReportSeed } from '../components/forms';
 import { Badge, Empty, Modal } from '../components/ui';
-import { useAction, useCrm, useQuery } from '../hooks/crm';
+import { useAction, useCrm, useQuery, useUrlParam } from '../hooks/crm';
 import type { WorkReport } from '../types/domain';
-import { REPORT_STATUS, fmtDate, fmtDateTime } from '../utils/format';
+import { REPORT_STATUS, fmtDate, fmtDateTime, toLocalInput } from '../utils/format';
 
 // Screen 5 — Báo cáo: daily work reports written by the user (content done, results, issues, next steps), linked to
 // appointments / tasks / customers. NOT the dashboard: no computed KPI here. Mock-only (no table yet — Gate 2).
@@ -13,9 +14,24 @@ export function ReportsPage() {
   const { run } = useAction();
   const [form, setForm] = useState<WorkReport | 'new' | null>(null);
   const [view, setView] = useState<WorkReport | null>(null);
-  const [filter, setFilter] = useState({ from: '', to: '', authorAccountId: '', status: '' as '' | 'DRAFT' | 'SUBMITTED' });
+  // "Lập báo cáo" from an appointment / task (REV02): the form opens pre-linked to that origin; links are mock-only (GAP-DB-03).
+  const fromAppointment = useUrlParam('appointment');
+  const fromTask = useUrlParam('task');
+  const [seedDone, setSeedDone] = useState(false);
+  const { data: seed } = useQuery(async (): Promise<ReportSeed | null> => {
+    if (fromAppointment) {
+      const a = (await adapter.listAppointments({ from: '0000', to: '9999' })).find((x) => x.appointmentId === fromAppointment);
+      return a ? { workDate: toLocalInput(a.startAt).slice(0, 10), workDone: a.title, customerIds: a.customerId ? [a.customerId] : [], appointmentIds: [a.appointmentId], taskIds: [] } : null;
+    }
+    if (fromTask) {
+      const t = (await adapter.listTasks({})).find((x) => x.taskId === fromTask);
+      return t ? { workDate: new Date().toISOString().slice(0, 10), workDone: t.title, customerIds: t.customerId ? [t.customerId] : [], appointmentIds: [], taskIds: [t.taskId] } : null;
+    }
+    return null;
+  }, []);
+  const [filter, setFilter] = useState({ from: '', to: '', authorAccountId: '', customerId: '', status: '' as '' | 'DRAFT' | 'SUBMITTED' });
   const { data } = useQuery(() => adapter.listReports({ ...(filter.from ? { from: filter.from } : {}), ...(filter.to ? { to: filter.to } : {}),
-    ...(filter.authorAccountId ? { authorAccountId: filter.authorAccountId } : {}), status: filter.status }), [JSON.stringify(filter)]);
+    ...(filter.authorAccountId ? { authorAccountId: filter.authorAccountId } : {}), ...(filter.customerId ? { customerId: filter.customerId } : {}), status: filter.status }), [JSON.stringify(filter)]);
   const { data: customers } = useQuery(() => adapter.visibleCustomers(), []);
   const { data: tasks } = useQuery(() => adapter.listTasks({}), []);
   const { data: apts } = useQuery(() => adapter.listAppointments({ from: '0000', to: '9999' }), []);
@@ -29,6 +45,9 @@ export function ReportsPage() {
           <option value="">Mọi trạng thái</option><option value="DRAFT">Bản nháp</option><option value="SUBMITTED">Đã nộp</option></select>
         {can('crm.customer.read_all') && <select value={filter.authorAccountId} onChange={(e) => setFilter({ ...filter, authorAccountId: e.target.value })} aria-label="Người báo cáo">
           <option value="">Mọi người</option>{accounts.map((a) => <option key={a.accountId} value={a.accountId}>{a.fullName}</option>)}</select>}
+        <select value={filter.customerId} onChange={(e) => setFilter({ ...filter, customerId: e.target.value })} aria-label="Khách hàng liên quan">
+          <option value="">Mọi khách hàng</option>{(customers ?? []).map((c) => <option key={c.customerId} value={c.customerId}>{c.customerCode} · {c.displayName}</option>)}</select>
+        <button type="button" className="crm-link" onClick={() => setFilter({ from: '', to: '', authorAccountId: '', customerId: '', status: '' })}>Xóa bộ lọc</button>
         <span className="crm-grow" />
         <button type="button" className="crm-btn crm-primary" onClick={() => setForm('new')}>+ Viết báo cáo</button>
       </div>
@@ -45,6 +64,7 @@ export function ReportsPage() {
             </tr>))}</tbody></table></div>
       ))}
       {form && <ReportForm {...(form === 'new' ? {} : { report: form })} onClose={() => setForm(null)} />}
+      {!form && seed && !seedDone && <ReportForm seed={seed} onClose={() => setSeedDone(true)} />}
       {view && <Modal title={`Báo cáo ngày ${fmtDate(view.workDate)} — ${accountName(view.authorAccountId)}`} onClose={() => setView(null)} wide>
         <dl className="crm-dl">
           <dt>Trạng thái</dt><dd><Badge tone={view.status === 'SUBMITTED' ? 'green' : 'amber'}>{REPORT_STATUS[view.status]}</Badge> {view.submittedAt && <small>nộp {fmtDateTime(view.submittedAt)}</small>}</dd>

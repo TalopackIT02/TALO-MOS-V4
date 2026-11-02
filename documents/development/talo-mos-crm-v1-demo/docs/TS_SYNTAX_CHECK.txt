@@ -1,0 +1,5 @@
+
+> talo-mos-crm-v1-demo@1.1.0 check:syntax
+> node tools/check-source.cjs
+
+PASS: Parsed every source TypeScript/TSX file (syntax only; not npm build)

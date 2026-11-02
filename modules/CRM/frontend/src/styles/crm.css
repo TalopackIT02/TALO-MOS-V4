@@ -138,3 +138,33 @@
 .app-shell .crm-legend{font-size:11.5px;color:var(--muted)}
 @media (max-width:1100px){.app-shell .crm-profile{grid-template-columns:minmax(0,1fr)}.app-shell .crm-dash{grid-template-columns:minmax(0,1fr)}.app-shell .crm-span2{grid-column:auto}}
 @media (max-width:640px){.app-shell .crm-row2,.app-shell .crm-row3{grid-template-columns:minmax(0,1fr)}.app-shell .crm-search{min-width:0;flex:1 1 100%}}
+/* Gate 1 alignment: create form groups, list filters/sort, profile header */
+.app-shell .crm-group{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:9px;padding:10px 12px 12px;margin:0}
+.app-shell .crm-group legend{font-size:12.5px;font-weight:700;color:var(--green);padding:0 4px}
+.app-shell .crm-contact-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr) auto auto;gap:6px;align-items:center}
+.app-shell .crm-contact-row input{border:1px solid #d1dbe5;border-radius:7px;padding:6px 8px;font-size:12px;min-width:0}
+.app-shell .crm-checklist{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px}
+.app-shell .crm-checklist label{display:flex;align-items:center;gap:5px;font-weight:400}
+.app-shell .crm-readonly{background:#f4f7f9 !important;color:#4b5563}
+.app-shell .crm-check-ok{color:var(--green) !important}
+.app-shell .crm-check-warn{color:#9a5b00 !important}
+.app-shell .crm-check-err{color:#b42318 !important}
+.app-shell .crm-filters{background:#f8fafb;border:1px solid var(--line);border-radius:8px;padding:8px}
+.app-shell .crm-sort{border:0;background:none;padding:0;font:inherit;font-weight:700;color:inherit;cursor:pointer;white-space:nowrap}
+.app-shell .crm-sort:hover{color:var(--green)}
+.app-shell .crm-name-link{border:0;background:none;padding:0;font:inherit;font-weight:700;color:#1d4f91;cursor:pointer;text-align:left}
+.app-shell .crm-name-link:hover{text-decoration:underline}
+.app-shell .crm-profile-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}
+.app-shell .crm-profile-title{margin:0;font-size:18px;color:var(--text)}
+.app-shell .crm-h4{margin:16px 0 8px;font-size:13px;display:flex;align-items:center;gap:8px}
+.app-shell .crm-history-list{margin:0;padding-left:18px;font-size:12px;display:flex;flex-direction:column;gap:4px}
+.app-shell .crm-inline-select{border:1px solid #d1dbe5;border-radius:6px;padding:1px 4px;font-size:11.5px;background:#fff}
+.app-shell .crm-pager label{display:flex;align-items:center;gap:6px}
+.app-shell .crm-pager select{border:1px solid #d1dbe5;border-radius:6px;padding:3px 6px;font-size:12px;background:#fff}
+@media (max-width:760px){
+  .app-shell .crm-toasts{bottom:84px;left:12px;right:12px;max-width:none}
+  .app-shell .crm-contact-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .app-shell .crm-modal{max-height:calc(100vh - 24px)}
+  .app-shell .crm-pager{flex-wrap:wrap}
+  .app-shell .crm-mockbar{flex-wrap:wrap}
+}

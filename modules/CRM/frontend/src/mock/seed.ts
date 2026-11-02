@@ -1,5 +1,5 @@
 import type {
-  Account, Activity, Appointment, Assignment, Contact, CrmDocument, Customer, CustomerStatus, CustomerType, Group, Handover, LegalChange, Permission,
+  Account, Activity, Appointment, Assignment, AuditEntry, Contact, CrmDocument, Customer, CustomerStatus, CustomerType, Group, Handover, LegalChange, Permission,
   Province, Task, WorkReport,
 } from '../types/domain';
 
@@ -16,6 +16,13 @@ export const PROVINCES: Province[] = [
   { code: '92', name: 'Cần Thơ', region: 'MEKONG', macro: 'SOUTH', wards: [{ code: '31120', name: 'Phường Cái Khế' }, { code: '31135', name: 'Phường Ninh Kiều' }, { code: '31147', name: 'Phường Tân An' }, { code: '31150', name: 'Phường An Bình' }, { code: '31153', name: 'Phường Ô Môn' }] },
 ];
 
+// cm_ref_economic_regions (6 rows, TEST seed) and the NORTH / CENTRAL / SOUTH business convention of cm_ref_province_region_map.
+export const REGIONS: { code: string; name: string }[] = [
+  { code: 'NORTH_MTN', name: 'Trung du và miền núi phía Bắc' }, { code: 'RRD', name: 'Đồng bằng sông Hồng' }, { code: 'N_CENTRAL', name: 'Bắc Trung Bộ' },
+  { code: 'S_CENTRAL_HIGHLANDS', name: 'Duyên hải Nam Trung Bộ và Tây Nguyên' }, { code: 'SOUTHEAST', name: 'Đông Nam Bộ' }, { code: 'MEKONG', name: 'Đồng bằng sông Cửu Long' },
+];
+export const MACRO_REGIONS: { code: string; name: string }[] = [{ code: 'NORTH', name: 'Miền Bắc' }, { code: 'CENTRAL', name: 'Miền Trung' }, { code: 'SOUTH', name: 'Miền Nam' }];
+
 export const ACCOUNTS: Account[] = [
   { accountId: 'acc-sale-a', fullName: 'Nguyễn Văn An', title: 'Sale', active: true },
   { accountId: 'acc-sale-b', fullName: 'Trần Thị Bình', title: 'Sale', active: true },
@@ -23,6 +30,7 @@ export const ACCOUNTS: Account[] = [
   { accountId: 'acc-mgr', fullName: 'Phạm Quốc Dũng', title: 'Quản lý kinh doanh', active: true },
   { accountId: 'acc-acc', fullName: 'Hoàng Thu Hà', title: 'Kế toán', active: true },
   { accountId: 'acc-sale-x', fullName: 'Đỗ Văn Khôi', title: 'Sale (đã nghỉ việc)', active: false },
+  { accountId: 'acc-viewer', fullName: 'Vũ Thị Lan', title: 'Chăm sóc khách hàng (chỉ xem)', active: true },
 ];
 
 const SALE: Permission[] = ['crm.customer.read', 'crm.customer.create', 'crm.customer.update', 'crm.legal_change.read', 'crm.legal_change.request',
@@ -34,9 +42,12 @@ const MANAGER: Permission[] = [...SALE, 'crm.customer.read_all', 'crm.customer.v
 const ACCOUNTANT: Permission[] = ['crm.customer.read', 'crm.customer.read_all', 'crm.legal_change.read', 'crm.legal_change.approve_accounting',
   'crm.contact.read', 'crm.group.read', 'crm.assignment.read', 'crm.activity.read', 'crm.document.read', 'crm.reference.read', 'crm.customer.export'];
 
+// Read-only persona: no legal-change read → legal identifiers shown masked (proposal OD-05), no write action.
+const VIEWER: Permission[] = ['crm.customer.read', 'crm.contact.read', 'crm.group.read', 'crm.assignment.read', 'crm.activity.read', 'crm.document.read', 'crm.reference.read'];
+
 // Mock IAM: effective permissions per synthetic account (the real values come from IAM after the registration gate).
 export const MOCK_PERMISSIONS: Record<string, Permission[]> = {
-  'acc-sale-a': SALE, 'acc-sale-b': SALE, 'acc-sale-c': SALE, 'acc-mgr': MANAGER, 'acc-acc': ACCOUNTANT, 'acc-sale-x': [],
+  'acc-sale-a': SALE, 'acc-sale-b': SALE, 'acc-sale-c': SALE, 'acc-mgr': MANAGER, 'acc-acc': ACCOUNTANT, 'acc-sale-x': [], 'acc-viewer': VIEWER,
 };
 
 export interface MockState {
@@ -54,9 +65,10 @@ export interface MockState {
   tasks: Task[];
   reports: WorkReport[];
   dismissedReminders: string[];
+  audit: AuditEntry[];
 }
 
-export const MOCK_VERSION = 3;
+export const MOCK_VERSION = 5;
 
 const day = 24 * 3600 * 1000;
 const at = (base: Date, days: number, hour = 9, minute = 0): string => {
@@ -147,8 +159,17 @@ export function seedState(now = new Date()): MockState {
     handoverId: 'hdv-001', customerId: 'cus-007', fromAssignmentId: 'asg-cus-007-p', currentSaleAccountId: 'acc-sale-a', toSaleAccountId: 'acc-sale-c',
     initiatedByAccountId: 'acc-sale-a', mode: 'SALE_INITIATED', status: 'PENDING_APPROVAL', requestedAt: at(now, -1, 9), note: 'Chuyển địa bàn (mẫu).',
     managerApprovedByAccountId: null, currentAckByAccountId: null, currentAckOverrideByAccountId: null, currentAckOverrideReason: null,
-    receiverAckByAccountId: null, rejectedByAccountId: null, rejectionReason: null, completedAt: null, transferredActivityIds: [],
+    receiverAckByAccountId: null, rejectedByAccountId: null, rejectionReason: null, completedAt: null, transferredActivityIds: [], transferredTaskIds: [],
   }];
+  // Read-only persona supports two customers (masking / read-only acceptance).
+  for (const cid of ['cus-001', 'cus-004']) assignments.push({ assignmentId: `asg-${cid}-viewer`, customerId: cid, saleAccountId: 'acc-viewer', role: 'SUPPORT',
+    assignedAt: at(now, -30), assignedByAccountId: 'acc-mgr', endedAt: null, endedByAccountId: null, handoverToAccountId: null });
+  // Hidden customer (still counted by the duplicate check) and a replaced document version (BR-16).
+  const hidden = customers.find((c) => c.customerId === 'cus-015');
+  if (hidden) hidden.isHidden = true;
+  documents.push({ documentId: 'doc-cus-001-v2', customerId: 'cus-001', documentName: 'Giấy chứng nhận đăng ký doanh nghiệp (thay đổi lần 2)', documentType: 'LEGAL',
+    fileName: 'gcn-dkdn-1-v2.pdf', fileType: 'application/pdf', fileSize: 190_000, uploadedByAccountId: 'acc-sale-a', uploadedAt: at(now, -20), note: 'Bản thay thế',
+    signedDate: dateOnly(now, -25), effectiveDate: dateOnly(now, -25), expiryDate: null, supersedesDocumentId: 'doc-cus-001-1', mockOnly: true });
   // Former sale (account no longer ACTIVE) still PRIMARY of one customer → manager override scenario (D05).
   const exPrimary = assignments.find((a) => a.assignmentId === 'asg-cus-012-p');
   if (exPrimary) exPrimary.saleAccountId = 'acc-sale-x';
@@ -162,16 +183,17 @@ export function seedState(now = new Date()): MockState {
     { appointmentId: 'apt-006', title: 'Gặp kế toán khách hàng', customerId: 'cus-007', contactId: null, ownerAccountId: 'acc-sale-a', startAt: at(now, 7, 10), endAt: at(now, 7, 11), location: null, description: null, remindMinutes: 30, status: 'SCHEDULED', cancelReason: null, outcome: null, createdAt: at(now, -1) },
   ];
   const tasks: Task[] = [
-    { taskId: 'tsk-001', title: 'Gửi báo giá thùng carton 3 lớp', description: null, customerId: 'cus-001', assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-sale-a', dueAt: at(now, 1, 17), priority: 'HIGH', status: 'IN_PROGRESS', progress: 60, completedAt: null, createdAt: at(now, -3) },
-    { taskId: 'tsk-002', title: 'Cập nhật hồ sơ pháp lý còn thiếu', description: 'Xin bản scan GCN ĐKDN.', customerId: 'cus-003', assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-mgr', dueAt: at(now, -1, 17), priority: 'MEDIUM', status: 'TODO', progress: 0, completedAt: null, createdAt: at(now, -5) },
-    { taskId: 'tsk-003', title: 'Chuẩn bị tài liệu demo', description: null, customerId: 'cus-004', assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-sale-a', dueAt: at(now, 1, 12), priority: 'MEDIUM', status: 'TODO', progress: 0, completedAt: null, createdAt: at(now, -1) },
-    { taskId: 'tsk-004', title: 'Tổng hợp nhu cầu quý 1', description: null, customerId: null, assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-sale-a', dueAt: at(now, 6, 17), priority: 'LOW', status: 'TODO', progress: 0, completedAt: null, createdAt: at(now, -1) },
-    { taskId: 'tsk-005', title: 'Gọi xác nhận lịch giao mẫu', description: null, customerId: 'cus-010', assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-sale-a', dueAt: at(now, -3, 17), priority: 'HIGH', status: 'DONE', progress: 100, completedAt: at(now, -3, 16), createdAt: at(now, -6) },
-    { taskId: 'tsk-006', title: 'Khảo sát giá đối thủ', description: null, customerId: 'cus-002', assigneeAccountId: 'acc-sale-b', createdByAccountId: 'acc-sale-b', dueAt: at(now, -2, 17), priority: 'MEDIUM', status: 'IN_PROGRESS', progress: 30, completedAt: null, createdAt: at(now, -4) },
+    { taskId: 'tsk-001', title: 'Gửi báo giá thùng carton 3 lớp', description: null, customerId: 'cus-001', assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-sale-a', dueAt: at(now, 1, 17), priority: 'HIGH', status: 'IN_PROGRESS', progress: 60, completedAt: null, createdAt: at(now, -3), history: [] },
+    { taskId: 'tsk-002', title: 'Cập nhật hồ sơ pháp lý còn thiếu', description: 'Xin bản scan GCN ĐKDN.', customerId: 'cus-003', assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-mgr', dueAt: at(now, -1, 17), priority: 'MEDIUM', status: 'TODO', progress: 0, completedAt: null, createdAt: at(now, -5), history: [] },
+    { taskId: 'tsk-003', title: 'Chuẩn bị tài liệu demo', description: null, customerId: 'cus-004', assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-sale-a', dueAt: at(now, 1, 12), priority: 'MEDIUM', status: 'TODO', progress: 0, completedAt: null, createdAt: at(now, -1), history: [] },
+    { taskId: 'tsk-004', title: 'Tổng hợp nhu cầu quý 1', description: null, customerId: null, assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-sale-a', dueAt: at(now, 6, 17), priority: 'LOW', status: 'TODO', progress: 0, completedAt: null, createdAt: at(now, -1), history: [] },
+    { taskId: 'tsk-005', title: 'Gọi xác nhận lịch giao mẫu', description: null, customerId: 'cus-010', assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-sale-a', dueAt: at(now, -3, 17), priority: 'HIGH', status: 'DONE', progress: 100, completedAt: at(now, -3, 16), createdAt: at(now, -6), history: [] },
+    { taskId: 'tsk-006', title: 'Khảo sát giá đối thủ', description: null, customerId: 'cus-002', assigneeAccountId: 'acc-sale-b', createdByAccountId: 'acc-sale-b', dueAt: at(now, -2, 17), priority: 'MEDIUM', status: 'IN_PROGRESS', progress: 30, completedAt: null, createdAt: at(now, -4), history: [] },
+    { taskId: 'tsk-007', title: 'Chuẩn bị bảng giá cho khách 000007', description: 'Việc chưa xong của Sale đang phụ trách — dùng để minh họa bàn giao.', customerId: 'cus-007', assigneeAccountId: 'acc-sale-a', createdByAccountId: 'acc-sale-a', dueAt: at(now, 3, 17), priority: 'MEDIUM', status: 'TODO', progress: 0, completedAt: null, createdAt: at(now, -2), history: [] },
   ];
   const reports: WorkReport[] = [
     { reportId: 'rpt-001', authorAccountId: 'acc-sale-a', workDate: dateOnly(now, -2), workDone: 'Gặp ký phụ lục với khách hàng 000010; gọi 3 khách tiềm năng.', results: 'Ký phụ lục giá; 1 khách hẹn demo.', issues: 'Khách 000003 thiếu hồ sơ pháp lý.', nextSteps: 'Gửi báo giá cho 000001.', customerIds: ['cus-010', 'cus-003'], appointmentIds: ['apt-004'], taskIds: ['tsk-005'], status: 'SUBMITTED', submittedAt: at(now, -2, 18), updatedAt: at(now, -2, 18) },
     { reportId: 'rpt-002', authorAccountId: 'acc-sale-b', workDate: dateOnly(now, -1), workDone: 'Khảo sát giá đối thủ khu vực phía Nam.', results: 'Đã thu thập 4 bảng giá.', issues: null, nextSteps: 'Tổng hợp gửi quản lý.', customerIds: ['cus-002'], appointmentIds: [], taskIds: ['tsk-006'], status: 'SUBMITTED', submittedAt: at(now, -1, 18), updatedAt: at(now, -1, 18) },
   ];
-  return { version: MOCK_VERSION, seq: 1000, customers, contacts, groups, assignments, handovers, legalChanges, activities, documents, appointments, tasks, reports, dismissedReminders: [] };
+  return { version: MOCK_VERSION, seq: 1000, customers, contacts, groups, assignments, handovers, legalChanges, activities, documents, appointments, tasks, reports, dismissedReminders: [], audit: [] };
 }
