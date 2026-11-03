@@ -15,6 +15,8 @@ import { evaluateAccess } from '../modules/foundation/foundation.permissions.js'
 import type { FoundationDb, FoundationRepository } from '../modules/foundation/foundation.repository.js';
 import { HOST_PROTOCOL } from './contract.js';
 import type { HostCapabilities, HostPermission } from './contract.js';
+import { createReadOnlyCapability } from './readonly.js';
+import { MODULE_READER_ROLE } from '../config/env.js';
 
 // MOD-TEST-02 — the capabilities Foundation / Auth give to a module package (protocol TALO-MODULE-HOST-1). Each one is a
 // thin adapter over the existing, unchanged implementation: sessionHandler (AuthService), AccessGuard + evaluateAccess
@@ -50,9 +52,12 @@ export interface HostDeps {
   readonly secureCookie: boolean;
   // Test seam: results file of the module (default regressionResultsFile(moduleKey)).
   readonly resultsFile?: string;
+  // MODULE_HOST_READONLY_SECURITY_FIX: executor of the readOnly capability as role talo_module_reader (readonly.ts).
+  // The server always passes it: a FoundationDb, or null when MODULE_READER_DATABASE_URL is not configured (readOnly
+  // then fails closed). Left undefined only by in-process tests (legacy executor on `db`).
+  readonly readerDb?: FoundationDb | null;
 }
 
-const readOnlyRow = z.object({ read_only: z.string() });
 const lifecycleRow = z.object({ is_enabled: z.boolean(), active_versions: z.number().int() });
 
 function routesOf(nodes: readonly MenuNode[]): string[] {
@@ -90,14 +95,8 @@ export function createHostCapabilities(moduleKey: string, deps: HostDeps): HostC
       const r = lifecycleRow.parse(row);
       return { isEnabled: r.is_enabled, activeVersions: r.active_versions };
     },
-    // READ ONLY + statement timeout, verified inside the same transaction before `fn` runs.
-    readOnly: (fn) => deps.db.transaction(async (tx) => {
-      await tx.execute(HOST_SQL.readOnly, []);
-      await tx.execute(HOST_SQL.timeout, []);
-      const [state] = await tx.query(HOST_SQL.readOnlyState, []);
-      if (readOnlyRow.parse(state).read_only !== 'on') throw new Error('transaction is not READ ONLY');
-      return fn({ query: (sql, params) => tx.query(sql, params) });
-    }),
+    // READ ONLY + statement timeout as talo_module_reader, module SQL embedded as one sub-query, always rolled back.
+    readOnly: createReadOnlyCapability({ readerDb: deps.readerDb, fallbackDb: deps.db, readerRole: MODULE_READER_ROLE, logger: deps.logger, moduleKey }),
     menuRoutes: async (actor) => routesOf(await deps.navigation.menu(actor)),
     inspectManifest: (manifest, manifestHash) => {
       let intact = false;

@@ -20,6 +20,9 @@ export interface AppConfig {
   // in the administration UI (default off = CLI only); the URL is the existing role talo_provisioner. Never logged.
   readonly iamUiTemporaryCredentials: boolean;
   readonly provisionerDatabaseUrl: string | undefined;
+  // MODULE_HOST_READONLY_SECURITY_FIX: connection of the Host readOnly capability, role talo_module_reader (SELECT only,
+  // no role membership). Not configured → module readOnly fails closed (503). Never logged.
+  readonly moduleReaderDatabaseUrl: string | undefined;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
 }
 
@@ -50,6 +53,7 @@ const RawEnv = z.object({
   IAM_ROOT_ADMIN_ACCOUNT_ID: optionalString,
   IAM_UI_TEMPORARY_CREDENTIALS: optionalString,
   PROVISIONER_DATABASE_URL: optionalString,
+  MODULE_READER_DATABASE_URL: optionalString,
   LOG_LEVEL: z.preprocess((value) => (value === '' ? undefined : value), z.enum(['debug', 'info', 'warn', 'error']).default('info')),
 });
 
@@ -200,6 +204,37 @@ function parseProvisionerUrl(value: string | undefined, databaseUrl: string | un
   return value;
 }
 
+// Same server and database as DATABASE_URL, role talo_module_reader (the role is also checked on the live connection).
+export const MODULE_READER_ROLE = 'talo_module_reader';
+function parseModuleReaderUrl(value: string | undefined, databaseUrl: string | undefined, issues: string[]): string | undefined {
+  if (value === undefined) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    issues.push('MODULE_READER_DATABASE_URL must be a postgresql:// connection string');
+    return undefined;
+  }
+  if (!/^postgres(ql)?:$/.test(url.protocol)) {
+    issues.push('MODULE_READER_DATABASE_URL must be a postgresql:// connection string');
+    return undefined;
+  }
+  if (decodeURIComponent(url.username) !== MODULE_READER_ROLE) issues.push(`MODULE_READER_DATABASE_URL must use role ${MODULE_READER_ROLE}`);
+  if (databaseUrl === undefined) {
+    issues.push('MODULE_READER_DATABASE_URL requires DATABASE_URL');
+    return undefined;
+  }
+  try {
+    const api = new URL(databaseUrl);
+    if (url.hostname !== api.hostname || (url.port || '5432') !== (api.port || '5432') || url.pathname !== api.pathname) {
+      issues.push('MODULE_READER_DATABASE_URL must target the same server and database as DATABASE_URL');
+    }
+  } catch {
+    return undefined;
+  }
+  return value;
+}
+
 // Never includes environment values in error messages, only variable names.
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = RawEnv.safeParse(env);
@@ -219,6 +254,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     iamRootAdminAccountId: parseRootAdminId(raw.IAM_ROOT_ADMIN_ACCOUNT_ID, issues),
     iamUiTemporaryCredentials: parseCredentialFlag(raw.IAM_UI_TEMPORARY_CREDENTIALS, issues),
     provisionerDatabaseUrl: parseProvisionerUrl(raw.PROVISIONER_DATABASE_URL, raw.DATABASE_URL, issues),
+    moduleReaderDatabaseUrl: parseModuleReaderUrl(raw.MODULE_READER_DATABASE_URL, raw.DATABASE_URL, issues),
     logLevel: raw.LOG_LEVEL,
   };
   if (issues.length > 0) throw new ConfigError(issues);

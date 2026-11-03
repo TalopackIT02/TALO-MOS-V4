@@ -34,6 +34,7 @@ async function main(): Promise<void> {
   const apiRouters: Router[] = [healthRouter()];
   let iamAdmin: IamAdminConnection | undefined;
   let provisioner: ProvisionerConnection | undefined;
+  let readerClient: ReturnType<typeof createPrismaClient> | undefined;
   if (config.databaseUrl) {
     // Prepares the dummy Argon2id hash before the first request (P-5).
     const auth = await createAuthModule({
@@ -74,9 +75,13 @@ async function main(): Promise<void> {
     // MOD-TEST-02: module packages of modules/ (generated registry), mounted through the Host capabilities; every module
     // request is still checked for Session + IAM + ACTIVE + ENABLED by those capabilities.
     const db = prismaFoundationDb(getPrismaClient(config.databaseUrl));
+    // MODULE_HOST_READONLY_SECURITY_FIX: module reads run as talo_module_reader on their own client; without the URL every
+    // module readOnly call fails closed (503) — talo_app is never used for module reads.
+    readerClient = config.moduleReaderDatabaseUrl ? createPrismaClient(config.moduleReaderDatabaseUrl) : undefined;
+    logger.info('Module Host readOnly executor', { configured: readerClient !== undefined });
     const mounted = mountModuleMap(INSTALLED_MODULES, {
       db, access: new SqlFoundationRepository(db), authService: auth.service, navigation: foundation.navigationService, logger,
-      secureCookie: config.nodeEnv === 'production',
+      secureCookie: config.nodeEnv === 'production', readerDb: readerClient ? prismaFoundationDb(readerClient) : null,
     }, logger);
     for (const [key, router] of mounted) moduleRouters.set(key, router);
     apiRouters.push(...mounted.values());
@@ -100,7 +105,7 @@ async function main(): Promise<void> {
   const shutdown = (signal: string) => {
     logger.info('shutdown requested', { signal });
     server.close(() => {
-      Promise.all([disconnectPrismaClient(), iamAdmin?.close(), provisioner?.close()]).then(
+      Promise.all([disconnectPrismaClient(), iamAdmin?.close(), provisioner?.close(), readerClient?.$disconnect()]).then(
         () => process.exit(0),
         () => process.exit(1),
       );
