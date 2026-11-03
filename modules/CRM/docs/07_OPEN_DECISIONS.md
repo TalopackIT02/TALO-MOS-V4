@@ -1,6 +1,6 @@
 # 07 — Sổ quyết định (Decision Register)
 
-Cập nhật: 2026-11-01 (Gate 1 final closeout).
+Cập nhật: 2026-11-01 (Gate 1 final closeout). **Trạng thái Gate 1: `CRM_GATE1_FRONTEND_MOCK: ACCEPTED`** (chủ dự án, 2026-11-02 — chỉ Frontend Mock; không phải Backend, IAM, Audit Foundation hay lưu file). OD-02 … OD-16 giữ PENDING; OD-14 đề nghị đóng. Gate 2 phân loại tiếp các OD: `TALO-MOS-V4_exports/CRM_GATE2_DATABASE_EXTENSION_DESIGN_20261102/10_DECISION_REGISTER.md`.
 
 - **OD-01: APPROVED** — quyết định của chủ dự án ngày 2026-11-01 ("OWNER DECISION: OD-01 APPROVED — FINAL GATE 1 CLOSEOUT").
 - **Mọi OD khác: PENDING.** "Đề xuất" là khuyến nghị của người thực hiện, không phải quyết định. Mock có thể đang chạy một phương án để demo; điều đó không có nghĩa phương án được duyệt. Quyết định OD-01 chỉ chốt nguồn đối chiếu, không phê duyệt Business Rule nào đang mở (D04, D05… giữ nguyên trạng thái đề xuất).

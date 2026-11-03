@@ -1,5 +1,7 @@
 # 06 — Ma trận kiểm thử và nghiệm thu (Gate 1)
 
+**`CRM_GATE1_FRONTEND_MOCK: ACCEPTED`** — chủ dự án nghiệm thu ngày 2026-11-02 theo `CRM_GATE1_FINAL_ACCEPTANCE_REPORT.md` (unit 29/29, E2E 29/29). Phạm vi: Frontend Mock; không gồm Backend thật, IAM, Audit Foundation, lưu file. Các dòng DIFFERENCE trong `09_UIUX_COMPARISON_MATRIX.md` giữ nguyên, không chuyển thành MATCH.
+
 Bằng chứng chạy thật (bản cuối): `TALO-MOS-V4_exports/CRM_GATE1_FINAL_20261101/evidence/`; bản remediation: `CRM_GATE1_REMEDIATION_20261101/evidence/`; bản trước: `CRM_GATE1_ALIGNMENT_20261030/evidence/` (`build_test.txt`, `e2e_log.txt`, `e2e/e2e-result.json`, `e2e/*.png`).
 Kết quả: **DEMO_PASS** = chạy trên Mock có assertion; **NOT_TESTED**; **BLOCKED**; **N/A_GATE1**. Không mục nào là LIVE PASS (không có Backend/IAM thật).
 
