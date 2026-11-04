@@ -156,7 +156,9 @@ export function readStatusOf(r: CatalogRow): ReadStatus {
   if (!r.schemaUsage) return 'NOT_READABLE';
   if (r.tableSelect) return 'READABLE';
   if (r.anyColumnSelect === null) return 'UNKNOWN';
-  return r.anyColumnSelect ? 'PARTIAL' : 'NOT_READABLE';
+  if (!r.anyColumnSelect) return 'NOT_READABLE';
+  // SCC 0.1.3 (RO-D6): column-level grants on every column = READABLE; a withheld column (or an unknown answer) = PARTIAL.
+  return r.allColumnsSelect === true ? 'READABLE' : 'PARTIAL';
 }
 
 export function accessOf(schema: string, table: string, readStatus: ReadStatus): AccessPath {
@@ -337,8 +339,9 @@ export class DataInspectorService {
     if (!isTableKind(relkind)) throw new DataInspectorError(404, 'TABLE_NOT_FOUND');
     // The relation query carries no column privilege: a table without table-level SELECT is PARTIAL / NOT_READABLE
     // according to its columns, decided by the caller from the column list.
-    const columnLevel = r.schemaUsage === true && r.tableSelect === false ? (await repo.columns(tx, r.oid)).some((c) => c.selectPrivilege === true) : null;
-    return { entry: entryOf({ ...r, relkind }, readStatusOf({ ...r, anyColumnSelect: columnLevel ?? r.anyColumnSelect })), oid: r.oid };
+    const cols = r.schemaUsage === true && r.tableSelect === false ? await repo.columns(tx, r.oid) : null;
+    const columnLevel = cols === null ? null : { anyColumnSelect: cols.some((c) => c.selectPrivilege === true), allColumnsSelect: cols.length > 0 && cols.every((c) => c.selectPrivilege === true) };
+    return { entry: entryOf({ ...r, relkind }, readStatusOf({ ...r, anyColumnSelect: r.anyColumnSelect, ...(columnLevel ?? {}) })), oid: r.oid };
   }
 
   private logFailure(message: string, actor: Actor, route: string, error: unknown): void {

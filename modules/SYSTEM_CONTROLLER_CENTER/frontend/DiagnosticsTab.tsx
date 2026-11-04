@@ -1,9 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { systemTestApi } from './systemTestApi';
 import { diagnosticsReportTxt, downloadTxt } from './reportTxt';
-import type { CheckResult, Health, QuickCheckRun } from './systemTestApi';
+import type { CheckResult, FleetSummary, Health, QuickCheckRun } from './systemTestApi';
 import { CheckTable, DetailDrawer, FeedbackLine, GROUP_LABELS, CHECK_GROUPS, StatusBars, StatusBadge, checkCounts, formatTime, settleSt } from './common';
 import type { DrawerData, Feedback, Level } from './common';
+
+// SCC 0.1.3: whole-registry counts (fixture candidates shown apart, never left out) and the five deployment layers.
+function FleetSummaryPanel({s}:{s:FleetSummary}) {
+  const n=(x:number|null)=>x===null?'—':x.toLocaleString('vi-VN');
+  const other=(k:keyof FleetSummary['all'])=>s.all[k]-s.fixtureCandidates[k];
+  const rows:[string,number,number,number][]=[
+    ['Đã đăng ký (B01)',s.all.registered,other('registered'),s.fixtureCandidates.registered],
+    ['ENABLED',s.all.enabled,other('enabled'),s.fixtureCandidates.enabled],
+    ['Có đúng 1 ACTIVE',s.all.withActive,other('withActive'),s.fixtureCandidates.withActive],
+    ['ENABLED + 1 ACTIVE',s.all.enabledActive,other('enabledActive'),s.fixtureCandidates.enabledActive],
+    ['ENABLED sai lifecycle',s.all.enabledWithoutActive+s.all.multiActive,other('enabledWithoutActive')+other('multiActive'),s.fixtureCandidates.enabledWithoutActive+s.fixtureCandidates.multiActive],
+    ['Chưa có version',s.all.noVersion,other('noVersion'),s.fixtureCandidates.noVersion],
+    ['Version',s.all.versions,other('versions'),s.fixtureCandidates.versions],
+  ];
+  return <div className="st-fleet-summary">
+    <div className="st-fleet-head"><span>TOÀN REGISTRY</span><span>TỔNG</span><span>MODULE KHÁC</span><span>ỨNG VIÊN FIXTURE FBET_*</span></div>
+    {rows.map(([label,all,o,f])=><div key={label} className="st-fleet-row"><strong>{label}</strong><span>{n(all)}</span><span>{n(o)}</span><span>{n(f)}</span></div>)}
+    <p className="st-note-inline">Version theo trạng thái: {Object.entries(s.versionStatuses).map(([k,v])=>`${k} ${n(v)}`).join(' · ')||'—'}</p>
+    <p className="st-note-inline">Triển khai: REGISTERED {n(s.tiers.registered)} → ACTIVE {n(s.tiers.active)} → INSTALLED {n(s.tiers.installed)} → LOADED {n(s.tiers.loaded)} → SERVING {n(s.tiers.serving)}
+      {s.tiers.installed===null?' (Host chưa cung cấp deploymentState: ba tầng cuối chưa xác minh).':'.'}</p>
+    {s.packages&&<p className="st-note-inline">Package: {s.packages.map(p=>`${p.moduleKey} ${p.packageVersion} ${p.state}`).join(' · ')}</p>}
+  </div>;
+}
 
 // System diagnostics: quick test is read-only; no result is fabricated before a successful run.
 export function DiagnosticsTab({onSessionLost}:{onSessionLost:()=>void}) {
@@ -30,7 +53,7 @@ export function DiagnosticsTab({onSessionLost}:{onSessionLost:()=>void}) {
     if(!run)return;
     // Bounded operational metadata only; never contains table row values or credentials.
     const report={format:'TALO-SYSTEM-CONTROLLER-CENTER-DIAGNOSTICS-1',runId:run.runId,checkedAt:run.finishedAt,
-      durationMs:run.durationMs,summary:run.summary,results:run.results,fleet:run.fleet};
+      durationMs:run.durationMs,summary:run.summary,results:run.results,fleet:run.fleet,fleetSummary:run.fleetSummary};
     try {await navigator.clipboard.writeText(JSON.stringify(report,null,2));
       setFeedback({tone:'success',text:'Đã sao chép báo cáo kiểm tra vào clipboard.'});}
     catch {setFeedback({tone:'error',text:'Trình duyệt không cho phép sao chép. Không có tệp nào được xuất.'});}
@@ -52,7 +75,7 @@ export function DiagnosticsTab({onSessionLost}:{onSessionLost:()=>void}) {
   return <div className="st-console">
     <header className="st-hero">
       <div className="st-hero-head"><span className="st-eyebrow">TALO / OPS CONTROL <span className="st-online-dot"/> DIAGNOSTICS</span>
-        <span className="st-hero-version">SYSTEM_CONTROLLER_CENTER · V0.1.0</span></div>
+        <span className="st-hero-version">SYSTEM_CONTROLLER_CENTER · V0.1.3</span></div>
       <div className="st-hero-main"><div>
         <h1>System health <span>monitor.</span></h1>
         <p>Quan sát Foundation, IAM, PostgreSQL và các module vừa đăng ký. Phân loại dựa trên dữ kiện thực tế, không giả lập kết quả.</p>
@@ -69,7 +92,7 @@ export function DiagnosticsTab({onSessionLost}:{onSessionLost:()=>void}) {
       <div className="st-overview-text"><span className="st-eyebrow">REAL-TIME SNAPSHOT / ON-DEMAND</span>
         <h2>{!run?'Chưa có dữ liệu kiểm tra':total.critical?'Cần xử lý cảnh báo nghiêm trọng':total.warning?'Có vấn đề cần theo dõi':'Hệ thống đạt các phép kiểm tra'}</h2>
         <p>{run?`${results.length} phép kiểm trong ${run.durationMs} ms. Bấm vào từng mục để mở panel xem chi tiết.`:'Nhấn “Chạy kiểm tra hệ thống” để thu thập tín hiệu thực tế.'}</p>
-        <div className="st-kpi-strip"><span><b>{results.length||'—'}</b> Checks</span><span><b>{run?.fleet.length??'—'}</b> Modules</span><span><b>{run?formatTime(run.finishedAt):'—'}</b> Last run</span></div>
+        <div className="st-kpi-strip"><span><b>{results.length||'—'}</b> Checks</span><span><b>{run?(run.fleetSummary?.all.registered??run.fleet.length).toLocaleString('vi-VN'):'—'}</b> Modules</span><span><b>{run?formatTime(run.finishedAt):'—'}</b> Last run</span></div>
       </div>
       <StatusBars counts={total}/>
     </section>
@@ -95,6 +118,7 @@ export function DiagnosticsTab({onSessionLost}:{onSessionLost:()=>void}) {
     <section className="st-section">
       <div className="st-section-head"><div><span className="st-eyebrow">02 / CONNECTED MODULES</span><h2>Module registry watch</h2></div>
         <small className="st-note-inline">Nguồn: Foundation B01/B02 · Read-only</small></div>
+      {run?.fleetSummary&&<FleetSummaryPanel s={run.fleetSummary}/>}
       {!run?<div className="st-empty st-empty-compact">Chạy kiểm tra để đọc danh sách module từ Foundation.</div>
         :run.fleet.length===0?<div className="st-empty st-empty-compact">Không đọc được module fleet hoặc Registry chưa có module.</div>
         :<><div className="st-fleet-head"><span>MODULE KEY</span><span>VERSION</span><span>LIFECYCLE</span><span>TRẠNG THÁI</span></div>
@@ -103,10 +127,13 @@ export function DiagnosticsTab({onSessionLost}:{onSessionLost:()=>void}) {
             return <button key={m.moduleKey} type="button" className="st-fleet-row" onClick={()=>setDrawer({title:m.moduleKey,
               status,group:'FLEET_DISCOVERY',description:`Module Foundation ${m.moduleKey} ${m.enabled?'ENABLED':'DISABLED'}.`,
               lines:[`Đã đăng ký ${m.versionCount} version`,`Số ACTIVE: ${m.activeVersions}`,
+                ...(m.fixtureCandidate?['Ứng viên fixture (tiền tố FBET_): chỉ là nhãn phân loại, vẫn được tính trong mọi số liệu.']:[]),
                 'Chú ý: registry không chứng minh source package đã deploy hoặc API runtime đang phản hồi.']})}>
-              <strong>{m.moduleKey}</strong><span>{m.versionCount} registered</span><span>{m.enabled?'ENABLED':'DISABLED'}</span><StatusBadge status={status}/>
+              <strong>{m.moduleKey}{m.fixtureCandidate?' · fixture?':''}</strong><span>{m.versionCount} registered</span><span>{m.enabled?'ENABLED':'DISABLED'}</span><StatusBadge status={status}/>
             </button>})}</div>
-          {!run.fleetComplete&&<div className="st-feedback st-feedback-info">Không lấy được đầy đủ danh sách module (không có quyền hoặc vượt giới hạn 200).</div>}</>}
+          {!run.fleetComplete&&<div className="st-feedback st-feedback-info">{run.fleetSummary
+            ?'Danh sách hiển thị có giới hạn (module hệ thống/nghiệp vụ + module sai lifecycle). Số liệu tổng ở trên là toàn bộ Registry.'
+            :'Không lấy được đầy đủ danh sách module (không có quyền hoặc vượt giới hạn 200).'}</div>}</>}
     </section>
     <p className="st-disclaimer">SYSTEM_CONTROLLER_CENTER chỉ quan sát và chẩn đoán. Không thay đổi IAM, lifecycle, dữ liệu PostgreSQL hoặc chạy câu lệnh shell qua HTTP.</p>
     <DetailDrawer data={drawer} onClose={()=>setDrawer(null)}/>

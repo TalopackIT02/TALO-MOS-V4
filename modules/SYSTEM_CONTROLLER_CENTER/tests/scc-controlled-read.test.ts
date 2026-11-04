@@ -167,9 +167,10 @@ describe('SCC 0.1.2 contract and database proposal', () => {
     mic01Identity: { moduleVersion: string }; mic09Compatibility: { kind: string; fromVersion?: string };
     mic06DataResources: { resourceKey: string; access: { functionKey: string; actionKey: string; operation: string }[] }[];
   };
-  it('declares 0.1.2 as a CHANGE from 0.1.1 with four ROWS.READ resources', () => {
-    expect(mic.mic01Identity.moduleVersion).toBe('0.1.2');
-    expect(mic.mic09Compatibility).toMatchObject({ kind: 'CHANGE', fromVersion: '0.1.1' });
+  // SCC 0.1.3: the controlled-read resources of 0.1.2 are kept unchanged; the package is now a CHANGE from 0.1.2.
+  it('declares 0.1.3 as a CHANGE from 0.1.2 and keeps the four ROWS.READ resources of 0.1.2', () => {
+    expect(mic.mic01Identity.moduleVersion).toBe('0.1.3');
+    expect(mic.mic09Compatibility).toMatchObject({ kind: 'CHANGE', fromVersion: '0.1.2' });
     for (const key of ['SYSTEM_MODULE_EVENTS', 'SYSTEM_DATA_ACCESS_RULES', 'IAM_MEMBERSHIP_ADMIN_VIEW', 'IAM_SESSION_METADATA']) {
       const r = mic.mic06DataResources.find((x) => x.resourceKey === key);
       expect(r?.access).toEqual([expect.objectContaining({ functionKey: 'ROWS', actionKey: 'READ', operation: 'SELECT' })]);

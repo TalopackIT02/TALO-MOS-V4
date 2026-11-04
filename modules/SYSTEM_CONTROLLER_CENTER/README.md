@@ -1,6 +1,18 @@
-# SYSTEM_CONTROLLER_CENTER 0.1.2 — System Controller Center
+# SYSTEM_CONTROLLER_CENTER 0.1.3 — System Controller Center
 
 **Module mới độc lập** dành cho người quản trị kỹ thuật `TALO_SYSTEM_ADMIN`. Đây là **ứng viên để Foundation quét và chạy Preflight**, không phải phần mềm đã được kích hoạt hay nghiệm thu trên PostgreSQL TEST.
+
+## Thay đổi 0.1.3 (SCC-013 Diagnostics Fix, ứng viên cách ly)
+
+- **Fleet trên toàn Registry:** FLEET_DISCOVERY / FLEET_LIFECYCLE / FLEET_RELEASES tính bằng truy vấn tổng hợp trên mọi module và mọi version. Không còn chỉ kết luận trên 200 dòng đầu.
+  - Trình duyệt nhận một danh sách có giới hạn: module không phải fixture, cộng module sai lifecycle; mỗi loại tối đa 100.
+  - Kèm `fleetSummary` với số liệu đầy đủ.
+- **Ứng viên fixture `FBET_*`** (OD-SCC-01): chỉ là nhãn phân loại; vẫn được tính trong mọi số liệu và mọi FAIL/WARN.
+- **DEPLOYMENT_SYNC:** dùng capability **tùy chọn** `deploymentState` khi Host có, để phân biệt REGISTERED / ACTIVE / INSTALLED / LOADED / SERVING. Host không có capability thì trả `NOT_TESTED` như 0.1.2. `REQUIRED_CAPABILITIES` không đổi.
+- **REGRESSION:** đọc artifact định dạng 2, ghi rõ môi trường `TEST` / `CLONE`, source commit, lock và cổng DB; định dạng 1 vẫn đọc được.
+  - Artifact không phải của chính database đang kiểm tra hoặc không rõ môi trường: PASS bị hạ xuống WARN, kèm ghi chú "không phải bằng chứng runtime".
+- **Data Inspection (RO-D6):** quyền SELECT theo cột phủ mọi cột thì nhãn `READABLE`; thiếu cột thì giữ `PARTIAL`.
+- **Không đổi:** Function, Action, API, K05, Navigation, Data Contract; chỉ `TALO_SYSTEM_ADMIN`.
 
 ## Phạm vi
 
@@ -21,7 +33,7 @@ Mọi route đều qua Session → `TALO_SYSTEM_ADMIN` (membership chưa thu h�
 ## Cách sử dụng qua Foundation
 
 1. Chỉ **chép thư mục `SYSTEM_CONTROLLER_CENTER`** vào `D:\\Documents\\ClaudeProject\\TALO-MOS-V4\\modules\\SYSTEM_CONTROLLER_CENTER`. Không copy sang `installed-modules` hay `module-releases`.
-2. Vào Foundation → Quản lý Module → **Quét Module** → chọn `SYSTEM_CONTROLLER_CENTER 0.1.2` → **Kiểm tra & Chạy thử**. Sửa mọi FAIL trước khi tiến hành; MIC10 ban đầu `NOT_TESTED` là đúng, FMI-02/03 mới sinh evidence PASS.
+2. Vào Foundation → Quản lý Module → **Quét Module** → chọn `SYSTEM_CONTROLLER_CENTER 0.1.3` → **Kiểm tra & Chạy thử**. Sửa mọi FAIL trước khi tiến hành; MIC10 ban đầu `NOT_TESTED` là đúng, FMI-02/03 mới sinh evidence PASS.
 3. Foundation: xem plan, cài đặt và kích hoạt theo gate. Không cần tự paste MIC hay thay đổi schema. **FMI-03 có thể yêu cầu restart thủ công** nếu supervisor chưa cấu hình.
 4. IAM: tạo/gán danh mục quyền cho role `TALO_SYSTEM_ADMIN` theo cơ chế IAM Management hợp lệ. **Đừng cấp cho Manager**. Không tự gán role trong module.
 5. Navigation: chủ dự án tự mở Navigation Builder và đặt các Function vào vùng Develop. MIC đã khai báo route/tab, nhưng vị trí menu do chủ dự án quyết định.

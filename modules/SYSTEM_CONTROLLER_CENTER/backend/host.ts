@@ -57,8 +57,28 @@ export interface ModuleHost {
   sqlstate(error: unknown): string | undefined;
   // Latest regression results written for this module by the Host's local runner: raw text, or null when none.
   regressionResults(): Promise<string | null>;
+  // SCC 0.1.3 — OPTIONAL capability (not in REQUIRED_CAPABILITIES): the Host's own read-only view of what it deployed and
+  // loaded. Absent on a Host that does not offer it → DEPLOYMENT_SYNC stays NOT_TESTED. No path, no file content, no write.
+  deploymentState?(): Promise<DeploymentState>;
+}
+
+export interface DeploymentPackage {
+  readonly moduleKey: string;
+  readonly packageVersion: string;          // version pinned by the deployment lock
+  readonly packageHash: string;             // hash pinned by the deployment lock
+  readonly releaseVerified: boolean | null; // release store re-hashed = lock hash (null: not checked)
+  readonly backendInstalled: boolean;       // generated backend registry runs this version + hash
+  readonly frontendInstalled: boolean;      // generated frontend registry serves this version + hash
+  readonly loaded: boolean;                 // this process mounted the package router (handshake passed)
+}
+export interface DeploymentState {
+  readonly checkedAt: string;
+  readonly lockMatchesRuntime: boolean;
+  readonly packages: readonly DeploymentPackage[];
 }
 
 export const REQUIRED_CAPABILITIES = [
   'session', 'authorize', 'evaluate', 'lifecycle', 'readOnly', 'menuRoutes', 'inspectManifest', 'sqlstate', 'regressionResults', 'logger',
 ] as const;
+// Used when the Host offers them; never required (a Host without them still loads this package).
+export const OPTIONAL_CAPABILITIES = ['deploymentState'] as const;

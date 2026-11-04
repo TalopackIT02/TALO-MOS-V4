@@ -6,10 +6,16 @@ export interface ApiFailure { ok: false; status: number; code: string; details: 
 export type ApiResult<T> = { ok: true; data: T } | ApiFailure;
 export type CheckStatus = 'PASS' | 'FAIL' | 'WARN' | 'NOT_TESTED' | 'UNAVAILABLE';
 export interface CheckResult { key: string; label: string; status: CheckStatus; detail: string }
-export interface FleetModule { moduleKey: string; enabled: boolean; versionCount: number; activeVersions: number }
+export interface FleetModule { moduleKey: string; enabled: boolean; versionCount: number; activeVersions: number; fixtureCandidate: boolean | null }
+// SCC 0.1.3 (additive): whole-registry counts + deployment layers. null when the server did not send it (0.1.2 backend).
+export interface FleetCounts { registered: number; enabled: number; withActive: number; enabledActive: number; enabledWithoutActive: number;
+  multiActive: number; noVersion: number; enabledNoVersion: number; versions: number }
+export interface PackageView { moduleKey: string; packageVersion: string; state: string; activeVersion: string | null }
+export interface FleetSummary { all: FleetCounts; fixtureCandidates: FleetCounts; versionStatuses: Record<string, number>;
+  tiers: { registered: number; active: number; installed: number | null; loaded: number | null; serving: number | null }; packages: PackageView[] | null }
 export interface QuickCheckRun {
   runId: string; startedAt: string; finishedAt: string; durationMs: number; moduleKey: string;
-  results: CheckResult[]; summary: Record<CheckStatus, number>; fleet: FleetModule[]; fleetComplete: boolean;
+  results: CheckResult[]; summary: Record<CheckStatus, number>; fleet: FleetModule[]; fleetComplete: boolean; fleetSummary: FleetSummary | null;
 }
 export type SuiteStatus = 'PASS' | 'FAIL' | 'TIMEOUT' | 'NOT_RUN';
 export interface RegressionSuite {
@@ -18,8 +24,10 @@ export interface RegressionSuite {
 }
 export type RunStatus = 'PASS' | 'FAIL' | 'ABORTED';
 export interface RegressionRun { runId: string; startedAt: string; finishedAt: string;
-  target: { database: string; host: string; nodeEnv: string }; status: RunStatus; suites: RegressionSuite[] }
-export type RegressionState = { state: 'NOT_RUN' } | { state: 'INVALID' } | { state: 'AVAILABLE'; run: RegressionRun };
+  target: { database: string; host: string; nodeEnv: string; port: string | null }; status: RunStatus; suites: RegressionSuite[];
+  // SCC 0.1.3: where the run happened and what it tested (format 2); UNKNOWN / null for a format-1 artifact.
+  environment: 'TEST' | 'CLONE' | 'UNKNOWN'; source: { commit: string; dirty: boolean } | null }
+export type RegressionState = { state: 'NOT_RUN' } | { state: 'INVALID' } | { state: 'AVAILABLE'; run: RegressionRun; sha256: string | null };
 export interface ResultsView { quickCheck: QuickCheckRun | null; regression: RegressionState; runner: { apiExecution: false; mode: 'CLI' } }
 export interface Health { moduleKey: string; enabled: boolean; activeVersions: number; checkedAt: string }
 
@@ -75,7 +83,36 @@ function check(v: unknown, at: string): CheckResult {
 }
 function fleetModule(v: unknown, at: string): FleetModule {
   const x = obj(v, at);
-  return { moduleKey: str(x, 'moduleKey', at), enabled: bool(x, 'enabled', at), versionCount: num(x, 'versionCount', at), activeVersions: num(x, 'activeVersions', at) };
+  return { moduleKey: str(x, 'moduleKey', at), enabled: bool(x, 'enabled', at), versionCount: num(x, 'versionCount', at), activeVersions: num(x, 'activeVersions', at),
+    fixtureCandidate: x['fixtureCandidate'] === undefined ? null : bool(x, 'fixtureCandidate', at) };
+}
+const COUNT_KEYS = ['registered', 'enabled', 'withActive', 'enabledActive', 'enabledWithoutActive', 'multiActive', 'noVersion', 'enabledNoVersion', 'versions'] as const;
+function counts(v: unknown, at: string): FleetCounts {
+  const x = obj(v, at);
+  const out = {} as FleetCounts;
+  for (const k of COUNT_KEYS) out[k] = num(x, k, at);
+  return out;
+}
+const nullableCount = (x: Json, k: string, at: string): number | null => (x[k] === null ? null : num(x, k, at));
+// Absent (0.1.2 server) → null; present → validated field by field like the rest of the contract.
+function fleetSummary(v: unknown, at: string): FleetSummary | null {
+  if (v === undefined || v === null) return null;
+  const x = obj(v, at);
+  if (x['scope'] !== 'FULL_REGISTRY') throw new ContractError(`${at}.scope`, 'FULL_REGISTRY');
+  const statuses = obj(x['versionStatuses'], `${at}.versionStatuses`);
+  const versionStatuses: Record<string, number> = {};
+  for (const k of Object.keys(statuses)) versionStatuses[k] = num(statuses, k, `${at}.versionStatuses`);
+  const t = obj(x['tiers'], `${at}.tiers`);
+  return {
+    all: counts(x['all'], `${at}.all`), fixtureCandidates: counts(x['fixtureCandidates'], `${at}.fixtureCandidates`), versionStatuses,
+    tiers: { registered: num(t, 'registered', `${at}.tiers`), active: num(t, 'active', `${at}.tiers`), installed: nullableCount(t, 'installed', `${at}.tiers`),
+      loaded: nullableCount(t, 'loaded', `${at}.tiers`), serving: nullableCount(t, 'serving', `${at}.tiers`) },
+    packages: x['packages'] === null ? null : arr(x, 'packages', at).map((p, i) => {
+      const y = obj(p, `${at}.packages[${i}]`);
+      return { moduleKey: str(y, 'moduleKey', `${at}.packages[${i}]`), packageVersion: str(y, 'packageVersion', `${at}.packages[${i}]`),
+        state: str(y, 'state', `${at}.packages[${i}]`), activeVersion: y['activeVersion'] === null ? null : str(y, 'activeVersion', `${at}.packages[${i}]`) };
+    }),
+  };
 }
 export function parseHealth(v: unknown, at = 'health'): Health {
   const x = obj(v, at);
@@ -90,6 +127,7 @@ export function parseRun(v: unknown, at = 'run'): QuickCheckRun {
     runId: str(x, 'runId', at), startedAt: str(x, 'startedAt', at), finishedAt: str(x, 'finishedAt', at), durationMs: num(x, 'durationMs', at),
     moduleKey: str(x, 'moduleKey', at), results: arr(x, 'results', at).map((r, i) => check(r, `${at}.results[${i}]`)), summary,
     fleet: arr(x, 'fleet', at).map((m, i) => fleetModule(m, `${at}.fleet[${i}]`)), fleetComplete: bool(x, 'fleetComplete', at),
+    fleetSummary: fleetSummary(x['fleetSummary'], `${at}.fleetSummary`),
   };
 }
 function suite(v: unknown, at: string): RegressionSuite {
@@ -109,10 +147,14 @@ export function parseRegression(v: unknown, at = 'results.regression'): Regressi
   if (state !== 'AVAILABLE') return { state };
   const run = obj(x['run'], `${at}.run`);
   const target = obj(run['target'], `${at}.run.target`);
-  return { state, run: {
+  const source = run['source'] === undefined ? null : obj(run['source'], `${at}.run.source`);
+  return { state, sha256: x['sha256'] === undefined ? null : str(x, 'sha256', at), run: {
     runId: str(run, 'runId', `${at}.run`), startedAt: str(run, 'startedAt', `${at}.run`), finishedAt: str(run, 'finishedAt', `${at}.run`),
-    target: { database: str(target, 'database', `${at}.run.target`), host: str(target, 'host', `${at}.run.target`), nodeEnv: str(target, 'nodeEnv', `${at}.run.target`) },
+    target: { database: str(target, 'database', `${at}.run.target`), host: str(target, 'host', `${at}.run.target`), nodeEnv: str(target, 'nodeEnv', `${at}.run.target`),
+      port: target['port'] === undefined ? null : str(target, 'port', `${at}.run.target`) },
     status: oneOf(run, 'status', RUN_STATUSES, `${at}.run`), suites: arr(run, 'suites', `${at}.run`).map((s, i) => suite(s, `${at}.run.suites[${i}]`)),
+    environment: run['environment'] === undefined ? 'UNKNOWN' : oneOf(run, 'environment', ['TEST', 'CLONE'] as const, `${at}.run`),
+    source: source === null ? null : { commit: str(source, 'commit', `${at}.run.source`), dirty: bool(source, 'dirty', `${at}.run.source`) },
   } };
 }
 export function parseResults(v: unknown, at = 'results'): ResultsView {

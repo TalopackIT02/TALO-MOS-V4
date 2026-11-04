@@ -2,7 +2,7 @@
   "mic01Identity": {
     "moduleKey": "SYSTEM_CONTROLLER_CENTER",
     "moduleName": "System Controller Center",
-    "moduleVersion": "0.1.2",
+    "moduleVersion": "0.1.3",
     "micStandard": "MIC-1.0"
   },
   "mic02Functions": [
@@ -296,9 +296,31 @@
       "readProbe": {
         "query": {},
         "assertions": [
-          { "path": ["logs", "complete"], "equals": true },
-          { "path": ["logs", "sources", "FOUNDATION", "state"], "equals": "AVAILABLE" },
-          { "path": ["logs", "sources", "IAM", "state"], "equals": "AVAILABLE" }
+          {
+            "path": [
+              "logs",
+              "complete"
+            ],
+            "equals": true
+          },
+          {
+            "path": [
+              "logs",
+              "sources",
+              "FOUNDATION",
+              "state"
+            ],
+            "equals": "AVAILABLE"
+          },
+          {
+            "path": [
+              "logs",
+              "sources",
+              "IAM",
+              "state"
+            ],
+            "equals": "AVAILABLE"
+          }
         ]
       },
       "errors": [
@@ -780,13 +802,14 @@
   },
   "mic09Compatibility": {
     "kind": "CHANGE",
-    "fromVersion": "0.1.1",
+    "fromVersion": "0.1.2",
     "changes": [
-      "Data Inspection: đọc có kiểm soát fnd_module_events / fnd_data_access_rules qua foundation_read_api (cần Database Access Gate SCC 0.1.2)",
-      "Data Inspection: projection quản trị iam_memberships (không employee_id) và metadata iam_sessions (không session_token_hash)",
-      "Data Inspection: phân loại BUSINESS / SYSTEM_CATALOG và đường truy cập DIRECT / CONTROLLED / PROTECTED / NOT_READABLE",
-      "Thống nhất 503 MODULE_UNAVAILABLE khi module tắt cho Data Inspection và Audit Logs",
-      "Giữ nguyên: chỉ TALO_SYSTEM_ADMIN; không đổi IAM K05, route, menu; iam_credentials / iam_account_verifications vẫn PROTECTED"
+      "Fleet: FLEET_DISCOVERY / FLEET_LIFECYCLE / FLEET_RELEASES đánh giá toàn bộ Registry bằng truy vấn tổng hợp (không còn giới hạn kết luận ở 200 dòng đầu); danh sách gửi trình duyệt có giới hạn",
+      "Fleet: nhãn ứng viên fixture FBET_* (OD-SCC-01) chỉ để phân loại, vẫn được tính trong mọi số liệu",
+      "DEPLOYMENT_SYNC: dùng capability TÙY CHỌN deploymentState của Host khi có (REGISTERED / ACTIVE / INSTALLED / LOADED / SERVING); Host không có capability → NOT_TESTED như 0.1.2",
+      "REGRESSION: đọc artifact định dạng 2 (môi trường TEST / CLONE, source commit, lock); artifact không phải của database đang kiểm tra tối đa WARN",
+      "Data Inspection: quyền SELECT theo cột phủ mọi cột → READABLE; thiếu cột → PARTIAL (RO-D6)",
+      "Giữ nguyên: Function, Action, API, K05, Navigation, Data Contract, REQUIRED_CAPABILITIES; chỉ TALO_SYSTEM_ADMIN"
     ]
   },
   "mic10Manifest": {
@@ -794,9 +817,9 @@
     "hashAlgorithm": "SHA-256",
     "testEvidence": [
       {
-        "name": "Foundation FMI-02 preflight SYSTEM_CONTROLLER_CENTER 0.1.1",
+        "name": "SCC 0.1.3 isolated candidate (worktree + disposable clone)",
         "result": "NOT_TESTED",
-        "reference": "PENDING_FMI02_RUN_AND_HASH"
+        "reference": "PENDING_INSTALLER_PREFLIGHT_RUN_AND_HASH"
       }
     ]
   }

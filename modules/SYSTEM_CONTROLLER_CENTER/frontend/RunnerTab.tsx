@@ -6,7 +6,7 @@ import { CheckTable, DetailDrawer, FeedbackLine, StatusBadge, StatusBars, checkC
 import type { DrawerData, Feedback } from './common';
 
 // Runner is deliberately split: browser may invoke read-only Quick Test; regression CLI runs ONLY outside HTTP.
-const CLI = 'Host regression artifact: chỉ đọc; chưa có CLI runner cho module mới';
+const CLI = 'npx tsx test/system-test/regression.cli.ts --module SYSTEM_CONTROLLER_CENTER --environment TEST|CLONE (backend/, ngoài HTTP)';
 export function RunnerTab({onSessionLost}:{onSessionLost:()=>void}) {
   const [results,setResults]=useState<ResultsView|null>(null);
   const [feedback,setFeedback]=useState<Feedback|null>(null);
@@ -28,7 +28,7 @@ export function RunnerTab({onSessionLost}:{onSessionLost:()=>void}) {
   const counts=checkCounts(suites);
   return <div className="st-console">
     <header className="st-hero st-hero-runner"><div className="st-hero-head"><span className="st-eyebrow">TALO / QUALITY CONTROL</span>
-      <span className="st-hero-version">TEST EXECUTION · V0.1.0</span></div>
+      <span className="st-hero-version">TEST EXECUTION · V0.1.3</span></div>
       <div className="st-hero-main"><div><h1>Test runner <span>& results.</span></h1>
         <p>Kiểm tra nhanh ngay trên hệ thống; xem kết quả regression khi Host đã cung cấp artifact hợp lệ; không giả lập test chưa chạy.</p></div>
         <div className="st-hero-actions"><button type="button" className="st-button st-button-primary" disabled={busy} onClick={()=>void runQuick()}>
@@ -57,7 +57,10 @@ export function RunnerTab({onSessionLost}:{onSessionLost:()=>void}) {
         :reg.state==='INVALID'?<div className="st-feedback st-feedback-error">Artifact không hợp lệ. Không hiển thị dữ liệu không đáng tin cậy.</div>
         :<><div className="st-regression-overview"><div><StatusBadge status={reg.run.status==='ABORTED'?'NOT_RUN':reg.run.status}/>
           <strong>{reg.run.runId}</strong><small>{formatTime(reg.run.startedAt)} → {formatTime(reg.run.finishedAt)}</small>
-          <small>{reg.run.target.database} · {reg.run.target.nodeEnv} · {reg.run.target.host}</small></div>
+          <small>{reg.run.target.database} · {reg.run.target.nodeEnv} · {reg.run.target.host}{reg.run.target.port?`:${reg.run.target.port}`:''}</small>
+          <small><b>Môi trường nguồn: {reg.run.environment}</b>{reg.run.environment!=='TEST'?' — không phải bằng chứng runtime TEST':''}
+            {reg.run.source?` · source ${reg.run.source.commit.slice(0,12)}${reg.run.source.dirty?' + thay đổi chưa commit':''}`:''}
+            {reg.sha256?` · sha256 ${reg.sha256.slice(0,16)}…`:''}</small></div>
           <StatusBars counts={counts}/></div>
           <div className="st-suite-heading"><span>SUITE / COMMAND</span><span>TESTS</span><span>DURATION</span><span>STATUS</span></div>
           <div className="st-suites">{suites.map((s)=><button type="button" key={s.key} className="st-suite-row" onClick={()=>setDrawer({title:s.label,

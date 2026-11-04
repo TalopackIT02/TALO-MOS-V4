@@ -23,6 +23,8 @@ export interface CatalogRow {
   readonly schemaUsage: boolean | null;
   readonly tableSelect: boolean | null;
   readonly anyColumnSelect: boolean | null;
+  // SCC 0.1.3: every live column has SELECT (table-level or column-level). Absent / null = not known → never READABLE by columns.
+  readonly allColumnsSelect?: boolean | null;
 }
 
 export interface ColumnRow {
@@ -49,7 +51,7 @@ const flag = z.boolean().nullable();
 const adminRow = z.object({ username: z.string(), account_status: z.string(), disabled_at: z.unknown() });
 const catalogRow = z.object({
   relation_oid: z.string(), schema_name: z.string(), table_name: z.string(), relkind: z.string(), row_security: z.boolean(),
-  schema_usage: flag, table_select: flag, any_column_select: flag.optional(),
+  schema_usage: flag, table_select: flag, any_column_select: flag.optional(), all_columns_select: flag.optional(),
 });
 const columnRow = z.object({
   ordinal_position: z.number().int(), column_name: z.string(), data_type: z.string(), nullable: z.boolean(), primary_key: z.boolean(), select_privilege: flag,
@@ -61,6 +63,7 @@ function toCatalog(row: unknown): CatalogRow {
   return {
     oid: r.relation_oid, schema: r.schema_name, table: r.table_name, relkind: r.relkind, rowSecurity: r.row_security,
     schemaUsage: r.schema_usage, tableSelect: r.table_select, anyColumnSelect: r.any_column_select ?? null,
+    allColumnsSelect: r.all_columns_select ?? null,
   };
 }
 

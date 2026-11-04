@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import type { ModuleAccessDecision as AccessDecision } from './host.js';
-import type { DiagnosticsSnapshot, OperationsSnapshot } from './system-controller-center.repository.js';
+import type { ModuleAccessDecision as AccessDecision, DeploymentState } from './host.js';
+import type { DeploymentRegistry, DiagnosticsSnapshot, FleetCounts, FleetModule, FleetSnapshot, OperationsSnapshot } from './system-controller-center.repository.js';
+import { environmentOf } from './system-controller-center.results.js';
 import type { RegressionRead } from './system-controller-center.results.js';
 
 // MOD-TEST-01 — quick read-only checks (TAB 1). Pure evaluation of facts that the service has just read: nothing here
@@ -60,7 +61,43 @@ export interface CheckFacts {
   readonly manifest: { readonly intact: boolean; readonly micValid: boolean } | null;
   readonly operations?: OperationsSnapshot | { readonly error: unknown };
   readonly regression?: RegressionRead | null;
+  // SCC 0.1.3: Host deployment view + registry state of its packages; null / undefined = the Host offers no deploymentState.
+  readonly deployment?: DeploymentFacts | { readonly error: unknown } | null;
 }
+
+export interface DeploymentFacts { readonly state: DeploymentState; readonly registry: DeploymentRegistry }
+
+// Five layers that must not be confused (OD-SCC-05): REGISTERED (B01) → ACTIVE (B02) → INSTALLED (release in the
+// generated registries) → LOADED (router mounted) → SERVING (loaded AND ENABLED AND its ACTIVE version = the package).
+// installed / loaded / serving = null when the Host offers no deployment view (never guessed from the registry).
+export interface DeploymentTiers { readonly registered: number; readonly active: number; readonly installed: number | null; readonly loaded: number | null; readonly serving: number | null }
+export type PackageState = 'SERVING' | 'LOADED_DISABLED' | 'LOADED_NO_ACTIVE' | 'VERSION_DRIFT' | 'NOT_LOADED' | 'NOT_INSTALLED' | 'RELEASE_MISMATCH' | 'NOT_REGISTERED';
+
+export function packageStates(d: DeploymentFacts): { moduleKey: string; packageVersion: string; state: PackageState; activeVersion: string | null }[] {
+  return d.state.packages.map((p) => {
+    const reg = d.registry.rows.find((r) => r.moduleKey === p.moduleKey);
+    const activeVersion = reg?.activeVersion ?? null;
+    const state: PackageState = p.releaseVerified === false ? 'RELEASE_MISMATCH'
+      : !p.backendInstalled || !p.frontendInstalled ? 'NOT_INSTALLED'
+      : !p.loaded ? 'NOT_LOADED'
+      : reg === undefined ? 'NOT_REGISTERED'
+      : reg.activeVersions !== 1 ? 'LOADED_NO_ACTIVE'
+      : activeVersion !== p.packageVersion ? 'VERSION_DRIFT'
+      : reg.isEnabled ? 'SERVING' : 'LOADED_DISABLED';
+    return { moduleKey: p.moduleKey, packageVersion: p.packageVersion, state, activeVersion };
+  });
+}
+
+export function deploymentTiers(fleet: FleetCounts, d: DeploymentFacts | null): DeploymentTiers {
+  if (d === null) return { registered: fleet.registered, active: fleet.withActive, installed: null, loaded: null, serving: null };
+  const states = packageStates(d);
+  const installed = d.state.packages.filter((p) => p.backendInstalled && p.frontendInstalled && p.releaseVerified !== false).length;
+  return { registered: fleet.registered, active: fleet.withActive, installed, loaded: d.state.packages.filter((p) => p.loaded).length,
+    serving: states.filter((s) => s.state === 'SERVING').length };
+}
+
+const keysOf = (list: readonly FleetModule[], n = 8) => list.slice(0, n).map((m) => m.moduleKey).join(', ');
+const fmt = (n: number) => n.toLocaleString('vi-VN');
 
 const failed = <T extends object>(v: T | { readonly error: unknown }): v is { readonly error: unknown } => 'error' in v;
 const sorted = (values: readonly string[]) => [...values].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
@@ -178,20 +215,30 @@ export function evaluateChecks(facts: CheckFacts, sqlstate: (error: unknown) => 
       for (const key of ['FLEET_DISCOVERY','FLEET_LIFECYCLE','FLEET_RELEASES'] as const)
         unavailable(key, `Không có số liệu Foundation Registry (${ops.fleet.sqlstate ?? 'query failed'}).`);
     } else {
-      const fleet = ops.fleet.value;
-      const capped = fleet.length > 200;
-      const included = fleet.slice(0, 200);
-      const misconfigured = included.filter((m) => m.activeVersions > 1 || (m.enabled && m.activeVersions !== 1));
-      const disabled = included.filter((m) => !m.enabled);
-      const ready = included.filter((m) => m.enabled && m.activeVersions === 1);
-      const missingVersion = included.filter((m) => m.versionCount === 0);
-      set('FLEET_DISCOVERY', capped ? 'WARN' : 'PASS',
-        `Registry: ${included.length}${capped ? '+' : ''} module; ${ready.length} đang ENABLED với đúng 1 ACTIVE. ${capped ? 'Danh sách đạt giới hạn 200, chưa đầy đủ.' : 'Đây là danh sách đăng ký, không chứng minh code đã được deploy.'}`);
-      set('FLEET_LIFECYCLE', misconfigured.length ? 'FAIL' : disabled.length ? 'WARN' : 'PASS',
-        misconfigured.length ? `${misconfigured.length} module ENABLED không có đúng 1 ACTIVE (hoặc có nhiều ACTIVE): ${misconfigured.slice(0, 8).map((m) => m.moduleKey).join(', ')}.`
-          : `${ready.length} ENABLED/ACTIVE; ${disabled.length} DISABLED (có thể chủ động); không có sai lệch lifecycle đang bật.`);
-      set('FLEET_RELEASES', included.some((m) => m.activeVersions > 1) ? 'FAIL' : missingVersion.length ? 'WARN' : 'PASS',
-        `${included.reduce((a, m) => a + m.versionCount, 0)} version được đăng ký; ${missingVersion.length} module chưa có version; ${included.filter((m) => m.activeVersions === 1).length} module có 1 ACTIVE.`);
+      // SCC 0.1.3: every count is over the WHOLE registry (aggregate SQL); fixture candidates are counted AND named apart,
+      // never left out. Only the module lists shown to the browser are bounded.
+      const f: FleetSnapshot = ops.fleet.value;
+      const a = f.all; const fx = f.fixtureCandidates;
+      const nonFixture = (k: keyof FleetCounts) => a[k] - fx[k];
+      set('FLEET_DISCOVERY', 'PASS',
+        `Toàn bộ Registry: ${fmt(a.registered)} module (${fmt(fx.registered)} ứng viên fixture FBET_*, ${fmt(nonFixture('registered'))} module khác); `
+        + `${fmt(a.enabled)} ENABLED; ${fmt(a.enabledActive)} ENABLED với đúng 1 ACTIVE (${fmt(fx.enabledActive)} là ứng viên fixture). `
+        + 'Đây là dữ liệu đăng ký, không chứng minh package đã cài, đã nạp hay đang phục vụ (xem DEPLOYMENT_SYNC).');
+      const lifecycleBad = a.enabledWithoutActive + a.multiActive;
+      const anomalyKeys = (fixture: boolean) => keysOf(f.anomalies.filter((m) => m.fixtureCandidate === fixture));
+      const disabled = a.registered - a.enabled;
+      set('FLEET_LIFECYCLE', lifecycleBad > 0 ? 'FAIL' : disabled > 0 ? 'WARN' : 'PASS',
+        lifecycleBad > 0
+          ? `${fmt(a.enabledWithoutActive)} module ENABLED không có đúng 1 ACTIVE, ${fmt(a.multiActive)} module nhiều ACTIVE (toàn Registry). `
+            + `Module khác: ${fmt(nonFixture('enabledWithoutActive') + nonFixture('multiActive'))}${anomalyKeys(false) ? ` (${anomalyKeys(false)})` : ''}; `
+            + `ứng viên fixture FBET_*: ${fmt(fx.enabledWithoutActive + fx.multiActive)}${anomalyKeys(true) ? ` (${anomalyKeys(true)}${fx.enabledWithoutActive + fx.multiActive > 8 ? ', …' : ''})` : ''}.`
+            + (f.anomaliesTruncated ? ` Danh sách hiển thị giới hạn ${f.anomalies.length}; số đếm là toàn bộ.` : '')
+          : `${fmt(a.enabledActive)} ENABLED/ACTIVE; ${fmt(disabled)} DISABLED (có thể chủ động); không có sai lệch lifecycle đang bật.`);
+      const statuses = Object.entries(f.versionStatuses).map(([s, n]) => `${s} ${fmt(n)}`).join(', ');
+      // A module without any version is valid while DISABLED (REGISTER creates B01 only); ENABLED without a version breaks L5.
+      set('FLEET_RELEASES', a.multiActive > 0 ? 'FAIL' : a.enabledNoVersion > 0 ? 'WARN' : 'PASS',
+        `${fmt(a.versions)} version trên toàn Registry (${statuses || 'không có'}); ${fmt(a.withActive)} module có đúng 1 ACTIVE; `
+        + `${fmt(a.multiActive)} module nhiều ACTIVE; ${fmt(a.noVersion)} module chưa có version (${fmt(a.enabledNoVersion)} trong số đó đang ENABLED).`);
     }
     if (ops.activity.state === 'UNAVAILABLE') {
       for (const key of ['DB_CONNECTIONS','DB_DEADLOCKS','DB_ROLLBACKS'] as const) unavailable(key, `Không có quyền/số liệu pg_stat_database (${ops.activity.sqlstate ?? 'query failed'}).`);
@@ -217,18 +264,50 @@ export function evaluateChecks(facts: CheckFacts, sqlstate: (error: unknown) => 
       set('AUDIT_FAILURE', a.failures > 0 ? 'WARN' : 'PASS', `${a.failures} sự kiện FAILURE được ghi trong B08 trong 60 phút gần nhất. Không đồng nghĩa hệ thống ngừng hoạt động.`);
     }
   }
-  set('DEPLOYMENT_SYNC', 'NOT_TESTED', 'Module Host hiện không cung cấp capability so sánh thư mục modules/ với package đang chạy. Chỉ kiểm tra registry Foundation; không tự coi là deploy thành công.');
+  // DEPLOYMENT_SYNC (SCC 0.1.3): only from the Host's own deployment view; never inferred from the registry alone.
+  const fleetCounts = ops && !failed(ops) && ops.fleet.state === 'AVAILABLE' ? ops.fleet.value.all : null;
+  const dep = facts.deployment;
+  if (dep === null || dep === undefined) {
+    set('DEPLOYMENT_SYNC', 'NOT_TESTED', `Module Host này không cung cấp capability deploymentState: không xác minh được INSTALLED / LOADED / SERVING. `
+      + (fleetCounts ? `Registry: ${fmt(fleetCounts.registered)} REGISTERED, ${fmt(fleetCounts.withActive)} có ACTIVE, ${fmt(fleetCounts.enabledActive)} ENABLED + ACTIVE — ` : '')
+      + 'ACTIVE trong Registry không chứng minh package đã triển khai.');
+  } else if (failed(dep)) {
+    set('DEPLOYMENT_SYNC', 'UNAVAILABLE', `Không đọc được trạng thái triển khai của Host (${reason(dep.error)}).`);
+  } else {
+    const states = packageStates(dep);
+    const bad = states.filter((s) => s.state === 'RELEASE_MISMATCH' || s.state === 'NOT_INSTALLED' || s.state === 'NOT_LOADED' || s.state === 'NOT_REGISTERED'
+      || (s.state === 'VERSION_DRIFT' && dep.registry.rows.find((r) => r.moduleKey === s.moduleKey)?.isEnabled === true));
+    const ro = dep.registry.registryOnly;
+    const tiers = fleetCounts ? deploymentTiers(fleetCounts, dep) : null;
+    const status: CheckStatus = bad.length > 0 || !dep.state.lockMatchesRuntime || ro.other > 0 ? 'FAIL'
+      : ro.fixture > 0 || states.some((s) => s.state === 'VERSION_DRIFT' || s.state === 'LOADED_NO_ACTIVE') ? 'WARN' : 'PASS';
+    set('DEPLOYMENT_SYNC', status,
+      (tiers && tiers.serving !== null ? `REGISTERED ${fmt(tiers.registered)} · ACTIVE ${fmt(tiers.active)} · INSTALLED ${tiers.installed} · LOADED ${tiers.loaded} · SERVING ${tiers.serving}. ` : '')
+      + `Lock ${dep.state.lockMatchesRuntime ? 'khớp' : 'KHÔNG khớp'} runtime. `
+      + `Package: ${states.map((s) => `${s.moduleKey} ${s.packageVersion} ${s.state}${s.state === 'VERSION_DRIFT' ? ` (B02 ACTIVE ${s.activeVersion ?? '—'})` : ''}`).join('; ') || 'không có'}. `
+      + `ENABLED + ACTIVE nhưng không có package: ${fmt(ro.other)} module khác${ro.otherKeys.length ? ` (${ro.otherKeys.slice(0, 8).join(', ')})` : ''}, ${fmt(ro.fixture)} ứng viên fixture FBET_* (chỉ có trong Registry).`);
+  }
   const reg = facts.regression;
   if (reg === null || reg === undefined) set('REGRESSION', 'NOT_TESTED', 'Chưa có quyền hoặc chưa đọc tín hiệu Full Regression qua Host. Kiểm tra bằng tab Test Runner.');
   else if (reg.state === 'NOT_RUN') set('REGRESSION', 'NOT_TESTED', 'Chưa có artifact Full Regression từ runner CLI chính thức.');
   else if (reg.state === 'INVALID') set('REGRESSION', 'WARN', 'Artifact Full Regression không hợp lệ; cần chạy lại runner CLI của Host.');
   else {
-    const failedSuites = reg.run.suites.filter((s) => s.status === 'FAIL' || s.status === 'TIMEOUT');
-    const notRunSuites = reg.run.suites.filter((s) => s.status === 'NOT_RUN');
-    const age = Date.now() - Date.parse(reg.run.finishedAt);
+    const run = reg.run;
+    const failedSuites = run.suites.filter((s) => s.status === 'FAIL' || s.status === 'TIMEOUT');
+    const notRunSuites = run.suites.filter((s) => s.status === 'NOT_RUN');
+    const age = Date.now() - Date.parse(run.finishedAt);
     const stale = !Number.isFinite(age) || age < 0 || age > 24 * 60 * 60 * 1000;
-    set('REGRESSION', failedSuites.length || reg.run.status === 'FAIL' ? 'FAIL' : reg.run.status === 'ABORTED' || notRunSuites.length || stale ? 'WARN' : 'PASS',
-      `Lần chạy ${reg.run.runId}: ${reg.run.status}; ${failedSuites.length} suite lỗi/timeout; ${notRunSuites.length} chưa chạy; ${stale ? 'kết quả cũ trên 24 giờ hoặc timestamp không hợp lệ' : 'kết quả trong 24 giờ'}.`);
+    // SCC 0.1.3: an artifact proves the runtime of THIS database only when it says so (format 2, environment TEST, same
+    // database name). A CLONE (or format 1, environment unknown) run is shown with its source and is at best WARN.
+    const env = environmentOf(run);
+    const here = snapshot && !failed(snapshot) ? snapshot.identity.databaseName : null;
+    const sameTarget = env === 'TEST' && here !== null && run.target.database === here;
+    const where = `Môi trường nguồn: ${env}${'port' in run.target ? ` (${run.target.database} @ ${run.target.host}:${run.target.port})` : ` (${run.target.database} @ ${run.target.host})`}`
+      + ('source' in run ? `; source ${run.source.commit.slice(0, 12)}${run.source.dirty ? ' + thay đổi chưa commit' : ''}` : '');
+    const base: CheckStatus = failedSuites.length || run.status === 'FAIL' ? 'FAIL' : run.status === 'ABORTED' || notRunSuites.length || stale ? 'WARN' : 'PASS';
+    set('REGRESSION', base === 'PASS' && !sameTarget ? 'WARN' : base,
+      `Lần chạy ${run.runId}: ${run.status}; ${failedSuites.length} suite lỗi/timeout; ${notRunSuites.length} chưa chạy; ${stale ? 'kết quả cũ trên 24 giờ hoặc timestamp không hợp lệ' : 'kết quả trong 24 giờ'}. `
+      + `${where}; sha256 ${reg.sha256.slice(0, 16)}…${sameTarget ? '' : '. KHÔNG phải bằng chứng runtime của database đang kiểm tra.'}`);
   }
 
   return CHECK_COMPONENTS.map(([key, label]) => {

@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import type { ModuleActor as Actor, ModuleHost, ModulePermission as PermissionRef } from './host.js';
-import { evaluateChecks, summarize } from './system-controller-center.checks.js';
-import type { CheckResult, CheckStatus, IamFact } from './system-controller-center.checks.js';
+import { deploymentTiers, evaluateChecks, packageStates, summarize } from './system-controller-center.checks.js';
+import type { CheckResult, CheckStatus, DeploymentFacts, IamFact, PackageState } from './system-controller-center.checks.js';
 import { SYSTEM_CONTROLLER_CENTER_ACTION, SYSTEM_CONTROLLER_CENTER_DENIED_TARGET } from './system-controller-center.permissions.js';
 import type { SystemTestBinding } from './system-controller-center.permissions.js';
-import type { FleetModule, SystemTestRepository } from './system-controller-center.repository.js';
+import type { FleetCounts, FleetModule, SystemTestRepository } from './system-controller-center.repository.js';
 import { parseRegressionResults } from './system-controller-center.results.js';
 import type { RegressionRead } from './system-controller-center.results.js';
 
@@ -29,8 +29,20 @@ export interface QuickCheckRun {
   readonly moduleKey: string;
   readonly results: readonly CheckResult[];
   readonly summary: Record<CheckStatus, number>;
+  // Bounded list for the browser (SCC 0.1.3: non-fixture modules + lifecycle anomalies of the whole registry, ≤ 200).
   readonly fleet: readonly FleetModule[];
+  // true when the list above holds every non-fixture module AND every lifecycle anomaly (the counts are always complete).
   readonly fleetComplete: boolean;
+  // SCC 0.1.3 (additive): whole-registry counts; null when the registry could not be read.
+  readonly fleetSummary: FleetSummaryView | null;
+}
+export interface FleetSummaryView {
+  readonly scope: 'FULL_REGISTRY';
+  readonly all: FleetCounts;
+  readonly fixtureCandidates: FleetCounts;
+  readonly versionStatuses: Readonly<Record<string, number>>;
+  readonly tiers: { readonly registered: number; readonly active: number; readonly installed: number | null; readonly loaded: number | null; readonly serving: number | null };
+  readonly packages: readonly { readonly moduleKey: string; readonly packageVersion: string; readonly state: PackageState; readonly activeVersion: string | null }[] | null;
 }
 export interface ResultsView {
   readonly quickCheck: QuickCheckRun | null;
@@ -91,16 +103,37 @@ export class SystemTestService {
       try { regression = parseRegressionResults(await this.host.regressionResults()); }
       catch { regression = { state: 'INVALID' }; }
     }
+    // SCC 0.1.3: deployment view only when the Host offers the optional capability (never assumed, never inferred).
+    let deployment: DeploymentFacts | { error: unknown } | null = null;
+    const deploymentState = this.host.deploymentState;
+    if (typeof deploymentState === 'function') {
+      try {
+        const state = await deploymentState.call(this.host);
+        deployment = { state, registry: await this.repository.deploymentRegistry(state.packages.map((p) => p.moduleKey)) };
+      } catch (error) { deployment = { error }; }
+    }
     const results = evaluateChecks({ moduleKey: this.binding.moduleKey, assuranceLevel: actor.assuranceLevel,
-      snapshot, iam, menuRoutes, manifest, operations, regression }, (e) => this.host.sqlstate(e));
+      snapshot, iam, menuRoutes, manifest, operations, regression, deployment }, (e) => this.host.sqlstate(e));
     for (const r of results) if (r.status === 'FAIL') this.host.logger.warn('system-controller critical check',
       { requestId: actor.requestId, check: r.key, status: r.status });
     const end = this.now();
-    const fleet = 'error' in operations || operations.fleet.state === 'UNAVAILABLE' ? [] : operations.fleet.value.slice(0, 200);
+    const fleetValue = 'error' in operations || operations.fleet.state === 'UNAVAILABLE' ? null : operations.fleet.value;
+    // Browser list: every non-fixture module, then the lifecycle anomalies (fixture candidates included), de-duplicated.
+    const combined = fleetValue ? [...fleetValue.modules, ...fleetValue.anomalies.filter((m) => !fleetValue.modules.some((x) => x.moduleKey === m.moduleKey))] : [];
+    const fleet = combined.slice(0, 200);
+    const facts = deployment !== null && !('error' in deployment) ? deployment : null;
+    const tiers = fleetValue ? deploymentTiers(fleetValue.all, facts) : null;
+    const fleetSummary: FleetSummaryView | null = fleetValue && tiers ? {
+      scope: 'FULL_REGISTRY', all: fleetValue.all, fixtureCandidates: fleetValue.fixtureCandidates, versionStatuses: fleetValue.versionStatuses,
+      tiers,
+      packages: facts ? packageStates(facts) : null,
+    } : null;
     const run: QuickCheckRun = {
       runId: actor.requestId, startedAt: start.toISOString(), finishedAt: end.toISOString(),
       durationMs: Math.max(0, end.getTime() - start.getTime()), moduleKey: this.binding.moduleKey,
-      results, summary: summarize(results), fleet, fleetComplete: !('error' in operations) && operations.fleet.state === 'AVAILABLE' && operations.fleet.value.length <= 200,
+      results, summary: summarize(results), fleet,
+      fleetComplete: fleetValue !== null && !fleetValue.anomaliesTruncated && !fleetValue.modulesTruncated && combined.length <= 200,
+      fleetSummary,
     };
     if (this.recent.size >= 100 && !this.recent.has(actor.userAccountId)) this.recent.delete(this.recent.keys().next().value ?? '');
     this.recent.set(actor.userAccountId, run);

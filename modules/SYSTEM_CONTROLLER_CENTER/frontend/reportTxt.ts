@@ -19,15 +19,31 @@ function checkRun(run:QuickCheckRun|null):string[]{
     const c=run.results[i]!;
     lines.push(`${i+1}. [${clean(c.status)}] ${clean(c.key)} — ${clean(c.label)}`,`   ${clean(c.detail)}`);
   }
-  lines.push('','MODULE FLEET');
-  for(const m of run.fleet) lines.push(`- ${clean(m.moduleKey)} | enabled=${m.enabled} | versions=${m.versionCount} | active=${m.activeVersions}`);
-  if(!run.fleetComplete)lines.push('WARNING: Fleet không đầy đủ; không được suy diễn module chưa liệt kê là không tồn tại.');
+  const s=run.fleetSummary;
+  if(s){
+    const other=(k:keyof typeof s.all)=>s.all[k]-s.fixtureCandidates[k];
+    lines.push('','FLEET — TOÀN REGISTRY (tổng | module khác | ứng viên fixture FBET_*)',
+      `Registered: ${s.all.registered} | ${other('registered')} | ${s.fixtureCandidates.registered}`,
+      `ENABLED: ${s.all.enabled} | ${other('enabled')} | ${s.fixtureCandidates.enabled}`,
+      `ENABLED + 1 ACTIVE: ${s.all.enabledActive} | ${other('enabledActive')} | ${s.fixtureCandidates.enabledActive}`,
+      `ENABLED sai lifecycle: ${s.all.enabledWithoutActive+s.all.multiActive} | ${other('enabledWithoutActive')+other('multiActive')} | ${s.fixtureCandidates.enabledWithoutActive+s.fixtureCandidates.multiActive}`,
+      `Chưa có version: ${s.all.noVersion} | ${other('noVersion')} | ${s.fixtureCandidates.noVersion}`,
+      `Version: ${s.all.versions} (${Object.entries(s.versionStatuses).map(([k,v])=>`${k} ${v}`).join(', ')})`,
+      `Triển khai: REGISTERED ${s.tiers.registered} → ACTIVE ${s.tiers.active} → INSTALLED ${s.tiers.installed??'—'} → LOADED ${s.tiers.loaded??'—'} → SERVING ${s.tiers.serving??'—'}`,
+      ...(s.packages?s.packages.map(p=>`- package ${clean(p.moduleKey)} ${clean(p.packageVersion)}: ${clean(p.state)}`):['Host chưa cung cấp deploymentState: INSTALLED / LOADED / SERVING chưa xác minh.']));
+  }
+  lines.push('','MODULE FLEET (danh sách hiển thị có giới hạn)');
+  for(const m of run.fleet) lines.push(`- ${clean(m.moduleKey)} | enabled=${m.enabled} | versions=${m.versionCount} | active=${m.activeVersions}${m.fixtureCandidate?' | fixture-candidate':''}`);
+  if(!run.fleetComplete)lines.push(s?'NOTE: danh sách module hiển thị có giới hạn; các số liệu FLEET ở trên là toàn bộ Registry.'
+    :'WARNING: Fleet không đầy đủ; không được suy diễn module chưa liệt kê là không tồn tại.');
   return lines;
 }
 function regression(run:RegressionRun):string[]{
   const lines=['FULL REGRESSION',line('Run ID',run.runId),line('Start',run.startedAt),line('Finished',run.finishedAt),
     line('Status',run.status),line('Database',run.target.database),line('Node Environment',run.target.nodeEnv),
-    line('Host',run.target.host),'','TEST SUITES'];
+    line('Host',`${run.target.host}${run.target.port?`:${run.target.port}`:''}`),
+    line('Source environment',`${run.environment}${run.environment!=='TEST'?' (KHÔNG phải bằng chứng runtime TEST)':''}`),
+    line('Source commit',run.source?`${run.source.commit}${run.source.dirty?' + uncommitted changes':''}`:'không có (format 1)'),'','TEST SUITES'];
   for(let i=0;i<run.suites.length;i++){
     const s=run.suites[i]!;
     lines.push(`${i+1}. [${clean(s.status)}] ${clean(s.key)} — ${clean(s.label)}`,

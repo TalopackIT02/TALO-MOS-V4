@@ -22,7 +22,11 @@ export const DATA_INSPECTOR_SQL = {
            pg_catalog.has_table_privilege(c.oid, 'SELECT') AS table_select,
            EXISTS (SELECT 1 FROM pg_catalog.pg_attribute AS a
                     WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
-                      AND pg_catalog.has_column_privilege(c.oid, a.attnum, 'SELECT')) AS any_column_select
+                      AND pg_catalog.has_column_privilege(c.oid, a.attnum, 'SELECT')) AS any_column_select,
+           -- SCC 0.1.3 (RO-D6): column-level grants that cover EVERY live column read the whole table (READABLE, not PARTIAL).
+           NOT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute AS a
+                        WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+                          AND NOT pg_catalog.has_column_privilege(c.oid, a.attnum, 'SELECT')) AS all_columns_select
       FROM pg_catalog.pg_class AS c
       JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
      WHERE c.relkind IN ('r', 'p')
