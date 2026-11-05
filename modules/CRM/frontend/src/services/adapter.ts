@@ -9,7 +9,7 @@ export const IDENTIFIER_VIEW_PERMISSION: Permission = 'crm.legal_change.read';
 
 // CRM client adapter boundary (owner order III): screens only talk to this interface. Implementations:
 //   MockCrmAdapter  — in-browser data + the CM-BE-SPEC-REV01 business rules (current, labelled "Mô phỏng");
-//   API adapter     — /api/cm/* through the Module Host once the write capability exists (BLOCKED_BY_MODULE_HOST_WRITE_CAPABILITY).
+//   ApiCrmAdapter   — /api/cm/* through the Module Host (controlledWrite); selected in services/config.ts (default MOCK).
 // Every call is async and may reject with CrmClientError (same codes as the backend error catalogue).
 
 export class CrmClientError extends Error {

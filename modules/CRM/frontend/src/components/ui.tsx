@@ -134,11 +134,34 @@ function MockBanner() {
   );
 }
 
+// API mode: no demo controls; only what is NOT served yet is announced, with its real reason (never shown as working).
+function ApiStatusBar() {
+  const { adapter } = useCrm();
+  const [open, setOpen] = useState(false);
+  if (adapter.kind !== 'API') return null;
+  const blocked = adapter.capabilities().filter((c) => c.state !== 'INTEGRATED');
+  if (blocked.length === 0) return null;
+  return (
+    <div className="crm-mockbar">
+      <span><Badge tone="red">CHƯA CÓ</Badge> {blocked.map((c) => c.feature).join(' · ')}</span>
+      <button type="button" className="crm-link" onClick={() => setOpen(true)}>Trạng thái tích hợp</button>
+      {open && <Modal title="Trạng thái tích hợp CRM" onClose={() => setOpen(false)} wide>
+        <table className="crm-table"><thead><tr><th>Chức năng</th><th>Trạng thái</th><th>Lý do</th></tr></thead><tbody>
+          {adapter.capabilities().map((c) => <tr key={c.feature}><td>{c.feature}</td>
+            <td><Badge tone={c.state === 'INTEGRATED' ? 'green' : c.state === 'BLOCKED' ? 'red' : 'amber'}>{c.state === 'MOCK' ? 'Mô phỏng' : c.state === 'BLOCKED' ? 'Chưa có (BLOCKED)' : 'Đã tích hợp'}</Badge></td>
+            <td>{c.reason}</td></tr>)}
+        </tbody></table>
+      </Modal>}
+    </div>
+  );
+}
+
 export function CrmScreen({ children, onSessionLost }: { children: ReactNode; onSessionLost?: () => void }) {
   return (
     <CrmProvider {...(onSessionLost ? { onSessionLost } : {})}>
       <div className="crm-root">
         <MockBanner />
+        <ApiStatusBar />
         <Reminders />
         <Gate>{children}</Gate>
         <Toasts />

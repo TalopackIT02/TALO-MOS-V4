@@ -1,0 +1,3108 @@
+{
+  "mic01Identity": {
+    "moduleKey": "CRM",
+    "moduleName": "Quản lý khách hàng (CRM)",
+    "moduleVersion": "0.2.0",
+    "micStandard": "MIC-1.0"
+  },
+  "mic02Functions": [
+    {
+      "functionKey": "CUSTOMER",
+      "name": "Khách hàng"
+    },
+    {
+      "functionKey": "LEGAL_CHANGE",
+      "name": "Thay đổi pháp lý"
+    },
+    {
+      "functionKey": "CONTACT",
+      "name": "Người liên hệ"
+    },
+    {
+      "functionKey": "GROUP",
+      "name": "Nhóm ngành"
+    },
+    {
+      "functionKey": "ASSIGNMENT",
+      "name": "Phân công Sale"
+    },
+    {
+      "functionKey": "HANDOVER",
+      "name": "Bàn giao khách hàng"
+    },
+    {
+      "functionKey": "ACTIVITY",
+      "name": "Hoạt động & kết quả"
+    },
+    {
+      "functionKey": "DOCUMENT",
+      "name": "Tài liệu khách hàng"
+    },
+    {
+      "functionKey": "REFERENCE",
+      "name": "Danh mục tham chiếu"
+    },
+    {
+      "functionKey": "APPOINTMENT",
+      "name": "Lịch hẹn"
+    },
+    {
+      "functionKey": "TASK",
+      "name": "Công việc (To-do)"
+    },
+    {
+      "functionKey": "WORK_REPORT",
+      "name": "Báo cáo công việc"
+    }
+  ],
+  "mic03Actions": [
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "READ",
+      "name": "Xem khách hàng trong phạm vi",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "READ_ALL",
+      "name": "Xem toàn bộ khách hàng",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "CREATE",
+      "name": "Tạo khách hàng",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "UPDATE",
+      "name": "Sửa thông tin thường",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "VERIFY",
+      "name": "Xác minh hồ sơ (DRAFT → VERIFIED)",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "HIDE",
+      "name": "Ẩn khách hàng",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "EXPORT",
+      "name": "Xuất danh sách khách hàng",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "READ",
+      "name": "Xem đề nghị và định danh đầy đủ",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "REQUEST",
+      "name": "Đề nghị thay đổi pháp lý",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "APPROVE_MANAGEMENT",
+      "name": "Duyệt cấp quản lý",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "APPROVE_ACCOUNTING",
+      "name": "Duyệt cấp kế toán",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "CONTACT",
+      "actionKey": "READ",
+      "name": "Xem người liên hệ",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "CONTACT",
+      "actionKey": "MANAGE",
+      "name": "Thêm / sửa / ngừng người liên hệ",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "GROUP",
+      "actionKey": "READ",
+      "name": "Xem nhóm",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "GROUP",
+      "actionKey": "MANAGE",
+      "name": "Quản lý danh mục nhóm",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "GROUP",
+      "actionKey": "ASSIGN",
+      "name": "Gán nhóm cho khách hàng",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "ASSIGNMENT",
+      "actionKey": "READ",
+      "name": "Xem lịch sử phân công",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "ASSIGNMENT",
+      "actionKey": "MANAGE",
+      "name": "Thêm Sale / kết thúc Sale hỗ trợ",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "REQUEST",
+      "name": "Đề nghị bàn giao",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "APPROVE",
+      "name": "Duyệt bàn giao",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "ACKNOWLEDGE",
+      "name": "Xác nhận bàn giao",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "REJECT",
+      "name": "Từ chối bàn giao",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "OVERRIDE",
+      "name": "Xác nhận thay (chưa mở)",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "ACTIVITY",
+      "actionKey": "READ",
+      "name": "Xem hoạt động",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "ACTIVITY",
+      "actionKey": "CREATE",
+      "name": "Ghi hoạt động",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "ACTIVITY",
+      "actionKey": "UPDATE",
+      "name": "Sửa / hủy hoạt động mở",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "ACTIVITY",
+      "actionKey": "COMPLETE",
+      "name": "Hoàn thành hoạt động",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "DOCUMENT",
+      "actionKey": "READ",
+      "name": "Xem tài liệu",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "DOCUMENT",
+      "actionKey": "MANAGE",
+      "name": "Cập nhật metadata tài liệu",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "REFERENCE",
+      "actionKey": "READ",
+      "name": "Xem tỉnh / phường / vùng",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "APPOINTMENT",
+      "actionKey": "READ",
+      "name": "Xem lịch hẹn",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "APPOINTMENT",
+      "actionKey": "CREATE",
+      "name": "Tạo lịch hẹn",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "APPOINTMENT",
+      "actionKey": "UPDATE",
+      "name": "Sửa / hủy / ghi kết quả lịch hẹn",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "APPOINTMENT",
+      "actionKey": "REMIND_DISMISS",
+      "name": "Tắt nhắc lịch",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "TASK",
+      "actionKey": "READ",
+      "name": "Xem công việc",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "TASK",
+      "actionKey": "CREATE",
+      "name": "Tạo công việc",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "TASK",
+      "actionKey": "UPDATE",
+      "name": "Cập nhật công việc",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "TASK",
+      "actionKey": "ASSIGN",
+      "name": "Giao việc cho người khác",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "WORK_REPORT",
+      "actionKey": "READ",
+      "name": "Xem báo cáo của mình",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "WORK_REPORT",
+      "actionKey": "READ_ALL",
+      "name": "Xem báo cáo đã nộp của người khác",
+      "nature": "READ"
+    },
+    {
+      "functionKey": "WORK_REPORT",
+      "actionKey": "CREATE",
+      "name": "Lập / sửa báo cáo nháp",
+      "nature": "WRITE"
+    },
+    {
+      "functionKey": "WORK_REPORT",
+      "actionKey": "SUBMIT",
+      "name": "Nộp báo cáo",
+      "nature": "WRITE"
+    }
+  ],
+  "mic04Navigation": [
+    {
+      "menuLabel": "CRM"
+    },
+    {
+      "routePath": "/crm",
+      "screenKey": "crm.workspace",
+      "menuLabel": "Tổng quan công việc",
+      "functionKey": "REFERENCE"
+    },
+    {
+      "routePath": "/crm/customers",
+      "screenKey": "crm.customers",
+      "menuLabel": "Khách hàng",
+      "functionKey": "CUSTOMER"
+    },
+    {
+      "routePath": "/crm/calendar",
+      "screenKey": "crm.calendar",
+      "menuLabel": "Lịch hẹn",
+      "functionKey": "APPOINTMENT"
+    },
+    {
+      "routePath": "/crm/tasks",
+      "screenKey": "crm.tasks",
+      "menuLabel": "Công việc",
+      "functionKey": "TASK"
+    },
+    {
+      "routePath": "/crm/reports",
+      "screenKey": "crm.reports",
+      "menuLabel": "Báo cáo",
+      "functionKey": "WORK_REPORT"
+    }
+  ],
+  "mic05Api": [
+    {
+      "method": "GET",
+      "path": "/api/cm/session",
+      "functionKey": "REFERENCE",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/accounts",
+      "functionKey": "CUSTOMER",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/references/provinces",
+      "functionKey": "REFERENCE",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_REFERENCE_UNAVAILABLE"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/references/regions",
+      "functionKey": "REFERENCE",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/groups",
+      "functionKey": "GROUP",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/groups",
+      "functionKey": "GROUP",
+      "actionKey": "MANAGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/cm/groups/{id}",
+      "functionKey": "GROUP",
+      "actionKey": "MANAGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/customers",
+      "functionKey": "CUSTOMER",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/customers/visible",
+      "functionKey": "CUSTOMER",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/check-identity",
+      "functionKey": "CUSTOMER",
+      "actionKey": "CREATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/export",
+      "functionKey": "CUSTOMER",
+      "actionKey": "EXPORT",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers",
+      "functionKey": "CUSTOMER",
+      "actionKey": "CREATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_IDENTITY_DUPLICATE",
+        "CM_INVALID_PROVINCE_WARD",
+        "CM_REFERENCE_UNAVAILABLE",
+        "CM_APPROVAL_REQUIRED",
+        "CM_DRAFT_NOT_ELIGIBLE"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/full",
+      "functionKey": "CUSTOMER",
+      "actionKey": "CREATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_IDENTITY_DUPLICATE",
+        "CM_INVALID_PROVINCE_WARD",
+        "CM_REFERENCE_UNAVAILABLE",
+        "CM_APPROVAL_REQUIRED",
+        "CM_DRAFT_NOT_ELIGIBLE"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/customers/{id}",
+      "functionKey": "CUSTOMER",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/customers/{id}/bundle",
+      "functionKey": "CUSTOMER",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/cm/customers/{id}",
+      "functionKey": "CUSTOMER",
+      "actionKey": "UPDATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_IDENTITY_DUPLICATE",
+        "CM_INVALID_PROVINCE_WARD",
+        "CM_REFERENCE_UNAVAILABLE",
+        "CM_APPROVAL_REQUIRED",
+        "CM_DRAFT_NOT_ELIGIBLE"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/{id}/verify",
+      "functionKey": "CUSTOMER",
+      "actionKey": "VERIFY",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_IDENTITY_DUPLICATE",
+        "CM_INVALID_PROVINCE_WARD",
+        "CM_REFERENCE_UNAVAILABLE",
+        "CM_APPROVAL_REQUIRED",
+        "CM_DRAFT_NOT_ELIGIBLE"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/{id}/hide",
+      "functionKey": "CUSTOMER",
+      "actionKey": "HIDE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/cm/customers/{id}/groups",
+      "functionKey": "GROUP",
+      "actionKey": "ASSIGN",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/legal-changes",
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/{id}/legal-changes",
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "REQUEST",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_IDENTITY_DUPLICATE",
+        "CM_INVALID_PROVINCE_WARD",
+        "CM_REFERENCE_UNAVAILABLE",
+        "CM_APPROVAL_REQUIRED",
+        "CM_DRAFT_NOT_ELIGIBLE"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/legal-changes/{id}/decisions",
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "APPROVE_MANAGEMENT",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_IDENTITY_DUPLICATE",
+        "CM_INVALID_PROVINCE_WARD",
+        "CM_REFERENCE_UNAVAILABLE",
+        "CM_APPROVAL_REQUIRED",
+        "CM_DRAFT_NOT_ELIGIBLE"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/{id}/contacts",
+      "functionKey": "CONTACT",
+      "actionKey": "MANAGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/cm/contacts/{id}",
+      "functionKey": "CONTACT",
+      "actionKey": "MANAGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/contacts/{id}/deactivate",
+      "functionKey": "CONTACT",
+      "actionKey": "MANAGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/{id}/assignments",
+      "functionKey": "ASSIGNMENT",
+      "actionKey": "MANAGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/assignments/{id}/end",
+      "functionKey": "ASSIGNMENT",
+      "actionKey": "MANAGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/handovers",
+      "functionKey": "ASSIGNMENT",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/{id}/handovers",
+      "functionKey": "HANDOVER",
+      "actionKey": "REQUEST",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_HANDOVER_INVALID_STATE"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/handovers/{id}/approve",
+      "functionKey": "HANDOVER",
+      "actionKey": "APPROVE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_HANDOVER_INVALID_STATE"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/handovers/{id}/acknowledge",
+      "functionKey": "HANDOVER",
+      "actionKey": "ACKNOWLEDGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_HANDOVER_INVALID_STATE"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/handovers/{id}/reject",
+      "functionKey": "HANDOVER",
+      "actionKey": "REJECT",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN",
+        "CM_HANDOVER_INVALID_STATE"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/activities/recent",
+      "functionKey": "ACTIVITY",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/{id}/activities",
+      "functionKey": "ACTIVITY",
+      "actionKey": "CREATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/cm/activities/{id}",
+      "functionKey": "ACTIVITY",
+      "actionKey": "UPDATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/activities/{id}/complete",
+      "functionKey": "ACTIVITY",
+      "actionKey": "COMPLETE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/documents/expiring",
+      "functionKey": "DOCUMENT",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/customers/{id}/documents",
+      "functionKey": "DOCUMENT",
+      "actionKey": "MANAGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/cm/documents/{id}",
+      "functionKey": "DOCUMENT",
+      "actionKey": "MANAGE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/appointments/reminders/due",
+      "functionKey": "APPOINTMENT",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/appointments",
+      "functionKey": "APPOINTMENT",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/appointments/{id}",
+      "functionKey": "APPOINTMENT",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/appointments",
+      "functionKey": "APPOINTMENT",
+      "actionKey": "CREATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/cm/appointments/{id}",
+      "functionKey": "APPOINTMENT",
+      "actionKey": "UPDATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/appointments/{id}/cancel",
+      "functionKey": "APPOINTMENT",
+      "actionKey": "UPDATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/appointments/{id}/complete",
+      "functionKey": "APPOINTMENT",
+      "actionKey": "UPDATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/appointments/{id}/reminder-dismissals",
+      "functionKey": "APPOINTMENT",
+      "actionKey": "REMIND_DISMISS",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/tasks",
+      "functionKey": "TASK",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/tasks/{id}",
+      "functionKey": "TASK",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/tasks",
+      "functionKey": "TASK",
+      "actionKey": "CREATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/cm/tasks/{id}",
+      "functionKey": "TASK",
+      "actionKey": "UPDATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/tasks/{id}/complete",
+      "functionKey": "TASK",
+      "actionKey": "UPDATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/tasks/{id}/cancel",
+      "functionKey": "TASK",
+      "actionKey": "UPDATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/work-reports",
+      "functionKey": "WORK_REPORT",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cm/work-reports/{id}",
+      "functionKey": "WORK_REPORT",
+      "actionKey": "READ",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/work-reports",
+      "functionKey": "WORK_REPORT",
+      "actionKey": "CREATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/cm/work-reports/{id}",
+      "functionKey": "WORK_REPORT",
+      "actionKey": "CREATE",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/cm/work-reports/{id}/submit",
+      "functionKey": "WORK_REPORT",
+      "actionKey": "SUBMIT",
+      "errors": [
+        "CM_VALIDATION_FAILED",
+        "CM_CUSTOMER_NOT_FOUND",
+        "CM_PERMISSION_DENIED",
+        "CM_CONCURRENT_UPDATE",
+        "MODULE_UNAVAILABLE",
+        "SERVICE_BUSY",
+        "FORBIDDEN"
+      ]
+    }
+  ],
+  "mic06DataResources": [
+    {
+      "resourceKey": "CM_CUSTOMERS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customers",
+      "columns": [
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "display_name",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "legal_name",
+          "type": "varchar"
+        },
+        {
+          "name": "registered_address",
+          "type": "text"
+        },
+        {
+          "name": "representative_name",
+          "type": "varchar"
+        },
+        {
+          "name": "representative_phone",
+          "type": "varchar"
+        },
+        {
+          "name": "customer_type_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "customer_status_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "internal_note",
+          "type": "text"
+        },
+        {
+          "name": "created_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "is_hidden",
+          "type": "bool",
+          "required": true
+        },
+        {
+          "name": "legal_identifier_type_code",
+          "type": "varchar"
+        },
+        {
+          "name": "legal_identifier_normalized",
+          "type": "varchar"
+        },
+        {
+          "name": "address_line",
+          "type": "text"
+        },
+        {
+          "name": "province_code",
+          "type": "bpchar"
+        },
+        {
+          "name": "ward_code",
+          "type": "bpchar"
+        },
+        {
+          "name": "country_code",
+          "type": "bpchar",
+          "required": true
+        },
+        {
+          "name": "foreign_locality",
+          "type": "varchar"
+        },
+        {
+          "name": "foreign_state_province",
+          "type": "varchar"
+        },
+        {
+          "name": "record_status_code",
+          "type": "varchar",
+          "required": true
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "CUSTOMER",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "CUSTOMER",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "CUSTOMER",
+          "actionKey": "UPDATE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "CUSTOMER",
+          "actionKey": "VERIFY",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "CUSTOMER",
+          "actionKey": "HIDE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "LEGAL_CHANGE",
+          "actionKey": "APPROVE_ACCOUNTING",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_CONTACTS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_contacts",
+      "columns": [
+        {
+          "name": "contact_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "full_name",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "position_title",
+          "type": "varchar"
+        },
+        {
+          "name": "phone",
+          "type": "varchar"
+        },
+        {
+          "name": "zalo_phone",
+          "type": "varchar"
+        },
+        {
+          "name": "email",
+          "type": "varchar"
+        },
+        {
+          "name": "is_primary",
+          "type": "bool",
+          "required": true
+        },
+        {
+          "name": "is_active",
+          "type": "bool",
+          "required": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_account_id",
+          "type": "uuid"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "CONTACT",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "CONTACT",
+          "actionKey": "MANAGE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "CONTACT",
+          "actionKey": "MANAGE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "CUSTOMER",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_GROUPS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_groups",
+      "columns": [
+        {
+          "name": "group_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "group_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "group_name",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "parent_group_id",
+          "type": "uuid"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "bool",
+          "required": true
+        },
+        {
+          "name": "created_account_id",
+          "type": "uuid"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "GROUP",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "GROUP",
+          "actionKey": "MANAGE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "GROUP",
+          "actionKey": "MANAGE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_GROUP_MEMBERS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_group_members",
+      "columns": [
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "group_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "assigned_account_id",
+          "type": "uuid"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "GROUP",
+          "actionKey": "ASSIGN",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "GROUP",
+          "actionKey": "ASSIGN",
+          "operation": "DELETE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "CUSTOMER",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_LEGAL_CHANGE_REQUESTS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_legal_change_requests",
+      "columns": [
+        {
+          "name": "change_request_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "requested_by_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "status_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "evidence_document_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "old_legal_name",
+          "type": "varchar"
+        },
+        {
+          "name": "new_legal_name",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "old_country_code",
+          "type": "bpchar",
+          "required": true
+        },
+        {
+          "name": "new_country_code",
+          "type": "bpchar",
+          "required": true
+        },
+        {
+          "name": "old_customer_type_code",
+          "type": "varchar"
+        },
+        {
+          "name": "new_customer_type_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "old_identifier_type_code",
+          "type": "varchar"
+        },
+        {
+          "name": "new_identifier_type_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "old_identifier_normalized",
+          "type": "varchar"
+        },
+        {
+          "name": "new_identifier_normalized",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "resolved_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "applied_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "applied_by_account_id",
+          "type": "uuid"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "LEGAL_CHANGE",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "LEGAL_CHANGE",
+          "actionKey": "REQUEST",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "LEGAL_CHANGE",
+          "actionKey": "APPROVE_MANAGEMENT",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "LEGAL_CHANGE",
+          "actionKey": "APPROVE_ACCOUNTING",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_LEGAL_CHANGE_APPROVALS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_legal_change_approvals",
+      "columns": [
+        {
+          "name": "approval_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "change_request_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "stage_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "decision_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "decided_by_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "decision_note",
+          "type": "text"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "LEGAL_CHANGE",
+          "actionKey": "APPROVE_MANAGEMENT",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "LEGAL_CHANGE",
+          "actionKey": "APPROVE_ACCOUNTING",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_DOCUMENTS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_documents",
+      "columns": [
+        {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "document_name",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "document_type_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "note",
+          "type": "text"
+        },
+        {
+          "name": "signed_date",
+          "type": "date"
+        },
+        {
+          "name": "effective_date",
+          "type": "date"
+        },
+        {
+          "name": "expiry_date",
+          "type": "date"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "DOCUMENT",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "DOCUMENT",
+          "actionKey": "MANAGE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_APPOINTMENTS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_appointments",
+      "columns": [
+        {
+          "name": "appointment_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "title",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid"
+        },
+        {
+          "name": "contact_id",
+          "type": "uuid"
+        },
+        {
+          "name": "owner_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "created_by_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "start_at",
+          "type": "timestamptz",
+          "required": true
+        },
+        {
+          "name": "end_at",
+          "type": "timestamptz",
+          "required": true
+        },
+        {
+          "name": "location",
+          "type": "varchar"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "remind_minutes",
+          "type": "int4"
+        },
+        {
+          "name": "status_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "cancel_reason",
+          "type": "text"
+        },
+        {
+          "name": "cancelled_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "cancelled_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "outcome",
+          "type": "text"
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "review_handover_id",
+          "type": "uuid"
+        },
+        {
+          "name": "review_flagged_at",
+          "type": "timestamptz"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "APPOINTMENT",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "APPOINTMENT",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "APPOINTMENT",
+          "actionKey": "UPDATE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "ACKNOWLEDGE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_APPOINTMENT_REMINDER_DISMISSALS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_appointment_reminder_dismissals",
+      "columns": [
+        {
+          "name": "appointment_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "dismissed_at",
+          "type": "timestamptz"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "APPOINTMENT",
+          "actionKey": "REMIND_DISMISS",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_TASKS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_tasks",
+      "columns": [
+        {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "title",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid"
+        },
+        {
+          "name": "created_by_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "assignee_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "due_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "priority_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "progress_percent",
+          "type": "int2",
+          "required": true
+        },
+        {
+          "name": "status_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "cancelled_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "cancel_reason",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_by_account_id",
+          "type": "uuid"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "TASK",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "TASK",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "TASK",
+          "actionKey": "UPDATE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "ACKNOWLEDGE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_TASK_ASSIGNMENT_HISTORY",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_task_assignment_history",
+      "columns": [
+        {
+          "name": "history_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "task_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid"
+        },
+        {
+          "name": "previous_assignee_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "new_assignee_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "changed_by_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "changed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "reason_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "handover_id",
+          "type": "uuid"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "TASK",
+          "actionKey": "UPDATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "ACKNOWLEDGE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_WORK_REPORTS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_work_reports",
+      "columns": [
+        {
+          "name": "report_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "author_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "work_date",
+          "type": "date"
+        },
+        {
+          "name": "work_done",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "results",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "issues",
+          "type": "text"
+        },
+        {
+          "name": "next_steps",
+          "type": "text"
+        },
+        {
+          "name": "status_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "submitted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "CREATE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "SUBMIT",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_WORK_REPORT_CUSTOMERS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_work_report_customers",
+      "columns": [
+        {
+          "name": "report_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": true
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "CREATE",
+          "operation": "DELETE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_WORK_REPORT_APPOINTMENTS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_work_report_appointments",
+      "columns": [
+        {
+          "name": "report_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "appointment_id",
+          "type": "uuid",
+          "primaryKey": true
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "CREATE",
+          "operation": "DELETE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_WORK_REPORT_TASKS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_work_report_tasks",
+      "columns": [
+        {
+          "name": "report_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": true
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "WORK_REPORT",
+          "actionKey": "CREATE",
+          "operation": "DELETE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_HANDOVERS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_handovers",
+      "columns": [
+        {
+          "name": "handover_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "from_assignment_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "to_sale_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "initiated_by_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "handover_mode_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "status_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "requested_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "manager_approved_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "manager_approved_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "current_ack_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "current_ack_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "receiver_ack_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "receiver_ack_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "handover_note",
+          "type": "text"
+        },
+        {
+          "name": "rejected_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "rejected_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "rejection_reason",
+          "type": "text"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "REQUEST",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "APPROVE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "ACKNOWLEDGE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "REJECT",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_ASSIGNMENTS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_assignments",
+      "columns": [
+        {
+          "name": "assignment_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "sale_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "assigned_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "assigned_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "ended_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "ended_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "handover_to_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "handover_note",
+          "type": "text"
+        },
+        {
+          "name": "handover_accepted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "handover_accepted_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "assignment_role_code",
+          "type": "varchar",
+          "required": true
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ASSIGNMENT",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "ASSIGNMENT",
+          "actionKey": "MANAGE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "ASSIGNMENT",
+          "actionKey": "MANAGE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "CUSTOMER",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "REQUEST",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "APPROVE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "REJECT",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "ACKNOWLEDGE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "ACKNOWLEDGE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_ACTIVITIES",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_activities",
+      "columns": [
+        {
+          "name": "activity_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "activity_type_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "activity_status_code",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "title",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "due_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "assigned_to_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "created_by_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "ACTIVITY",
+          "actionKey": "READ",
+          "operation": "SELECT"
+        },
+        {
+          "functionKey": "ACTIVITY",
+          "actionKey": "CREATE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "ACTIVITY",
+          "actionKey": "UPDATE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "ACTIVITY",
+          "actionKey": "COMPLETE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        },
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "ACKNOWLEDGE",
+          "operation": "UPDATE",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    },
+    {
+      "resourceKey": "CM_CUSTOMER_HANDOVER_ACTIVITY_TRANSFERS",
+      "interfaceKind": "DIRECT_DB",
+      "schema": "cm",
+      "table": "cm_customer_handover_activity_transfers",
+      "columns": [
+        {
+          "name": "transfer_id",
+          "type": "uuid",
+          "primaryKey": true
+        },
+        {
+          "name": "handover_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "activity_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "previous_assignee_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "new_assignee_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "transferred_by_account_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "transferred_at",
+          "type": "timestamptz"
+        }
+      ],
+      "relations": [],
+      "access": [
+        {
+          "functionKey": "HANDOVER",
+          "actionKey": "ACKNOWLEDGE",
+          "operation": "INSERT",
+          "approvalMode": "NOT_REQUIRED"
+        }
+      ]
+    }
+  ],
+  "mic07IamMapping": [
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "CUSTOMER",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "READ_ALL",
+      "moduleCode": "CRM",
+      "resourceCode": "CUSTOMER",
+      "operation": "READ_ALL",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "CREATE",
+      "moduleCode": "CRM",
+      "resourceCode": "CUSTOMER",
+      "operation": "CREATE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "UPDATE",
+      "moduleCode": "CRM",
+      "resourceCode": "CUSTOMER",
+      "operation": "UPDATE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "VERIFY",
+      "moduleCode": "CRM",
+      "resourceCode": "CUSTOMER",
+      "operation": "VERIFY",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "HIDE",
+      "moduleCode": "CRM",
+      "resourceCode": "CUSTOMER",
+      "operation": "HIDE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CUSTOMER",
+      "actionKey": "EXPORT",
+      "moduleCode": "CRM",
+      "resourceCode": "CUSTOMER",
+      "operation": "EXPORT",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "LEGAL_CHANGE",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "REQUEST",
+      "moduleCode": "CRM",
+      "resourceCode": "LEGAL_CHANGE",
+      "operation": "REQUEST",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "APPROVE_MANAGEMENT",
+      "moduleCode": "CRM",
+      "resourceCode": "LEGAL_CHANGE",
+      "operation": "APPROVE_MANAGEMENT",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "LEGAL_CHANGE",
+      "actionKey": "APPROVE_ACCOUNTING",
+      "moduleCode": "CRM",
+      "resourceCode": "LEGAL_CHANGE",
+      "operation": "APPROVE_ACCOUNTING",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CONTACT",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "CONTACT",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "CONTACT",
+      "actionKey": "MANAGE",
+      "moduleCode": "CRM",
+      "resourceCode": "CONTACT",
+      "operation": "MANAGE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "GROUP",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "GROUP",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "GROUP",
+      "actionKey": "MANAGE",
+      "moduleCode": "CRM",
+      "resourceCode": "GROUP",
+      "operation": "MANAGE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "GROUP",
+      "actionKey": "ASSIGN",
+      "moduleCode": "CRM",
+      "resourceCode": "GROUP",
+      "operation": "ASSIGN",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ASSIGNMENT",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "ASSIGNMENT",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ASSIGNMENT",
+      "actionKey": "MANAGE",
+      "moduleCode": "CRM",
+      "resourceCode": "ASSIGNMENT",
+      "operation": "MANAGE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "REQUEST",
+      "moduleCode": "CRM",
+      "resourceCode": "HANDOVER",
+      "operation": "REQUEST",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "APPROVE",
+      "moduleCode": "CRM",
+      "resourceCode": "HANDOVER",
+      "operation": "APPROVE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "ACKNOWLEDGE",
+      "moduleCode": "CRM",
+      "resourceCode": "HANDOVER",
+      "operation": "ACKNOWLEDGE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "REJECT",
+      "moduleCode": "CRM",
+      "resourceCode": "HANDOVER",
+      "operation": "REJECT",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "HANDOVER",
+      "actionKey": "OVERRIDE",
+      "moduleCode": "CRM",
+      "resourceCode": "HANDOVER",
+      "operation": "OVERRIDE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ACTIVITY",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "ACTIVITY",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ACTIVITY",
+      "actionKey": "CREATE",
+      "moduleCode": "CRM",
+      "resourceCode": "ACTIVITY",
+      "operation": "CREATE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ACTIVITY",
+      "actionKey": "UPDATE",
+      "moduleCode": "CRM",
+      "resourceCode": "ACTIVITY",
+      "operation": "UPDATE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "ACTIVITY",
+      "actionKey": "COMPLETE",
+      "moduleCode": "CRM",
+      "resourceCode": "ACTIVITY",
+      "operation": "COMPLETE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "DOCUMENT",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "DOCUMENT",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "DOCUMENT",
+      "actionKey": "MANAGE",
+      "moduleCode": "CRM",
+      "resourceCode": "DOCUMENT",
+      "operation": "MANAGE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "REFERENCE",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "REFERENCE",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "APPOINTMENT",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "APPOINTMENT",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "APPOINTMENT",
+      "actionKey": "CREATE",
+      "moduleCode": "CRM",
+      "resourceCode": "APPOINTMENT",
+      "operation": "CREATE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "APPOINTMENT",
+      "actionKey": "UPDATE",
+      "moduleCode": "CRM",
+      "resourceCode": "APPOINTMENT",
+      "operation": "UPDATE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "APPOINTMENT",
+      "actionKey": "REMIND_DISMISS",
+      "moduleCode": "CRM",
+      "resourceCode": "APPOINTMENT",
+      "operation": "REMIND_DISMISS",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "TASK",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "TASK",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "TASK",
+      "actionKey": "CREATE",
+      "moduleCode": "CRM",
+      "resourceCode": "TASK",
+      "operation": "CREATE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "TASK",
+      "actionKey": "UPDATE",
+      "moduleCode": "CRM",
+      "resourceCode": "TASK",
+      "operation": "UPDATE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "TASK",
+      "actionKey": "ASSIGN",
+      "moduleCode": "CRM",
+      "resourceCode": "TASK",
+      "operation": "ASSIGN",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "WORK_REPORT",
+      "actionKey": "READ",
+      "moduleCode": "CRM",
+      "resourceCode": "WORK_REPORT",
+      "operation": "READ",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "WORK_REPORT",
+      "actionKey": "READ_ALL",
+      "moduleCode": "CRM",
+      "resourceCode": "WORK_REPORT",
+      "operation": "READ_ALL",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "WORK_REPORT",
+      "actionKey": "CREATE",
+      "moduleCode": "CRM",
+      "resourceCode": "WORK_REPORT",
+      "operation": "CREATE",
+      "minimumAssuranceLevel": 1
+    },
+    {
+      "functionKey": "WORK_REPORT",
+      "actionKey": "SUBMIT",
+      "moduleCode": "CRM",
+      "resourceCode": "WORK_REPORT",
+      "operation": "SUBMIT",
+      "minimumAssuranceLevel": 1
+    }
+  ],
+  "mic08EventsAudit": {
+    "eventCodes": [],
+    "auditActionCodes": [
+      "CRM.CUSTOMER.READ",
+      "CRM.CUSTOMER.READ_ALL",
+      "CRM.CUSTOMER.CREATE",
+      "CRM.CUSTOMER.UPDATE",
+      "CRM.CUSTOMER.VERIFY",
+      "CRM.CUSTOMER.HIDE",
+      "CRM.CUSTOMER.EXPORT",
+      "CRM.LEGAL_CHANGE.READ",
+      "CRM.LEGAL_CHANGE.REQUEST",
+      "CRM.LEGAL_CHANGE.APPROVE_MANAGEMENT",
+      "CRM.LEGAL_CHANGE.APPROVE_ACCOUNTING",
+      "CRM.CONTACT.READ",
+      "CRM.CONTACT.MANAGE",
+      "CRM.GROUP.READ",
+      "CRM.GROUP.MANAGE",
+      "CRM.GROUP.ASSIGN",
+      "CRM.ASSIGNMENT.READ",
+      "CRM.ASSIGNMENT.MANAGE",
+      "CRM.HANDOVER.REQUEST",
+      "CRM.HANDOVER.APPROVE",
+      "CRM.HANDOVER.ACKNOWLEDGE",
+      "CRM.HANDOVER.REJECT",
+      "CRM.HANDOVER.OVERRIDE",
+      "CRM.ACTIVITY.READ",
+      "CRM.ACTIVITY.CREATE",
+      "CRM.ACTIVITY.UPDATE",
+      "CRM.ACTIVITY.COMPLETE",
+      "CRM.DOCUMENT.READ",
+      "CRM.DOCUMENT.MANAGE",
+      "CRM.REFERENCE.READ",
+      "CRM.APPOINTMENT.READ",
+      "CRM.APPOINTMENT.CREATE",
+      "CRM.APPOINTMENT.UPDATE",
+      "CRM.APPOINTMENT.REMIND_DISMISS",
+      "CRM.TASK.READ",
+      "CRM.TASK.CREATE",
+      "CRM.TASK.UPDATE",
+      "CRM.TASK.ASSIGN",
+      "CRM.WORK_REPORT.READ",
+      "CRM.WORK_REPORT.READ_ALL",
+      "CRM.WORK_REPORT.CREATE",
+      "CRM.WORK_REPORT.SUBMIT"
+    ]
+  },
+  "mic09Compatibility": {
+    "kind": "INITIAL_REGISTRATION",
+    "changes": [
+      "CRM 0.2.0 candidate: first registration (customers, legal change, contacts, groups, assignments, handovers, activities, document metadata, appointments, To-dos, work reports)"
+    ]
+  },
+  "mic10Manifest": {
+    "manifestVersion": "MIC-1.0",
+    "hashAlgorithm": "SHA-256",
+    "testEvidence": [
+      {
+        "name": "CRM 0.2.0 candidate (clone only)",
+        "result": "NOT_TESTED",
+        "reference": "CRM_IMPLEMENTATION_PROGRESS_REPORT"
+      }
+    ]
+  }
+}

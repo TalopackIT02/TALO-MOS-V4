@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react';
 import { CrmClientError } from '../services/adapter';
 import type { CrmAdapter } from '../services/adapter';
-import { MockCrmAdapter } from '../services/mockAdapter';
+import { createCrmAdapter } from '../services/config';
 import type { Account, Permission, Session } from '../types/domain';
 
 // One adapter + session per browser tab, shared by the 5 CRM screens so that a change made in a customer profile is
@@ -27,8 +27,8 @@ const Ctx = createContext<CrmContextValue | null>(null);
 
 let sharedAdapter: CrmAdapter | null = null;
 export function crmAdapter(): CrmAdapter {
-  // API adapter: BLOCKED_BY_MODULE_HOST_WRITE_CAPABILITY — the mock is the only implementation in this release.
-  sharedAdapter ??= new MockCrmAdapter();
+  // MOCK (default, accepted Gate 1) or API (/api/cm through the Module Host) — chosen in services/config.ts.
+  sharedAdapter ??= createCrmAdapter();
   return sharedAdapter;
 }
 
